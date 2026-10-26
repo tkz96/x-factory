@@ -1,5 +1,6 @@
 // src/frontend/lib/run-chat-rows.ts — Folds a run's chat items into the rows the chat draws: runs of
-// progress and output lines become one group the reader can open (#261). Pure, so the run chat and the
+// agent updates (the Builder's progress and output, the Reviewer's tool calls and report) become one
+// group the reader can open (#261). Pure, so the run chat and the
 // stage timeline share one rule without importing each other.
 
 import type { ChatItem } from "./run-chat-items.js";
@@ -11,7 +12,7 @@ export type Row =
   | { kind: "item"; item: ChatItem }
   | { kind: "group"; id: string; items: ChatItem[] };
 
-/** Folds consecutive progress and output lines into groups; every other item is its own row. */
+/** Folds consecutive agent updates into groups; every other item is its own row. */
 export function groupRows(items: readonly ChatItem[]): Row[] {
   const rows: Row[] = [];
   let run: ChatItem[] = [];
@@ -24,7 +25,11 @@ export function groupRows(items: readonly ChatItem[]): Row[] {
     run = [];
   };
   for (const item of items) {
-    if (item.kind === "progress" || item.kind === "output") {
+    if (
+      item.kind === "progress" ||
+      item.kind === "output" ||
+      item.kind === "review"
+    ) {
       run.push(item);
     } else {
       flush();

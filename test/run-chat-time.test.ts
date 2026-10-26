@@ -2,7 +2,9 @@
 
 import { describe, expect, it } from "bun:test";
 import {
+  formatClockTime,
   formatRelativeTime,
+  formatTimelineTime,
   formatTimestamp,
 } from "../src/frontend/lib/format-timestamp.js";
 
@@ -32,5 +34,21 @@ describe("formatRelativeTime", () => {
 
   it("returns unparseable input unchanged", () => {
     expect(formatRelativeTime("not a date", NOW)).toBe("not a date");
+  });
+});
+
+describe("formatTimelineTime — the run timeline's clock", () => {
+  const AT = "2026-10-14T06:23:48.000Z";
+  const at = new Date(AT).getTime();
+
+  it("is relative within the hour, so a live run reads as it happens", () => {
+    expect(formatTimelineTime(AT, at + 30_000, "UTC")).toBe("Just now");
+    expect(formatTimelineTime(AT, at + 5 * 60_000, "UTC")).toBe("5 min ago");
+  });
+
+  it("is the time of day after that, never the full date on every line", () => {
+    expect(formatTimelineTime(AT, at + 2 * 3_600_000, "UTC")).toBe("06:23");
+    expect(formatTimelineTime(AT, at + 12 * 86_400_000, "UTC")).toBe("06:23");
+    expect(formatClockTime(AT, "Asia/Karachi")).toBe("11:23");
   });
 });

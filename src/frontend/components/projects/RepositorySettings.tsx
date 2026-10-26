@@ -14,6 +14,7 @@ import { useUpdateProjectRepositories } from "../../hooks/useQueries.js";
 import { REPOSITORY_SETTINGS_COPY } from "../feedback/copy-map.js";
 import { FeedbackBanner } from "../feedback/FeedbackBanner.js";
 import { Button } from "../ui/Button.js";
+import { Card } from "../ui/Card.js";
 
 interface RepositorySettingsProps {
   projectId: string;
@@ -77,90 +78,95 @@ function RepositoryForm({
   };
 
   return (
-    <form className="repo-settings-form" onSubmit={save} noValidate>
-      <h4 className="repo-settings-name">{repo.name}</h4>
+    <Card className="repo-settings-item" padding="compact">
+      <form className="repo-settings-form" onSubmit={save} noValidate>
+        <h4 className="repo-settings-name text-headline">{repo.name}</h4>
 
-      <label className="repo-settings-field" htmlFor={`${prefix}-path`}>
-        <span className="repo-settings-label">
-          {REPOSITORY_SETTINGS_COPY.path}
-        </span>
-        <input
-          id={`${prefix}-path`}
-          className="form-input repo-settings-input"
-          value={pathValue}
-          aria-invalid={pathError}
-          aria-describedby={`${prefix}-path-help`}
-          onChange={(e) => setPathValue(e.target.value)}
-        />
-        <span id={`${prefix}-path-help`} className="repo-settings-help">
-          {REPOSITORY_SETTINGS_COPY.pathHelp}
-        </span>
-      </label>
-
-      {COMMAND_FIELDS.map((field) => (
-        <label
-          key={field}
-          className="repo-settings-field"
-          htmlFor={`${prefix}-${field}`}
-        >
-          <span className="repo-settings-label">
-            {REPOSITORY_SETTINGS_COPY[field]}
+        <label className="repo-settings-field" htmlFor={`${prefix}-path`}>
+          <span className="repo-settings-label text-subhead">
+            {REPOSITORY_SETTINGS_COPY.path}
           </span>
           <input
-            id={`${prefix}-${field}`}
-            className="form-input repo-settings-input repo-settings-input--mono"
-            value={commands[field]}
-            placeholder={
-              field === "test" ? undefined : REPOSITORY_SETTINGS_COPY.optional
-            }
-            onChange={(e) =>
-              setCommands((prev) => ({ ...prev, [field]: e.target.value }))
+            id={`${prefix}-path`}
+            className="form-input repo-settings-input text-callout"
+            value={pathValue}
+            aria-invalid={pathError}
+            aria-describedby={`${prefix}-path-help`}
+            onChange={(e) => setPathValue(e.target.value)}
+          />
+          <span
+            id={`${prefix}-path-help`}
+            className="repo-settings-help text-subhead"
+          >
+            {REPOSITORY_SETTINGS_COPY.pathHelp}
+          </span>
+        </label>
+
+        {COMMAND_FIELDS.map((field) => (
+          <label
+            key={field}
+            className="repo-settings-field"
+            htmlFor={`${prefix}-${field}`}
+          >
+            <span className="repo-settings-label text-subhead">
+              {REPOSITORY_SETTINGS_COPY[field]}
+            </span>
+            <input
+              id={`${prefix}-${field}`}
+              className="form-input repo-settings-input repo-settings-input--mono text-callout"
+              value={commands[field]}
+              placeholder={
+                field === "test" ? undefined : REPOSITORY_SETTINGS_COPY.optional
+              }
+              onChange={(e) =>
+                setCommands((prev) => ({ ...prev, [field]: e.target.value }))
+              }
+            />
+            {field === "test" && (
+              <span className="repo-settings-help text-subhead">
+                {REPOSITORY_SETTINGS_COPY.testHelp}
+              </span>
+            )}
+          </label>
+        ))}
+
+        {pathError && (
+          <FeedbackBanner
+            tone="error"
+            message={REPOSITORY_SETTINGS_COPY.pathRequired}
+          />
+        )}
+        {mutation.isError && (
+          <FeedbackBanner
+            tone="error"
+            message={
+              mutation.error instanceof Error
+                ? mutation.error.message
+                : String(mutation.error)
             }
           />
-          {field === "test" && (
-            <span className="repo-settings-help">
-              {REPOSITORY_SETTINGS_COPY.testHelp}
+        )}
+
+        <div className="repo-settings-actions">
+          {mutation.isSuccess && (
+            <span className="repo-settings-saved text-subhead" role="status">
+              {REPOSITORY_SETTINGS_COPY.saved}
             </span>
           )}
-        </label>
-      ))}
-
-      {pathError && (
-        <FeedbackBanner
-          tone="error"
-          message={REPOSITORY_SETTINGS_COPY.pathRequired}
-        />
-      )}
-      {mutation.isError && (
-        <FeedbackBanner
-          tone="error"
-          message={
-            mutation.error instanceof Error
-              ? mutation.error.message
-              : String(mutation.error)
-          }
-        />
-      )}
-
-      <div className="repo-settings-actions">
-        {mutation.isSuccess && (
-          <span className="repo-settings-saved" role="status">
-            {REPOSITORY_SETTINGS_COPY.saved}
-          </span>
-        )}
-        <Button
-          type="submit"
-          id={`${prefix}-save`}
-          variant="primary"
-          size="sm"
-          isDisabled={mutation.isPending}
-        >
-          {mutation.isPending
-            ? REPOSITORY_SETTINGS_COPY.saving
-            : REPOSITORY_SETTINGS_COPY.save}
-        </Button>
-      </div>
-    </form>
+          <Button
+            type="submit"
+            id={`${prefix}-save`}
+            variant="primary"
+            size="sm"
+            isDisabled={mutation.isPending}
+          >
+            {mutation.isPending
+              ? REPOSITORY_SETTINGS_COPY.saving
+              : REPOSITORY_SETTINGS_COPY.save}
+          </Button>
+        </div>
+      </form>
+    </Card>
   );
 }
 
@@ -170,7 +176,9 @@ export function RepositorySettings({
 }: RepositorySettingsProps) {
   return (
     <section className="repo-settings" aria-labelledby="repo-settings-title">
-      <h3 id="repo-settings-title">{REPOSITORY_SETTINGS_COPY.title}</h3>
+      <h3 id="repo-settings-title" className="text-headline">
+        {REPOSITORY_SETTINGS_COPY.title}
+      </h3>
       {repositories.map((repo) => (
         <RepositoryForm
           key={repo.id}

@@ -22,7 +22,6 @@
 }
 
 .feedback-banner-message {
-  font-size: var(--text-footnote);
   color: var(--text);
   line-height: 1.5;
 }
@@ -33,7 +32,6 @@
 }
 
 .feedback-banner-items li {
-  font-size: var(--text-footnote);
   color: var(--text-muted);
   line-height: 1.5;
 }
@@ -48,7 +46,6 @@
 
 /* Rate-limit timed guidance — shared by FeedbackBanner and AsyncRegion. */
 .feedback-countdown {
-  font-size: var(--text-caption-1);
   color: var(--text-muted);
   white-space: nowrap;
 }

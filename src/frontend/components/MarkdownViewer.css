@@ -2,46 +2,37 @@
 
 .md-viewer {
   line-height: 1.7;
-  font-size: 0.95rem;
   color: var(--text);
   word-break: break-word;
 }
 
 .md-viewer h1 {
   font-family: var(--font-display);
-  font-size: var(--text-title-1);
-  font-weight: 700;
   letter-spacing: -0.02em;
-  margin: 1.5rem 0 0.8rem;
-  padding-bottom: 0.4rem;
-  border-bottom: var(--border-width) solid var(--border-subtle);
+  margin: var(--space-6) 0 var(--space-3);
+  padding-bottom: var(--space-1-5);
+  border-bottom: var(--hairline) solid var(--separator);
   color: var(--text);
 }
 
 .md-viewer h2 {
   font-family: var(--font-display);
-  font-size: var(--text-title-2);
-  font-weight: 600;
-  margin: 1.4rem 0 0.6rem;
+  margin: var(--space-6) 0 var(--space-2-5);
   color: var(--text);
 }
 
 .md-viewer h3 {
-  font-size: var(--text-title-3);
-  font-weight: 600;
-  margin: 1.1rem 0 0.5rem;
+  margin: var(--space-4) 0 var(--space-2);
   color: var(--text);
 }
 
 .md-viewer h4 {
-  font-size: var(--text-headline);
-  font-weight: 600;
-  margin: 0.9rem 0 0.4rem;
+  margin: var(--space-4) 0 var(--space-1-5);
   color: var(--text-muted);
 }
 
 .md-viewer p {
-  margin: 0.6rem 0;
+  margin: var(--space-2-5) 0;
   line-height: 1.65;
   color: var(--text);
 }
@@ -49,27 +40,27 @@
 .md-viewer ul,
 .md-viewer ol,
 .md-list {
-  margin: 0.6rem 0;
-  padding-left: 1.5rem;
+  margin: var(--space-2-5) 0;
+  padding-left: var(--space-6);
   line-height: 1.7;
 }
 
 .md-viewer li {
-  margin-bottom: 0.25rem;
+  margin-bottom: var(--space-1);
 }
 
 .md-viewer hr {
-  margin: 1.5rem 0;
+  margin: var(--space-6) 0;
   border: none;
-  border-top: var(--border-width) solid var(--border);
+  border-top: var(--hairline) solid var(--separator);
 }
 
 /* ── Code Block ──────────────────────────────────────────────────────── */
 
 .md-code-container {
-  margin: 1rem 0;
+  margin: var(--space-4) 0;
   border-radius: var(--radius-sm);
-  border: var(--border-width) solid var(--border);
+  border: var(--hairline) solid var(--separator);
   background: var(--bg-code);
   overflow: hidden;
 }
@@ -78,53 +69,18 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.35rem 0.8rem;
+  padding: var(--space-1-5) var(--space-3);
   background: var(--bg-hover);
-  border-bottom: var(--border-width) solid var(--border-subtle);
-  font-size: var(--text-caption-1);
+  border-bottom: var(--hairline) solid var(--separator);
   color: var(--text-muted);
   font-family: var(--font-mono);
-}
-
-.md-copy-btn {
-  background: transparent;
-  border: var(--border-width) solid var(--border-subtle);
-  color: var(--text-muted);
-  padding: 0.15rem 0.5rem;
-  border-radius: var(--radius-sm);
-  font-size: var(--text-caption-2);
-  cursor: pointer;
-  transition:
-    background-color var(--transition-fast),
-    color var(--transition-fast),
-    border-color var(--transition-fast);
-}
-
-.md-copy-btn:hover {
-  background: var(--bg-card);
-  color: var(--text);
-  border-color: var(--border);
-}
-
-.md-copy-btn.copied {
-  color: var(--green);
-}
-
-/* The chip stays a chip, but a finger gets the full target: at phone width the
-   copy row grows and the button fills it (DESIGN.md §8, 44×44pt). */
-@media (pointer: coarse), (max-width: 768px) {
-  .md-copy-btn {
-    min-height: var(--tap-min);
-    padding-inline: var(--space-3);
-  }
 }
 
 .md-code-pre {
   margin: 0;
-  padding: 0.85rem 1rem;
+  padding: var(--space-3) var(--space-4);
   overflow-x: auto;
   font-family: var(--font-mono);
-  font-size: 0.82rem;
   line-height: 1.5;
   color: var(--text);
 }
@@ -133,15 +89,13 @@
 
 .md-inline-code {
   background: var(--bg-hover);
-  padding: 0.15rem 0.35rem;
+  padding: var(--space-0-5) var(--space-1-5);
   border-radius: var(--radius-sm);
-  font-size: 0.85em;
   font-family: var(--font-mono);
   color: var(--accent);
 }
 
 .md-bold {
-  font-weight: 600;
   color: var(--text);
 }
 
@@ -166,22 +120,23 @@
 /* ── Blockquotes & Alerts ────────────────────────────────────────────── */
 
 .md-viewer blockquote {
-  margin: 1rem 0;
-  padding: 0.5rem 1rem;
+  margin: var(--space-4) 0;
+  padding: var(--space-2) var(--space-4);
   border-left: var(--border-width-indicator) solid var(--accent);
   background: var(--accent-dim);
   color: var(--text-muted);
   font-style: italic;
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  border-radius: var(--radius-none) var(--radius-sm) var(--radius-sm)
+    var(--radius-none);
 }
 
 .md-quote-line {
-  margin: 0.2rem 0;
+  margin: var(--space-micro) 0;
 }
 
 .md-alert {
-  margin: 1rem 0;
-  padding: 0.8rem 1rem;
+  margin: var(--space-4) 0;
+  padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-sm);
 }
 
@@ -207,11 +162,9 @@
 }
 
 .md-alert-title {
-  font-weight: 700;
-  font-size: var(--text-caption-1);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  margin-bottom: 0.3rem;
+  margin-bottom: var(--space-1);
 }
 
 .md-alert-tip .md-alert-title {
@@ -229,42 +182,38 @@
 }
 
 .md-alert-body {
-  font-size: 0.9rem;
   line-height: 1.6;
   color: var(--text);
 }
 
 .md-alert-line {
-  margin: 0.2rem 0;
+  margin: var(--space-micro) 0;
 }
 
 /* ── Tables ──────────────────────────────────────────────────────────── */
 
 .md-table-container {
-  margin: 1rem 0;
+  margin: var(--space-4) 0;
   overflow-x: auto;
 }
 
 .md-viewer table {
   width: 100%;
   border-collapse: collapse;
-  margin-bottom: 1rem;
-  font-size: 0.85rem;
+  margin-bottom: var(--space-4);
 }
 
 .md-viewer th {
   text-align: left;
-  padding: 0.5rem 0.8rem;
+  padding: var(--space-2) var(--space-3);
   background: var(--bg-hover);
   border-bottom: var(--border-width-thick) solid var(--border);
   color: var(--text);
-  font-weight: 600;
-  font-size: var(--text-caption-1);
 }
 
 .md-viewer td {
-  padding: 0.45rem 0.8rem;
-  border-bottom: var(--border-width) solid var(--border-subtle);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: var(--hairline) solid var(--separator);
   color: var(--text-muted);
 }
 

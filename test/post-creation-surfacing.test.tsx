@@ -627,7 +627,7 @@ describe("Tracker card — capability-driven diagnostics (#147)", () => {
       makeClient(),
     );
 
-    expect(container.querySelector(".project-tracker-card")).not.toBeNull();
+    expect(container.querySelector(".project-tracker")).not.toBeNull();
     expect(container.textContent).toContain("Plain Tracker");
     expect(
       Array.from(container.querySelectorAll("button")).some(
@@ -1059,7 +1059,7 @@ describe("Work Queue — combo state matrix", () => {
       }
     });
     // The empty state is a headline and one guidance line (E3).
-    expect(container.querySelector(".async-region-title")?.textContent).toBe(
+    expect(container.querySelector(".ui-empty-state-title")?.textContent).toBe(
       QUEUE_COPY.emptyTitle,
     );
     expect(container.textContent).toContain(

@@ -6,7 +6,6 @@ import type {
   StageModelUse,
   StageStartedPayload,
 } from "../../shared/types.js";
-import { formatUsd } from "./format-money.js";
 
 /** The latest attempt a role ran on, if any. */
 export function latestModelFor(
@@ -16,21 +15,49 @@ export function latestModelFor(
   return stageModels.filter((m) => m.role === role).at(-1);
 }
 
-function compactCount(n: number): string {
+/** "12.4K" for a token count; small counts stay exact. */
+export function formatTokenCount(n: number): string {
   if (n < 1000) return String(n);
   if (n < 1_000_000) return `${(n / 1000).toFixed(1).replace(/\.0$/, "")}K`;
   return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
 }
 
-/** "12.4K in · 2.1K out · $0.0062", or "" when nothing was reported. */
-export function formatUsage(usage: ModelUsage): string {
-  const parts: string[] = [];
-  if (usage.tokensIn !== undefined)
-    parts.push(`${compactCount(usage.tokensIn)} in`);
-  if (usage.tokensOut !== undefined)
-    parts.push(`${compactCount(usage.tokensOut)} out`);
-  if (usage.costUsd !== undefined) parts.push(formatUsd(usage.costUsd));
-  return parts.join(" · ");
+/** What one role used over a run: the latest model, and every reported count added up. */
+export interface RoleUsage extends ModelUsage {
+  modelId: string;
+  /** The steps that ran but reported no tokens (a coding agent may report none). */
+  unreportedSteps: string[];
+}
+
+function total(
+  uses: readonly StageModelUse[],
+  key: keyof ModelUsage,
+): number | undefined {
+  const values = uses
+    .map((use) => use[key])
+    .filter((n): n is number => n !== undefined);
+  return values.length === 0 ? undefined : values.reduce((a, b) => a + b, 0);
+}
+
+/** A role's usage over every stage it ran in, or undefined when it has not run yet. */
+export function usageFor(
+  stageModels: readonly StageModelUse[],
+  role: ModelRoleName,
+): RoleUsage | undefined {
+  const uses = stageModels.filter((m) => m.role === role);
+  const latest = uses.at(-1);
+  if (!latest) return undefined;
+  return {
+    modelId: latest.modelId,
+    tokensIn: total(uses, "tokensIn"),
+    tokensOut: total(uses, "tokensOut"),
+    costUsd: total(uses, "costUsd"),
+    unreportedSteps: uses
+      .filter(
+        (use) => use.tokensIn === undefined && use.tokensOut === undefined,
+      )
+      .map((use) => use.step),
+  };
 }
 
 const STAGE_VERBS: Readonly<Record<string, string>> = {

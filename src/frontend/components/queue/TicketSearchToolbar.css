@@ -18,7 +18,7 @@
   gap: var(--space-3);
   background: var(--bg-card);
   border: none;
-  box-shadow: inset 0 0 0 var(--border-width) var(--border-control);
+  box-shadow: var(--shadow-ring-control);
   border-radius: var(--radius-md);
   padding: 0 var(--space-4);
   min-height: var(--tap-min);
@@ -30,16 +30,14 @@
 }
 
 .search-box:focus-within {
-  box-shadow:
-    inset 0 0 0 var(--border-width) var(--accent),
-    0 0 0 var(--border-width-indicator) var(--accent-dim);
+  box-shadow: var(--shadow-search-focus);
 }
 
 .search-box input {
   background: transparent;
   border: none;
   color: var(--text);
-  font-size: var(--text-subhead);
+  /* The size comes from the `text-subhead` class on the input. */
   font-family: var(--font-sans);
   width: 100%;
   /* The input is the tap target, not just the field around it. */

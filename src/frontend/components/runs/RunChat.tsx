@@ -5,14 +5,9 @@
 import "./RunChat.css";
 
 import { type ReactNode, useMemo, useRef, useState } from "react";
-import type { DiffFileSummary } from "../../../shared/diff-summary.js";
 import { canRunAction } from "../../../shared/run-status-policy.js";
 import type { Run, RunEvent, RunStatus } from "../../../shared/types.js";
 import { useNow } from "../../hooks/useNow.js";
-import {
-  type ParsedDiffFile,
-  parseDiffToFiles,
-} from "../../lib/diff-parser.js";
 import {
   type ChatItem,
   mapEventsToChatItems,
@@ -22,7 +17,6 @@ import { groupItemsByStage } from "../../lib/run-stages.js";
 import { NEEDS_YOU_STATUSES, runStatusUi } from "../../lib/run-status-ui.js";
 import { AlertDialog } from "../overlays/AlertDialog.js";
 import { useMediaQuery } from "../ui/useMediaQuery.js";
-import { DiffModal } from "./DiffModal.js";
 import { RunChatComposer } from "./RunChatComposer.js";
 import { RunChatHeader } from "./RunChatHeader.js";
 import { RunChatLog } from "./RunChatLog.js";
@@ -111,10 +105,6 @@ export function RunChat({
     inputRef,
   });
   const [input, setInput] = useState("");
-  const [activeDiffFile, setActiveDiffFile] = useState<ParsedDiffFile | null>(
-    null,
-  );
-  const parsedDiffFiles = useMemo(() => parseDiffToFiles(run.diff), [run.diff]);
 
   const isApprovalGate = canRunAction(run.status, "chat");
   const items = chatItemsFor(realItems, chat.localItems, run.status);
@@ -180,18 +170,6 @@ export function RunChat({
     />
   ) : undefined;
 
-  const openDiffFile = (file: DiffFileSummary) => {
-    const found = parsedDiffFiles.find((f) => f.file === file.path);
-    setActiveDiffFile(
-      found ?? {
-        file: file.path,
-        added: file.added,
-        removed: file.removed,
-        hunks: "",
-      },
-    );
-  };
-
   return (
     <div className="run-panel run-chat" id="understanding-chat">
       <RunChatHeader
@@ -209,7 +187,6 @@ export function RunChat({
         openStages={stages.openStages}
         onToggleStage={stages.toggleStage}
         now={now}
-        onOpenFile={openDiffFile}
         retryFor={retryFor}
         decision={decision}
         waiting={NEEDS_YOU_STATUSES.has(run.status)}
@@ -248,15 +225,6 @@ export function RunChat({
         cancelText="Keep Run"
         variant="danger"
         onConfirm={flow.confirmAbandon}
-      />
-
-      <DiffModal
-        isOpen={activeDiffFile !== null}
-        file={activeDiffFile?.file || null}
-        added={activeDiffFile?.added || 0}
-        removed={activeDiffFile?.removed || 0}
-        hunks={activeDiffFile?.hunks || ""}
-        onClose={() => setActiveDiffFile(null)}
       />
     </div>
   );

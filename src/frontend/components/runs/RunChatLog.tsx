@@ -1,16 +1,16 @@
 // src/frontend/components/runs/RunChatLog.tsx — The run chat's log: the six stage groups with their rows,
 // the decision card in the decision stage, a failed send with Retry, the resolved line, the typing
-// indicator, and Jump to latest. The log keeps its place while the reader is up the chat.
+// indicator, and Jump to Latest. The log keeps its place while the reader is up the chat.
 
 import "./RunChat.css";
 
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import type { DiffFileSummary } from "../../../shared/diff-summary.js";
 import type { WorkflowStage } from "../../../shared/types.js";
 import type { ChatItem } from "../../lib/run-chat-items.js";
 import type { StageGroup } from "../../lib/run-stages.js";
 import { Button } from "../ui/Button.js";
+import { EmptyState } from "../ui/EmptyState.js";
 import { RunStageTimeline } from "./RunStageTimeline.js";
 
 /** How close to the bottom still counts as following the chat. */
@@ -31,7 +31,7 @@ function withSettingsLink(message: string): ReactNode {
   );
 }
 
-/** Keeps the scroll position while the reader is up the chat, and offers Jump to latest. */
+/** Keeps the scroll position while the reader is up the chat, and offers Jump to Latest. */
 function useScrollFollow(itemCount: number) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const atBottomRef = useRef(true);
@@ -74,7 +74,6 @@ interface RunChatLogProps {
   openStages: ReadonlySet<WorkflowStage>;
   onToggleStage: (stage: WorkflowStage) => void;
   now: number;
-  onOpenFile: (file: DiffFileSummary) => void;
   retryFor: (item: ChatItem) => (() => void) | undefined;
   decision: ReactNode;
   waiting: boolean;
@@ -91,7 +90,6 @@ export function RunChatLog({
   openStages,
   onToggleStage,
   now,
-  onOpenFile,
   retryFor,
   decision,
   waiting,
@@ -104,7 +102,7 @@ export function RunChatLog({
   return (
     <div className="run-chat-timeline">
       <div
-        className="run-chat-messages run-panel-scroll"
+        className="run-chat-messages run-panel-scroll text-subhead"
         role="log"
         aria-live="polite"
         aria-relevant="additions"
@@ -112,14 +110,15 @@ export function RunChatLog({
         onScroll={scroll.onScroll}
       >
         {items.length === 0 && (
-          <p className="run-chat-empty">Waiting for the first update…</p>
+          <div className="run-chat-note">
+            <EmptyState message="Waiting for the first update…" />
+          </div>
         )}
         <RunStageTimeline
           groups={groups}
           open={openStages}
           onToggle={onToggleStage}
           now={now}
-          onOpenFile={onOpenFile}
           retryFor={retryFor}
           decision={decision}
           waiting={waiting}
@@ -154,7 +153,7 @@ export function RunChatLog({
       {scroll.unseen && (
         <div className="run-chat-jump">
           <Button variant="secondary" size="sm" onPress={scroll.jumpToLatest}>
-            Jump to latest
+            Jump to Latest
           </Button>
         </div>
       )}

@@ -203,7 +203,6 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
           open: defaultOpenStages(groups),
           onToggle: () => undefined,
           now: Date.parse("2026-10-20T12:00:00.000Z"),
-          onOpenFile: () => undefined,
           waiting: false,
         }),
       );
@@ -333,10 +332,7 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
       ).text();
       expect(indexCss).toContain("./tokens.css");
       expect(indexCss).toContain("./base.css");
-      expect(indexCss).toContain("./shared/buttons.css");
-      expect(indexCss).toContain("./shared/cards.css");
       expect(indexCss).toContain("./shared/forms.css");
-      expect(indexCss).toContain("./shared/badges.css");
       expect(indexCss).toContain("./shared/icons.css");
       expect(indexCss).toContain("./shared/scrollbar.css");
       expect(indexCss).toContain("./utilities.css");
@@ -692,6 +688,679 @@ describe("Frontend Smoke — CSS variable resolution", () => {
       }
     }
     expect(violations).toEqual([]);
+  });
+});
+
+// ─── Foundations gates (spec #292, step 1) ─────────────────────────────────
+
+/** The values of one property in a stylesheet, comments removed and whitespace collapsed. */
+function declarationValues(css: string, property: string): string[] {
+  const stripped = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  const pattern = new RegExp(`(?:^|[;{\\s])${property}\\s*:\\s*([^;{}]*)`, "g");
+  return [...stripped.matchAll(pattern)].map((m) =>
+    (m[1] ?? "").replace(/\s+/g, " ").trim(),
+  );
+}
+
+/**
+ * G1: a box-shadow or border-radius value is built only from tokens: var(--x),
+ * calc() of tokens (an inner radius is the outer one minus the inset), or none.
+ * Once the tokens are removed, nothing may be left but operators and brackets.
+ */
+function isTokenShapeValue(value: string): boolean {
+  if (value === "none") return true;
+  const rest = value
+    .replace(/calc\(/g, "(")
+    .replace(/var\(\s*--[a-zA-Z0-9_-]+\s*\)/g, "")
+    .replace(/\s+/g, "");
+  return /^[(),+\-*/]*$/.test(rest) && /var\(/.test(value);
+}
+
+function rawShapeDeclarations(css: string): string[] {
+  return ["box-shadow", "border-radius"].flatMap((property) =>
+    declarationValues(css, property)
+      .filter((value) => !isTokenShapeValue(value))
+      .map((value) => `${property}: ${value}`),
+  );
+}
+
+/** G2: no text token is smaller than 10px (the root is 16px, so rem * 16). */
+const MIN_TEXT_TOKEN_PX = 10;
+const REMOVED_TEXT_TOKENS = ["--text-micro", "--text-badge", "--text-tag"];
+
+function undersizedTextTokens(css: string): string[] {
+  const stripped = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  const out: string[] = [];
+  for (const m of stripped.matchAll(
+    /(--text-[a-zA-Z0-9-]+)\s*:\s*([0-9.]+)(px|rem)\s*;/g,
+  )) {
+    const px = Number(m[2]) * (m[3] === "rem" ? 16 : 1);
+    if (px < MIN_TEXT_TOKEN_PX) out.push(`${m[1]}: ${m[2]}${m[3]}`);
+  }
+  return out;
+}
+
+describe("Frontend Smoke — Foundations gates G1 and G2 (spec #292)", () => {
+  function frontendStylesheets(): { file: string; text: string }[] {
+    const out: { file: string; text: string }[] = [];
+    const walk = (dir: string) => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) walk(full);
+        else if (entry.name.endsWith(".css")) {
+          out.push({
+            file: path.relative(ROOT_DIR, full),
+            text: fs.readFileSync(full, "utf-8"),
+          });
+        }
+      }
+    };
+    walk(path.join(ROOT_DIR, "src/frontend"));
+    return out;
+  }
+
+  const stylesheets = frontendStylesheets();
+  const outsideTokens = stylesheets.filter(
+    ({ file }) => !file.endsWith("tokens.css"),
+  );
+
+  it("G1: no raw box-shadow or border-radius value outside tokens.css", () => {
+    const violations = outsideTokens.flatMap(({ file, text }) =>
+      rawShapeDeclarations(text).map((value) => `${file}: ${value}`),
+    );
+    expect(violations).toEqual([]);
+  });
+
+  it("G1 fails on a raw shadow or radius, and passes tokens and none (fixture)", () => {
+    expect(
+      rawShapeDeclarations(
+        ".card { box-shadow: 0 1px 2px red; border-radius: 4px; }",
+      ),
+    ).toEqual(["box-shadow: 0 1px 2px red", "border-radius: 4px"]);
+    expect(
+      rawShapeDeclarations(
+        ".ok {\n  box-shadow:\n    var(--shadow-sm);\n  border-radius: var(--radius-card);\n  border-radius: calc(var(--radius-md) - var(--space-1));\n}\n.none { box-shadow: none; }",
+      ),
+    ).toEqual([]);
+    expect(
+      rawShapeDeclarations(
+        ".edge { border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }",
+      ),
+    ).toEqual(["border-radius: 0 var(--radius-sm) var(--radius-sm) 0"]);
+  });
+
+  it("G2: no text token is smaller than 10px, and the off-scale tokens are gone", () => {
+    const tokens = stylesheets.find(({ file }) =>
+      file.endsWith("tokens.css"),
+    )?.text;
+    expect(tokens).toBeDefined();
+    expect(undersizedTextTokens(tokens ?? "")).toEqual([]);
+    const uses = stylesheets.flatMap(({ file, text }) =>
+      REMOVED_TEXT_TOKENS.filter((name) => text.includes(name)).map(
+        (name) => `${file}: ${name}`,
+      ),
+    );
+    expect(uses).toEqual([]);
+  });
+
+  it("G2 fails on a token below 10px and on a removed token (fixture)", () => {
+    expect(
+      undersizedTextTokens(
+        ":root { --text-micro: 9px; --text-caption-1: 0.625rem; --text-footnote: 0.5rem; }",
+      ),
+    ).toEqual(["--text-micro: 9px", "--text-footnote: 0.5rem"]);
+    expect(
+      REMOVED_TEXT_TOKENS.filter((name) =>
+        ".x { font-size: var(--text-tag); }".includes(name),
+      ),
+    ).toEqual(["--text-tag"]);
+  });
+});
+
+// ─── Migration gates G3–G9 and G11 (spec #292, "Gates") ─────────────────────
+
+/** Every file under src/frontend with one of the given extensions, as text. */
+function frontendFiles(exts: string[]): { file: string; text: string }[] {
+  const out: { file: string; text: string }[] = [];
+  const walk = (dir: string) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (exts.some((ext) => entry.name.endsWith(ext))) {
+        out.push({
+          file: path.relative(ROOT_DIR, full),
+          text: fs.readFileSync(full, "utf-8"),
+        });
+      }
+    }
+  };
+  walk(path.join(ROOT_DIR, "src/frontend"));
+  return out;
+}
+
+function stripComments(css: string): string {
+  return css.replace(/\/\*[\s\S]*?\*\//g, "");
+}
+
+/** Every rule as its selector and body, innermost rules first (media wrappers are skipped). */
+function cssRules(css: string): { selector: string; body: string }[] {
+  return [...stripComments(css).matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({
+    selector: (m[1] ?? "").trim(),
+    body: m[2] ?? "",
+  }));
+}
+
+/** Declarations of one property in a body, as their values. */
+function bodyValues(body: string, property: string): string[] {
+  const pattern = new RegExp(`(?:^|[;\\s])${property}\\s*:\\s*([^;]*)`, "g");
+  return [...body.matchAll(pattern)].map((m) =>
+    (m[1] ?? "").replace(/\s+/g, " ").trim(),
+  );
+}
+
+const SPACING_PROPERTIES =
+  "(?:margin|padding|gap|row-gap|column-gap|inset|top|right|bottom|left)(?:-[a-z-]+)?";
+
+/** G3: a margin, padding, gap, inset or offset value never uses rem or em. */
+function rawSpacingDeclarations(css: string): string[] {
+  const pattern = new RegExp(
+    `(?:^|[;{\\s])(${SPACING_PROPERTIES})\\s*:\\s*([^;{}]*)`,
+    "g",
+  );
+  return [...stripComments(css).matchAll(pattern)]
+    .filter((m) => /(?<![\w-])\d*\.?\d+r?em\b/.test(m[2] ?? ""))
+    .map((m) => `${m[1]}: ${(m[2] ?? "").trim()}`);
+}
+
+/** G4: text is set by text styles. Only the four shared text files may name a text token. */
+const TEXT_STYLE_FILES = [
+  "src/frontend/styles/utilities.css",
+  "src/frontend/styles/shared/controls.css",
+  "src/frontend/styles/shared/forms.css",
+  "src/frontend/styles/base.css",
+];
+
+function fontViolations(file: string, css: string): string[] {
+  const out: string[] = [];
+  const exempt = TEXT_STYLE_FILES.includes(file);
+  for (const { selector, body } of cssRules(css)) {
+    for (const property of ["font-size", "font-weight"]) {
+      for (const value of bodyValues(body, property)) {
+        if (!exempt) {
+          out.push(`${file}: ${property}: ${value}`);
+        } else if (file.endsWith("base.css") && selector !== "html") {
+          out.push(`${file}: ${property} outside the html root rule`);
+        } else if (
+          property === "font-size" &&
+          !/^var\(--text-[a-z0-9-]+\)$/.test(value)
+        ) {
+          out.push(`${file}: font-size is not a text token: ${value}`);
+        } else if (
+          property === "font-weight" &&
+          !/^var\(--(?:font-weight|text)-[a-z0-9-]+\)$/.test(value)
+        ) {
+          out.push(`${file}: font-weight is not a weight token: ${value}`);
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/** G9: a card class is the Card block's; a diagram node card is the one exception. */
+function isCardClassName(name: string): boolean {
+  if (name.startsWith("ui-") || name === "flow-node-card") return false;
+  return name === "card" || name.endsWith("-card");
+}
+
+function cardClassesInCss(css: string): string[] {
+  return [...stripComments(css).matchAll(/\.([a-zA-Z0-9_-]+)/g)]
+    .map((m) => m[1] ?? "")
+    .filter(isCardClassName);
+}
+
+function cardClassesInTsx(tsx: string): string[] {
+  const literals = [...tsx.matchAll(/className=\{?(["`])([^"`]*)\1/g)].map(
+    (m) => m[2] ?? "",
+  );
+  return literals.flatMap((text) => text.split(/\s+/).filter(isCardClassName));
+}
+
+/** G5 and G6: a raw button, or a direct sprite path, lives only in components/ui. */
+function isBlockFile(file: string): boolean {
+  return file.startsWith("src/frontend/components/ui/");
+}
+
+/** G7: a view renders no page heading of its own; PageHeader carries it. */
+const PAGE_HEADING_CLASS =
+  /(?:^|[\s"'`])(?:page-heading|page-header|view-header)\b/;
+
+/** G8: empty-state markup is AsyncRegion's or EmptyState's. */
+function emptyStateClassNames(tsx: string): string[] {
+  return [...tsx.matchAll(/className=\{?(["`])([^"`]*)\1/g)]
+    .map((m) => m[2] ?? "")
+    .filter((text) => /\bempty/.test(text) && !text.includes("ui-empty-state"));
+}
+
+/**
+ * G11: a bare `button` element is never a style target: an unqualified type
+ * selector (no class, id or attribute on it), in any compound.
+ */
+const BARE_BUTTON_SELECTOR = /(?:^|[\s,(>+~])button(?![\w.#[-])/;
+
+function bareButtonSelectors(css: string): string[] {
+  return cssRules(css)
+    .flatMap(({ selector }) => selector.split(/,(?![^(]*\))/))
+    .map((part) => part.trim())
+    .filter((part) => BARE_BUTTON_SELECTOR.test(part));
+}
+
+describe("Frontend Smoke — Migration gates G3 to G9 and G11 (spec #292)", () => {
+  const styles = frontendFiles([".css"]).map(({ file, text }) => ({
+    file,
+    text,
+  }));
+  const tsx = frontendFiles([".tsx"]);
+  const sources = frontendFiles([".ts", ".tsx"]);
+  const outsideTokens = styles.filter(
+    ({ file }) => !file.endsWith("tokens.css"),
+  );
+
+  it("G3: no raw rem or em spacing outside tokens.css", () => {
+    const violations = outsideTokens.flatMap(({ file, text }) =>
+      rawSpacingDeclarations(text).map((value) => `${file}: ${value}`),
+    );
+    expect(violations).toEqual([]);
+  });
+
+  it("G3 fails on a raw rem or em margin, padding, gap or offset, and passes tokens (fixture)", () => {
+    expect(
+      rawSpacingDeclarations(
+        ".a { padding: 0.5rem 1rem; } .b { inset: 0 auto auto 0.25em; }",
+      ),
+    ).toEqual(["padding: 0.5rem 1rem", "inset: 0 auto auto 0.25em"]);
+    expect(
+      rawSpacingDeclarations(
+        ".ok { padding: var(--space-2) var(--space-4); gap: calc(var(--space-1) * 2); max-width: 26rem; }",
+      ),
+    ).toEqual([]);
+  });
+
+  it("G4: no font-size or font-weight in a component stylesheet; the text files use tokens only", () => {
+    const violations = outsideTokens.flatMap(({ file, text }) =>
+      fontViolations(file, text),
+    );
+    expect(violations).toEqual([]);
+  });
+
+  it("G4 fails on a component font declaration and on a literal in a text file (fixture)", () => {
+    expect(
+      fontViolations(
+        "src/frontend/components/x/X.css",
+        ".x { font-size: 13px; font-weight: 600; }",
+      ),
+    ).toEqual([
+      "src/frontend/components/x/X.css: font-size: 13px",
+      "src/frontend/components/x/X.css: font-weight: 600",
+    ]);
+    expect(
+      fontViolations(
+        "src/frontend/styles/utilities.css",
+        ".t { font-size: var(--text-body); font-weight: var(--font-weight-semibold); }",
+      ),
+    ).toEqual([]);
+    expect(
+      fontViolations(
+        "src/frontend/styles/utilities.css",
+        ".t { font-weight: 600; }",
+      ),
+    ).toEqual([
+      "src/frontend/styles/utilities.css: font-weight is not a weight token: 600",
+    ]);
+    expect(
+      fontViolations(
+        "src/frontend/styles/base.css",
+        "html { font-size: var(--text-root); }",
+      ),
+    ).toEqual([]);
+    expect(
+      fontViolations(
+        "src/frontend/styles/base.css",
+        ".x { font-size: var(--text-body); }",
+      ),
+    ).toEqual([
+      "src/frontend/styles/base.css: font-size outside the html root rule",
+    ]);
+  });
+
+  it("G5: no raw <button> outside components/ui", () => {
+    const violations = tsx
+      .filter(({ file }) => !isBlockFile(file))
+      .flatMap(({ file, text }) => (/<button\b/.test(text) ? [file] : []));
+    expect(violations).toEqual([]);
+  });
+
+  it("G5 fails on a raw <button> and passes the block (fixture)", () => {
+    expect(
+      /<button\b/.test('<button type="button" onClick={go}>Go</button>'),
+    ).toBe(true);
+    expect(
+      /<button\b/.test('<Button variant="quiet" onPress={go}>Go</Button>'),
+    ).toBe(false);
+  });
+
+  it("G6: no sprite.svg# reference outside components/ui", () => {
+    const violations = sources
+      .filter(({ file }) => !isBlockFile(file))
+      .flatMap(({ file, text }) => (/sprite\.svg#/.test(text) ? [file] : []));
+    expect(violations).toEqual([]);
+  });
+
+  it("G6 fails on a direct sprite path and passes the Icon block (fixture)", () => {
+    expect(
+      /sprite\.svg#/.test('<use href="/assets/icons/sprite.svg#icon-x" />'),
+    ).toBe(true);
+    expect(/sprite\.svg#/.test('<Icon name="icon-x" size="sm" />')).toBe(false);
+  });
+
+  it("G7: no page <header> or page-heading class in views/*.tsx; PageHeader only", () => {
+    const views = tsx.filter(({ file }) =>
+      /^src\/frontend\/views\/[^/]+\.tsx$/.test(file),
+    );
+    const violations = views.flatMap(({ file, text }) => {
+      const found: string[] = [];
+      if (/<header\b/.test(text)) found.push(`${file}: <header>`);
+      if (PAGE_HEADING_CLASS.test(text)) {
+        found.push(`${file}: page-heading class`);
+      }
+      return found;
+    });
+    expect(violations).toEqual([]);
+  });
+
+  it("G7 fails on a view header and on a page-heading class, and passes PageHeader (fixture)", () => {
+    expect(/<header\b/.test('<header className="page">')).toBe(true);
+    expect(PAGE_HEADING_CLASS.test('<div className="page-heading">')).toBe(
+      true,
+    );
+    expect(PAGE_HEADING_CLASS.test('<PageHeader title="Runs" />')).toBe(false);
+  });
+
+  it("G8: no empty-state markup outside AsyncRegion or EmptyState", () => {
+    const violations = tsx
+      .filter(
+        ({ file }) =>
+          !isBlockFile(file) && !file.includes("components/feedback/"),
+      )
+      .flatMap(({ file, text }) =>
+        emptyStateClassNames(text).map((name) => `${file}: ${name}`),
+      );
+    expect(violations).toEqual([]);
+  });
+
+  it("G8 fails on a hand-built empty state and passes EmptyState (fixture)", () => {
+    expect(emptyStateClassNames('<div className="docs-search-empty">')).toEqual(
+      ["docs-search-empty"],
+    );
+    expect(emptyStateClassNames('<div className="ui-empty-state">')).toEqual(
+      [],
+    );
+  });
+
+  it("G9: no card class outside the Card block, except diagram node cards", () => {
+    const violations = [
+      ...styles.flatMap(({ file, text }) =>
+        cardClassesInCss(text).map((name) => `${file}: .${name}`),
+      ),
+      ...tsx.flatMap(({ file, text }) =>
+        cardClassesInTsx(text).map((name) => `${file}: ${name}`),
+      ),
+    ];
+    expect(violations).toEqual([]);
+  });
+
+  it("G9 fails on a card class and passes the Card block and a node card (fixture)", () => {
+    expect(
+      cardClassesInCss(
+        ".connection-card { padding: 1px; } .ui-card--flow {} .flow-node-card {}",
+      ),
+    ).toEqual(["connection-card"]);
+    expect(
+      cardClassesInTsx('<div className="ticket-card flow-node-card ui-card">'),
+    ).toEqual(["ticket-card"]);
+    expect(cardClassesInTsx('<Card variant="ticket">')).toEqual([]);
+  });
+
+  it("G11: buttons.css, cards.css and badges.css do not exist, and no stylesheet styles a bare button", () => {
+    const legacy = ["buttons.css", "cards.css", "badges.css"].map((name) =>
+      path.join(ROOT_DIR, "src/frontend/styles/shared", name),
+    );
+    expect(legacy.filter((file) => fs.existsSync(file))).toEqual([]);
+    const violations = styles.flatMap(({ file, text }) =>
+      bareButtonSelectors(text).map((selector) => `${file}: ${selector}`),
+    );
+    expect(violations).toEqual([]);
+  });
+
+  it("G11 fails on a bare button selector and passes the block classes (fixture)", () => {
+    expect(
+      bareButtonSelectors(
+        "button { padding: 0; } :root button:disabled {} .a button {} :is(button, a) {}",
+      ),
+    ).toEqual([
+      "button",
+      ":root button:disabled",
+      ".a button",
+      ":is(button, a)",
+    ]);
+    expect(
+      bareButtonSelectors(
+        '.ui-button, .ui-icon-button, [type="button"], button.mobile-only { padding: 0; }',
+      ),
+    ).toEqual([]);
+  });
+});
+
+// ─── Copy gate (spec #292, step 5) ─────────────────────────────────────────
+
+describe("Frontend Smoke — Copy gate G10 (spec #292)", () => {
+  /**
+   * G10: a button or menu-item label is Title Case. Every word is capitalized
+   * except an article, a coordinating conjunction or a short preposition, and
+   * the first and the last word are always capitalized, even when minor
+   * (DESIGN.md §7 Copy; spec #292, "Copy").
+   */
+  const MINOR_WORDS = new Set([
+    "a",
+    "an",
+    "the",
+    "and",
+    "but",
+    "or",
+    "nor",
+    "for",
+    "so",
+    "yet",
+    "in",
+    "on",
+    "at",
+    "to",
+    "by",
+    "with",
+    "from",
+    "into",
+    "onto",
+    "of",
+    "off",
+    "up",
+    "down",
+    "over",
+    "under",
+    "about",
+    "as",
+    "per",
+    "via",
+    "near",
+    "between",
+    "during",
+    "without",
+    "within",
+    "against",
+    "through",
+    "around",
+    "after",
+    "before",
+    "except",
+    "like",
+    "than",
+    "until",
+    "upon",
+  ]);
+
+  /** The letter-bearing words of a label; symbols and digits carry no case. */
+  function wordTokens(label: string): string[] {
+    return label.split(/\s+/).filter((token) => /[a-zA-Z]/.test(token));
+  }
+
+  /** The words that break Title Case, in order ("changes" from "Save changes"). */
+  function titleCaseViolations(label: string): string[] {
+    const words = wordTokens(label);
+    if (words.length === 0) return [];
+    const first = words[0];
+    const last = words[words.length - 1];
+    const out: string[] = [];
+    for (const token of words) {
+      const i = token.search(/[a-zA-Z]/);
+      const core = token
+        .slice(i)
+        .replace(/[^a-zA-Z].*$/, "")
+        .toLowerCase();
+      const minor = MINOR_WORDS.has(core);
+      const shouldCapitalize = token === first || token === last || !minor;
+      const letter = token[i] ?? "";
+      const capitalized = letter === letter.toUpperCase();
+      if (shouldCapitalize !== capitalized) out.push(token);
+    }
+    return out;
+  }
+
+  /** The index of the `>` that ends a JSX opening tag, skipping `>` inside `{...}`. */
+  function tagEnd(text: string, from: number): number {
+    let depth = 0;
+    let quote = "";
+    for (let i = from; i < text.length; i++) {
+      const c = text[i];
+      if (quote) {
+        if (c === "\\") i++;
+        else if (c === quote) quote = "";
+        continue;
+      }
+      if (c === '"' || c === "'") quote = c;
+      else if (c === "{") depth++;
+      else if (c === "}") depth--;
+      else if (c === ">" && depth === 0) return i;
+    }
+    return text.length;
+  }
+
+  /** The visible label of one element's children: tags and expressions dropped. */
+  function innerLabel(inner: string): string {
+    let out = inner.replace(/<[^>]*>/g, " ");
+    for (let i = 0; i < 6; i++) out = out.replace(/\{[^{}]*\}/g, " ");
+    return out.replace(/\s+/g, " ").trim();
+  }
+
+  /** Every literal button and menu-item label written in one TSX source. */
+  function actionLabels(text: string): string[] {
+    const labels: string[] = [];
+    for (const name of ["Button", "MenuItem"]) {
+      const open = new RegExp(`<${name}(?=[\\s/>])`, "g");
+      for (const match of text.matchAll(open)) {
+        const start = match.index ?? 0;
+        const end = tagEnd(text, start + 1 + name.length);
+        if (text[end - 1] === "/") continue; // self-closing, no label
+        const close = text.indexOf(`</${name}>`, end);
+        if (close === -1) continue;
+        const inner = text.slice(end + 1, close);
+        // A dynamic label (an expression, a count, sr-only text) is not a
+        // literal this static gate can judge; it is asserted where it renders.
+        if (inner.includes("{")) continue;
+        const label = innerLabel(inner);
+        if (label && /[A-Za-z]/.test(label)) labels.push(label);
+      }
+    }
+    for (const match of text.matchAll(/<IconButton\b/g)) {
+      const start = match.index ?? 0;
+      const tag = text.slice(start, tagEnd(text, start + 11) + 1);
+      const label = tag.match(/\blabel="([^"]+)"/)?.[1];
+      if (label) labels.push(label);
+    }
+    return labels;
+  }
+
+  function frontendTsx(): { file: string; text: string }[] {
+    const out: { file: string; text: string }[] = [];
+    const walk = (dir: string) => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) walk(full);
+        else if (entry.name.endsWith(".tsx")) {
+          out.push({
+            file: path.relative(ROOT_DIR, full),
+            text: fs.readFileSync(full, "utf-8"),
+          });
+        }
+      }
+    };
+    walk(path.join(ROOT_DIR, "src/frontend"));
+    return out;
+  }
+
+  it("G10: button and menu-item labels use Title Case", () => {
+    const violations = frontendTsx().flatMap(({ file, text }) =>
+      actionLabels(text)
+        .filter((label) => titleCaseViolations(label).length > 0)
+        .map((label) => `${file}: ${label}`),
+    );
+    expect(violations).toEqual([]);
+  });
+
+  it("G10 flags sentence-case labels and passes Title Case, keeping the ellipsis (fixture)", () => {
+    expect(titleCaseViolations("Save changes")).toEqual(["changes"]);
+    expect(titleCaseViolations("Open dialog…")).toEqual(["dialog…"]);
+    expect(titleCaseViolations("Jump to latest")).toEqual(["latest"]);
+    expect(titleCaseViolations("Clear search query")).toEqual([
+      "search",
+      "query",
+    ]);
+    expect(titleCaseViolations("Save Changes")).toEqual([]);
+    expect(titleCaseViolations("Open Dialog…")).toEqual([]);
+    expect(titleCaseViolations("Jump to Latest")).toEqual([]);
+    expect(titleCaseViolations("Mark All as Read")).toEqual([]);
+    expect(titleCaseViolations("Clear Search Query")).toEqual([]);
+
+    // The extractor pulls a bad label out of a real JSX snippet — including one
+    // whose opening tag hides `>` inside an arrow function — so the gate
+    // provably fails on a sentence-case button and menu item.
+    const bad = actionLabels(
+      '<Button variant="primary" onPress={() => go()}>Save changes</Button>' +
+        '<MenuItem id="m" isDanger onAction={stop}>Stop run</MenuItem>' +
+        '<IconButton label="Clear search query" icon="icon-x" />',
+    );
+    expect(bad).toEqual(["Save changes", "Stop run", "Clear search query"]);
+    expect(bad.flatMap((label) => titleCaseViolations(label))).toEqual([
+      "changes",
+      "run",
+      "search",
+      "query",
+    ]);
+
+    const good = actionLabels(
+      '<Button variant="primary">Save Changes</Button>' +
+        '<MenuItem id="m">Open Run</MenuItem>' +
+        '<IconButton label="Send" icon="icon-send" />',
+    );
+    expect(good.flatMap((label) => titleCaseViolations(label))).toEqual([]);
   });
 });
 

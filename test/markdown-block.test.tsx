@@ -72,7 +72,7 @@ describe("MarkdownBlock previews Markdown as elements", () => {
     const { container, getByText, getByRole } = render(
       <MarkdownBlock content={PLAN} label="Plan" />,
     );
-    expect(getByText("Plan").className).toBe("md-block-label");
+    expect(getByText("Plan").classList.contains("md-block-label")).toBe(true);
     const group = getByRole("radiogroup", { name: "Text view" });
     expect(group).toBeTruthy();
     expect((toggle(container, "Preview") as HTMLInputElement).checked).toBe(
@@ -127,5 +127,16 @@ describe("MarkdownBlock previews Markdown as elements", () => {
     );
     fireEvent.click(toggle(container, "Raw"));
     expect(container.querySelector("pre.md-block-raw img")).toBeNull();
+  });
+});
+
+describe("MarkdownBlock header: icon view switch and copy", () => {
+  it("offers Preview and Raw as icons and copies the source", () => {
+    const view = render(
+      <MarkdownBlock content={"# Plan\n\n- one"} label="Plan" />,
+    );
+    expect(view.getByRole("radio", { name: "Preview" })).toBeTruthy();
+    expect(view.getByRole("radio", { name: "Raw" })).toBeTruthy();
+    expect(view.getByRole("button", { name: "Copy Plan" })).toBeTruthy();
   });
 });

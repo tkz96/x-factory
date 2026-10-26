@@ -27,7 +27,7 @@ export function ConnectionProviderSelect({
     <div className="wizard-form-group">
       <label
         htmlFor={`select-${connectionRole}-provider`}
-        className="wizard-form-label"
+        className="wizard-form-label text-callout"
       >
         Provider <span className="required">*</span>
       </label>

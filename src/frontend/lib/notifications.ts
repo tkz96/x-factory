@@ -15,6 +15,7 @@ import type {
   RunStatus,
   StatusEventPayload,
 } from "../../shared/types.js";
+import { STATUS_COPY } from "../components/feedback/copy-map.js";
 import { NEEDS_YOU_STATUSES, runStatusUi } from "./run-status-ui.js";
 
 export type NotificationGroup = "Needs you" | "Finished";
@@ -73,7 +74,7 @@ export function notificationFromEvent(
       projectName: envelope.project.name,
       status: "pr_created",
       group: "Finished",
-      text: "Merged",
+      text: STATUS_COPY.prMerged,
       detail: null,
       time: envelope.time,
     };

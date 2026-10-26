@@ -6,7 +6,6 @@
 
 .repositories-requirements-hint {
   margin: var(--space-1) 0 0;
-  font-size: var(--text-footnote);
   color: var(--text-muted);
 }
 
@@ -26,7 +25,7 @@
 }
 
 .repositories-list-item {
-  border: var(--border-width) solid var(--border);
+  border: var(--hairline) solid var(--separator);
   border-radius: var(--radius-md);
   background: var(--bg-secondary);
 }
@@ -52,15 +51,12 @@
 
 .repositories-list-name {
   flex: none;
-  font-size: var(--text-subhead);
-  font-weight: 600;
   color: var(--text);
 }
 
 .repositories-list-remote {
   flex: 1;
   min-width: 0;
-  font-size: var(--text-footnote);
   color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -69,17 +65,15 @@
 
 .repositories-role-tag {
   flex: none;
-  border: var(--border-width) solid var(--border);
+  border: var(--hairline) solid var(--separator);
   border-radius: var(--radius-full);
   corner-shape: round;
   padding: var(--space-1) var(--space-3);
-  font-size: var(--text-caption-1);
   color: var(--text-muted);
 }
 
 .repositories-selection-summary {
   margin: var(--space-3) 0 0 0;
-  font-size: var(--text-footnote);
   color: var(--text-muted);
 }
 
@@ -116,7 +110,7 @@
   gap: var(--space-3);
   padding: var(--space-2) var(--space-3);
   margin-bottom: var(--space-2);
-  border: var(--border-width) solid var(--border);
+  border: var(--hairline) solid var(--separator);
   border-radius: var(--radius-md);
   background: var(--bg-secondary);
 }
@@ -126,8 +120,6 @@
   margin: 0;
   align-items: center;
   gap: var(--space-2);
-  font-size: var(--text-subhead);
-  font-weight: 600;
   color: var(--text);
   cursor: pointer;
   user-select: none;
@@ -142,7 +134,6 @@
 }
 
 .repositories-selected-count {
-  font-size: var(--text-footnote);
   color: var(--text-muted);
 }
 
@@ -152,7 +143,6 @@
   margin-right: auto;
   margin-bottom: 0;
   max-width: 60%;
-  font-size: var(--text-footnote);
   color: var(--text-muted);
   text-align: left;
 }
@@ -166,16 +156,14 @@
 }
 
 .repositories-filter-label {
-  font-size: var(--text-footnote);
   color: var(--text-muted);
 }
 
 .repositories-filter-input {
-  font: inherit;
-  font-size: var(--text-callout);
+  font-family: inherit;
   color: var(--text);
   background: var(--bg-input);
-  border: var(--border-width) solid var(--border);
+  border: var(--hairline) solid var(--separator);
   border-radius: var(--radius-md);
   padding: var(--space-2) var(--space-3);
 }
@@ -183,11 +171,5 @@
 .repositories-filter-input:focus-visible {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 var(--border-width-indicator) var(--accent-dim);
-}
-
-.repositories-filter-empty {
-  margin: 0 0 var(--space-3);
-  font-size: var(--text-callout);
-  color: var(--text-muted);
+  box-shadow: var(--shadow-focus);
 }

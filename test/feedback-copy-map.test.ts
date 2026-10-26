@@ -62,7 +62,7 @@ describe("feedback copy map", () => {
     expect(STATE_COPY.empty).toBe("Nothing here yet.");
     expect(STATE_COPY.partial).toBe("Some results could not load.");
     expect(STATE_COPY.stale).toBe("Out of date");
-    expect(STATE_COPY.retry).toBe("Try again");
+    expect(STATE_COPY.retry).toBe("Try Again");
     expect(STATE_COPY.refresh).toBe("Refresh");
     expect(STATE_COPY.errorFallback).toBe("The request failed. Try again.");
   });

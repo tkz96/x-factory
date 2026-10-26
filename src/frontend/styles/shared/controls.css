@@ -47,12 +47,15 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  min-height: var(--tap-min);
-  padding: var(--space-2) var(--space-5);
+  min-height: var(--control-height);
+  max-width: 100%;
+  padding: 0 var(--space-5);
+  white-space: nowrap;
   font-family: var(--font-sans);
-  font-size: var(--text-callout);
-  font-weight: 600;
-  border: var(--border-width) solid transparent;
+  font-size: var(--text-control);
+  font-weight: var(--font-weight-semibold);
+  /* Buttons have a filled bezel and no border (spec #292). */
+  border: 0;
   border-radius: var(--radius-md);
   cursor: pointer;
   transition:
@@ -89,25 +92,22 @@
   box-shadow: var(--shadow-md);
 }
 
+/* Secondary: an opaque bezel with a hairline, so it reads on a tinted card too
+   (spec #292, item 2). The bezel is a token, not a border, so the press and focus
+   rings keep their geometry. */
 .ui-button--secondary {
-  background: var(--bg-card);
+  background: var(--fill-bezel);
   color: var(--text);
-  border-color: var(--border-control);
+  box-shadow: var(--shadow-bezel);
 }
 
 .ui-button--secondary[data-hovered] {
-  background: var(--bg-card-hover);
-  border-color: var(--border-hover);
+  background: var(--fill-bezel-hover);
 }
 
 .ui-button--danger {
   background: var(--red-dim);
   color: var(--red);
-  border-color: transparent;
-}
-
-.ui-button--danger[data-hovered] {
-  border-color: var(--red);
 }
 
 .ui-button--quiet {
@@ -125,17 +125,32 @@
 .ui-button--sm {
   min-height: var(--control-height-sm);
   padding: 0 var(--space-3);
-  font-size: var(--text-footnote);
+  font-size: var(--text-control-sm);
   border-radius: var(--radius-sm);
 }
 
-/* A finger's target, whatever the pointer claims to be: a coarse pointer, or a
-   viewport narrow enough that the pointer is a finger in practice. A phone
-   reports `pointer: coarse` until something in the page disturbs the emulation,
-   and the target must not depend on that (DESIGN.md §8: 44×44pt). */
-@media (pointer: coarse), (max-width: 768px) {
-  .ui-button--sm {
+.ui-button--lg {
+  min-height: var(--control-height-lg);
+}
+
+/* A finger's target, whatever the pointer claims to be: any touch input
+   (any-pointer, so a touch laptop with a trackpad counts), or a viewport narrow
+   enough that the pointer is a finger in practice. Every control is then at
+   least --tap-min (DESIGN.md §5 Accessibility, spec #292). */
+@media (any-pointer: coarse), (max-width: 768px) {
+  .ui-button,
+  .ui-button--sm,
+  .ui-button--lg,
+  .ui-select-trigger,
+  .ui-segmented,
+  .ui-segment,
+  .ui-nav-item {
     min-height: var(--tap-min);
+  }
+
+  /* A label-less "…" or a glyph-only button still has a 44px width (spec #292, item 9). */
+  .ui-button {
+    min-width: var(--tap-min);
   }
 }
 
@@ -150,11 +165,12 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: var(--tap-min);
-  height: var(--tap-min);
-  min-width: var(--tap-min);
-  min-height: var(--tap-min);
-  border: var(--border-width) solid var(--border-subtle);
+  width: var(--control-height);
+  height: var(--control-height);
+  min-width: var(--control-height);
+  min-height: var(--control-height);
+  /* Icon-only buttons have a filled bezel and no border (spec #292). */
+  border: 0;
   border-radius: var(--radius-full);
   corner-shape: round;
   background: var(--bg-circle-btn);
@@ -171,7 +187,6 @@
 
 .ui-icon-button[data-hovered] {
   background: var(--bg-circle-btn-hover);
-  border-color: var(--border-hover);
   color: var(--text);
 }
 
@@ -180,8 +195,10 @@
   transform: scale(0.96);
 }
 
+/* Disabled keeps the control and dims the glyph (macOS), so the button stays visible
+   on any surface (spec #292, item 3). It does not fade the whole control. */
 .ui-icon-button[data-disabled] {
-  opacity: 0.4;
+  color: var(--text-dim);
   cursor: not-allowed;
 }
 
@@ -224,6 +241,18 @@
   height: var(--icon-md);
 }
 
+/* A finger's icon button. It sits after the icon button's own size: a rule placed
+   earlier loses to it at the same specificity, which left the phone target at 28px
+   (spec #292, item 9). */
+@media (any-pointer: coarse), (max-width: 768px) {
+  .ui-icon-button {
+    width: var(--tap-min);
+    height: var(--tap-min);
+    min-width: var(--tap-min);
+    min-height: var(--tap-min);
+  }
+}
+
 /* ── Text field, text area, select ──────────────────────────────────────── */
 
 .ui-field {
@@ -234,7 +263,7 @@
   display: block;
   font-family: var(--font-sans);
   font-size: var(--text-subhead);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--text);
   margin-bottom: var(--space-1);
 }
@@ -290,7 +319,10 @@
 
 .ui-field-description {
   display: block;
-  font-size: var(--text-footnote);
+  font-size: var(--text-subhead);
+  font-weight: var(--text-subhead-weight);
+  line-height: var(--text-subhead-leading);
+  letter-spacing: var(--text-subhead-tracking);
   color: var(--text-muted);
   margin-top: var(--space-1);
 }
@@ -301,7 +333,7 @@
   justify-content: space-between;
   gap: var(--space-2);
   width: 100%;
-  min-height: var(--tap-min);
+  min-height: var(--control-height);
   padding: var(--space-2) var(--space-3);
   font-family: var(--font-sans);
   font-size: var(--text-body);
@@ -379,7 +411,7 @@
 
 .ui-select-item[data-selected] {
   color: var(--accent);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 /* The invalid field's boundary. Last in the field section, so its higher
@@ -399,11 +431,12 @@
   display: inline-flex;
   gap: 0;
   padding: 0;
-  min-height: var(--tap-min);
+  min-height: var(--control-height);
   max-width: 100%;
-  background: var(--bg-tertiary);
+  /* A track a step darker than the thumb it carries (spec #292, item 7). */
+  background: var(--fill-control);
   border: none;
-  box-shadow: inset 0 0 0 var(--border-width) var(--border-control);
+  box-shadow: var(--shadow-ring-control);
   border-radius: var(--radius-md);
 }
 
@@ -423,14 +456,14 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  min-height: var(--tap-min);
+  min-height: var(--control-height);
   /* The track never overflows its container: a segment may shrink and its
      label truncate (#290). */
   min-width: 0;
   padding: 0 var(--space-4);
   font-family: var(--font-sans);
   font-size: var(--text-callout);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   color: var(--text-muted);
   background: transparent;
   border: none;
@@ -464,7 +497,7 @@
 
 .ui-segment[data-selected] {
   color: var(--text);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 /* The label, the icon and the count stay above the thumb below. */
@@ -484,7 +517,7 @@
   width: calc(var(--thumb-w) - 2 * var(--space-1));
   background: var(--bg-card);
   border-radius: calc(var(--radius-md) - var(--space-1));
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-bezel), var(--shadow-sm);
   pointer-events: none;
 }
 
@@ -494,12 +527,25 @@
 }
 
 /* The count after a segment's label (#259): a quiet pill, not a second action. */
+/* An icon-only segment: the glyph centred, its name kept for assistive tech. */
+.ui-segment-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .ui-segment-count {
-  min-width: var(--space-5);
-  padding: 0 var(--space-1-5);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--space-4);
+  height: var(--space-4);
+  padding: 0 var(--space-1);
   font-size: var(--text-caption-1);
   font-variant-numeric: tabular-nums;
-  line-height: var(--space-5);
+  /* Centred in its own pill, with the line box the height of the pill, so the
+     count's figures sit on the label's baseline, not below it (spec #292, item 7). */
+  line-height: 1;
   text-align: center;
   color: var(--text-muted);
   background: var(--bg-tertiary);
@@ -591,7 +637,10 @@
 
 .ui-switch-description {
   display: block;
-  font-size: var(--text-footnote);
+  font-size: var(--text-subhead);
+  font-weight: var(--text-subhead-weight);
+  line-height: var(--text-subhead-leading);
+  letter-spacing: var(--text-subhead-tracking);
   color: var(--text-muted);
 }
 
@@ -610,7 +659,7 @@
   padding: 0 var(--space-2);
   font-family: var(--font-sans);
   font-size: var(--text-caption-1);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   line-height: 1;
   white-space: nowrap;
   border: none;
@@ -675,7 +724,7 @@
   text-align: left;
   color: var(--text);
   background: var(--bg-card);
-  border: var(--border-width) solid var(--border-control);
+  border: var(--hairline) solid var(--separator);
   border-radius: var(--radius-card);
 }
 
@@ -684,7 +733,41 @@
   padding: var(--space-2) var(--space-4);
 }
 
+/* A row you can act on: a fill reaches just past the row on hover, without changing its
+   layout, so a list of such rows reads as one surface (run page plan, decision 2b). The
+   row keeps its own stacking context so the fill sits behind its text. */
+.ui-row-hover {
+  position: relative;
+  isolation: isolate;
+}
+
+.ui-row-hover::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: calc(var(--space-1) * -1) calc(var(--space-2) * -1);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  transition: background-color var(--transition-fast);
+  pointer-events: none;
+}
+
+.ui-row-hover[data-hovered]::before {
+  background: var(--bg-hover);
+}
+
+/* A row that is not itself a control (its link or button stretches over it) takes the
+   fill from :hover, only where a pointer can hover, so a tap never leaves it lit. */
+@media (hover: hover) {
+  .ui-row-hover:hover::before {
+    background: var(--bg-hover);
+  }
+}
+
 .ui-list-row--pressable {
+  font-family: var(--font-sans);
+  font-size: var(--text-subhead);
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
   transition:
     background-color var(--transition),
@@ -728,12 +811,15 @@
 .ui-list-row-title {
   font-family: var(--font-display);
   font-size: var(--text-body);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--text);
 }
 
 .ui-list-row-subtitle {
-  font-size: var(--text-footnote);
+  font-size: var(--text-subhead);
+  font-weight: var(--text-subhead-weight);
+  line-height: var(--text-subhead-leading);
+  letter-spacing: var(--text-subhead-tracking);
   color: var(--text-muted);
 }
 
@@ -781,6 +867,49 @@
   color: var(--text-muted);
 }
 
+/* ── Empty state: what is not here, once (DESIGN.md §7) ─────────────────────
+ * Centred and quiet, with no card or box around it, as macOS shows an empty
+ * view. The title is Title 3 (15px on macOS), the message is the secondary
+ * label colour, and the message measure stays readable in a wide column. */
+
+.ui-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-8) var(--space-4);
+  text-align: center;
+}
+
+.ui-empty-state-icon {
+  color: var(--text-dim);
+}
+
+.ui-empty-state-title {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-title-3);
+  line-height: 1.3;
+  color: var(--text);
+}
+
+.ui-empty-state-message {
+  margin: 0;
+  max-width: 48ch;
+  font-size: var(--text-callout);
+  line-height: 1.5;
+  color: var(--text-muted);
+  text-wrap: balance;
+}
+
+.ui-empty-state-action {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
 /* ── Grouped inset list ──────────────────────────────────────────────────
  * One group: a --radius-card container on --bg-card whose rows share inset
  * hairlines instead of each row drawing its own box. The rows are the shared
@@ -800,7 +929,7 @@
   margin: 0 0 var(--space-2);
   font-family: var(--font-sans);
   font-size: var(--text-footnote);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--text-secondary);
 }
 
@@ -821,7 +950,7 @@
   flex-direction: column;
   gap: 0;
   background: var(--bg-card);
-  border: var(--border-width) solid var(--border-subtle);
+  border: var(--hairline) solid var(--separator);
   border-radius: var(--radius-card);
   overflow: hidden;
   /* A size container: the rows respond to how wide the LIST is, not to the
@@ -889,25 +1018,36 @@
   position: absolute;
   inset-inline: var(--space-4) 0;
   top: 0;
-  border-top: var(--border-width) solid var(--border-subtle);
+  border-top: var(--hairline) solid var(--separator);
 }
 
 /* Inside a group the row draws no box of its own: the group is the box. */
 .ui-list-group .ui-list-row {
   background: transparent;
   border: none;
-  border-radius: 0;
+  border-radius: var(--radius-none);
 }
 
-/* The row the URL names reads as chosen: one filled row, no border. */
+/* The row the URL names reads as chosen, as a macOS list does (spec #292, item 7):
+   a neutral fill while the list is not focused, and the accent fill only while focus
+   is inside the list. The accent never competes with the primary button otherwise. */
 .ui-list-group .ui-list-row[aria-current="page"] {
+  background: var(--bg-secondary);
+  color: var(--text);
+}
+
+.ui-list-group:focus-within .ui-list-row[aria-current="page"] {
   background: var(--accent);
   color: var(--text-on-accent);
 }
 
-.ui-list-group .ui-list-row[aria-current="page"] .ui-list-row-title,
-.ui-list-group .ui-list-row[aria-current="page"] .ui-list-row-subtitle,
-.ui-list-group .ui-list-row[aria-current="page"] > .icon {
+.ui-list-group:focus-within
+  .ui-list-row[aria-current="page"]
+  .ui-list-row-title,
+.ui-list-group:focus-within
+  .ui-list-row[aria-current="page"]
+  .ui-list-row-subtitle,
+.ui-list-group:focus-within .ui-list-row[aria-current="page"] > .icon {
   color: var(--text-on-accent);
 }
 
@@ -938,12 +1078,12 @@
   align-items: center;
   gap: var(--space-2);
   width: 100%;
-  min-height: var(--button-height);
+  min-height: var(--control-height);
   padding: 0 var(--space-3);
   margin: 0;
   font-family: var(--font-sans);
   font-size: var(--text-subhead);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   color: var(--text-muted);
   text-align: start;
   text-decoration: none;
@@ -970,13 +1110,7 @@
 .ui-nav-item[aria-current] {
   background: var(--accent-subtle);
   color: var(--accent);
-  font-weight: 600;
-}
-
-@media (pointer: coarse) {
-  .ui-nav-item {
-    min-height: var(--tap-min);
-  }
+  font-weight: var(--font-weight-semibold);
 }
 
 /* Phone width: a compact row's accessory cannot shrink (the segmented
@@ -996,7 +1130,7 @@
   container-type: inline-size;
   container-name: ui-table;
   background: var(--bg-card);
-  border: var(--border-width) solid var(--border-subtle);
+  border: var(--hairline) solid var(--separator);
   border-radius: var(--radius-card);
   overflow: hidden;
 }
@@ -1011,18 +1145,19 @@
 .ui-table-head {
   padding: var(--space-2) var(--space-4);
   font-size: var(--text-footnote);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--text-secondary);
   text-align: start;
   white-space: nowrap;
   background: var(--bg-secondary);
-  border-bottom: var(--border-width) solid var(--border-subtle);
+  border-bottom: var(--hairline) solid var(--separator);
 }
 
 .ui-table-sort {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
+  white-space: nowrap;
   margin: 0;
   padding: 0;
   font: inherit;
@@ -1062,11 +1197,11 @@
   padding: var(--space-3) var(--space-4);
   text-align: start;
   vertical-align: middle;
-  font-weight: 400;
+  font-weight: var(--font-weight-regular);
 }
 
 .ui-table-cell--title {
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 .ui-table-cell--end,
@@ -1083,7 +1218,7 @@
 /* Hairlines between rows, not around them. */
 .ui-table-row + .ui-table-row > *,
 .ui-table-detail + .ui-table-row > * {
-  border-top: var(--border-width) solid var(--border-subtle);
+  border-top: var(--hairline) solid var(--separator);
 }
 
 .ui-table-row--highlighted {
@@ -1122,7 +1257,7 @@
 
   .ui-table-row + .ui-table-row,
   .ui-table-detail + .ui-table-row {
-    border-top: var(--border-width) solid var(--border-subtle);
+    border-top: var(--hairline) solid var(--separator);
   }
 
   .ui-table-row + .ui-table-row > *,
@@ -1149,5 +1284,174 @@
 
   .ui-table-cell--end:last-child {
     margin-inline-start: auto;
+  }
+}
+
+/* ── Card ─────────────────────────────────────────────────────────────── *
+ * One block, seven variants (#296, spec #292 "Blocks"): the card families the
+ * migration replaces. A raised card (default, connection, ticket, review)
+ * sits on --bg-card behind the hairline in --separator on the radius ladder;
+ * an inset card (model, chat, flow) is the quiet fill on --bg-secondary, the
+ * frame dropped because it already sits inside another surface. Every value
+ * is a token — hairline, radius, surface and the hover pair — and content
+ * stays opaque: the glass material belongs to chrome only (DESIGN.md §5
+ * Materials). A card carries no type of its own; the words inside it use the
+ * text styles, and spacing between cards belongs to the screen, not the
+ * block. A card has no shadow at rest and never scales — it would drag every
+ * row inside it (DESIGN.md §7 "Building blocks"). */
+
+.ui-card {
+  background: var(--bg-card);
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-card);
+  padding: var(--space-6);
+}
+
+/* .connection-card — the registry card: one step tighter padding. */
+.ui-card--connection {
+  padding: var(--space-5);
+}
+
+/* .ticket-card — the pressable family: the column rhythm of a ticket, plus
+   the hover affordance. The lift is for a real pointer only: a touch device
+   has no hover, and a nudge under the finger only makes the target move. The
+   screen wires the behaviour (role, press); the block owns the look. */
+.ui-card--ticket {
+  padding: var(--space-4) var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  cursor: pointer;
+  transition:
+    border-color var(--transition),
+    background-color var(--transition);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ui-card--ticket:hover {
+    border-color: var(--border-hover);
+    background: var(--bg-card-hover);
+  }
+}
+
+/* .review-summary-card — framed on the --radius-md rung, rows stacked on
+   --space-4. */
+.ui-card--review {
+  border-radius: var(--radius-md);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* .model-connection-card — the inset quiet fill, no frame of its own. */
+.ui-card--model {
+  background: var(--bg-secondary);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* .run-chat-card — the densest inset: footnote-sized content, --space-2
+   rhythm. */
+.ui-card--chat {
+  background: var(--bg-secondary);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* .flow-fallback-card — the inset that keeps a quiet frame: the faintest
+   border token, because it stands in for a diagram that failed to draw. */
+.ui-card--flow {
+  background: var(--bg-secondary);
+  border: var(--border-width) solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: var(--space-4);
+}
+
+/* The padding override (Card's padding prop). These come after the variant
+   rules, so they win over a variant's padding on source order. */
+.ui-card--padding-none {
+  padding: var(--space-0);
+}
+
+.ui-card--padding-compact {
+  padding: var(--space-3) var(--space-4);
+}
+
+.ui-card--padding-regular {
+  padding: var(--space-6);
+}
+
+/* ── Page header: the shell's page heading (#298) ───────────────────────── */
+/* AppShell renders this block once per screen (components/ui/PageHeader.tsx)
+   from the content a view claims through usePageHeader. The large title
+   scrolls with the page as the screen's one h1; the screen's actions sit in
+   the same row, trailing, and the toolbar never carries one (DESIGN.md §7). */
+
+.page-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin: 0 0 var(--space-5);
+}
+
+.page-heading-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.page-heading-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+/* A screen without an action leaves the slot empty rather than holding a gap. */
+.page-heading-actions:empty {
+  display: none;
+}
+
+.large-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-large-title);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  color: var(--text);
+}
+
+/* A subtitle is a sentence, so it is Callout (12px on macOS), never a 10px
+   caption (spec #292, item 4). */
+.page-subtitle {
+  margin: 0;
+  font-size: var(--text-callout);
+  line-height: var(--text-callout-leading);
+  letter-spacing: var(--text-callout-tracking);
+  color: var(--text-muted);
+}
+
+@media (max-width: 768px) {
+  /* The page's action keeps its accessible name and drops its label: the
+     trailing slot is an icon-only button on a phone. */
+  .page-action-label {
+    display: none;
+  }
+
+  .page-heading-actions .ui-button {
+    min-width: var(--tap-min);
+    padding: var(--space-2);
   }
 }

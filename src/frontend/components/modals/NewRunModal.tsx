@@ -14,6 +14,7 @@ import { type NewRunPrefill, useModal } from "../../context/ModalContext.js";
 import { useCurrentProject } from "../../context/ProjectContext.js";
 import { useCreateRun } from "../../hooks/useQueries.js";
 import { ActiveRunConflictError } from "../../lib/api-client.js";
+import { FeedbackBanner } from "../feedback/FeedbackBanner.js";
 import {
   DialogBody,
   DialogCloseButton,
@@ -58,8 +59,12 @@ function FieldHelp({
         className="ui-icon-button--inline"
       />
       <Tooltip className="field-help-tooltip" placement="bottom start">
-        <strong>{title}</strong>
-        {children}
+        {/* The text styles sit on the tooltip's content, so the primitive's
+            own caption size never decides what the guidance reads at. */}
+        <div className="text-subhead">
+          <strong className="font-semibold">{title}</strong>
+          {children}
+        </div>
       </Tooltip>
     </TooltipTrigger>
   );
@@ -166,20 +171,27 @@ function NewRunError({
   onOpenSettings: () => void;
 }) {
   return (
-    <div id="setup-error" className="error-message">
-      {message}
-      {needsRoles && (
-        <p className="m-0 mt-2">
-          <Link
-            id="link-settings-models"
-            className="ui-button ui-button--secondary ui-button--sm"
-            to="/settings?tab=models"
-            onClick={onOpenSettings}
-          >
-            Open Settings › Models
-          </Link>
-        </p>
-      )}
+    <div id="setup-error">
+      <FeedbackBanner
+        tone="error"
+        message={
+          <>
+            {message}
+            {needsRoles && (
+              <span className="mt-2">
+                <Link
+                  id="link-settings-models"
+                  className="ui-button ui-button--secondary ui-button--sm"
+                  to="/settings?tab=models"
+                  onClick={onOpenSettings}
+                >
+                  Open Settings › Models
+                </Link>
+              </span>
+            )}
+          </>
+        }
+      />
     </div>
   );
 }

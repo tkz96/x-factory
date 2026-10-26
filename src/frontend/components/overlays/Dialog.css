@@ -43,14 +43,12 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--space-4) var(--space-5);
-  border-bottom: var(--border-width) solid var(--border-subtle);
+  border-bottom: var(--hairline) solid var(--separator);
   flex-shrink: 0;
 }
 
 .xf-dialog-title {
   font-family: var(--font-display);
-  font-size: var(--text-title-3);
-  font-weight: 600;
   color: var(--text);
   letter-spacing: -0.022em;
   margin: 0;
@@ -67,7 +65,7 @@
 .xf-dialog-footer {
   flex-shrink: 0;
   padding: var(--space-3) var(--space-5);
-  border-top: var(--border-width) solid var(--border-subtle);
+  border-top: var(--hairline) solid var(--separator);
   background: var(--bg-modal);
   display: flex;
   align-items: center;
@@ -86,7 +84,7 @@
    window shape of its own. Every window is --radius-lg, at every width. */
 .xf-dialog-window {
   background: var(--bg-modal);
-  border: var(--border-width) solid var(--border);
+  border: var(--hairline) solid var(--separator);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   width: 100%;

@@ -32,6 +32,9 @@ export interface ConnectionComboLineProps {
   tone: ConnectionComboTone;
   /** Restricts the rendered slots; defaults to every slot, tracker first. */
   roles?: readonly ProjectConnectionRole[];
+  /** The line's text size: metadata in a list (footnote), or a fact on a detail
+   *  page (subheadline), where the line sits beside the other facts. */
+  size?: "footnote" | "subhead";
   id?: string;
   className?: string;
 }
@@ -66,6 +69,7 @@ export function ConnectionComboLine({
   descriptors,
   tone,
   roles,
+  size = "footnote",
   id,
   className,
 }: ConnectionComboLineProps) {
@@ -78,32 +82,30 @@ export function ConnectionComboLine({
   return (
     <div
       id={id}
-      className={`connection-combo-line connection-combo-line--${tone} ${className ?? ""}`.trim()}
+      /* The line's type comes from the .text-footnote or .text-subhead style. */
+      className={`connection-combo-line connection-combo-line--${tone} text-${size} ${className ?? ""}`.trim()}
     >
-      {rendered.map((slot, index) => (
+      {rendered.map((slot) => (
         <Fragment key={slot.role}>
-          {index > 0 && (
-            <span className="connection-combo-separator" aria-hidden="true">
-              ·
-            </span>
-          )}
           <span
             id={`combo-${slot.role}`}
             className={`connection-combo-slot connection-combo-slot--${slot.role} connection-combo-slot--${slot.state}`}
             data-role={slot.role}
             data-state={slot.state}
           >
-            <span className="connection-combo-role">
+            {/* The role leads at medium weight; the value at semibold. */}
+            <span className="connection-combo-role font-medium">
               {CONNECTIONS_COPY.roleLabel[slot.role]}
             </span>
             <span
-              className="connection-combo-value"
+              className="connection-combo-value font-semibold"
               id={`combo-${slot.role}-name`}
             >
               {slotValue(slot, descriptors)}
             </span>
+            {/* The state label is the badge-sized .text-caption-1 style. */}
             <span
-              className={`connection-combo-state connection-combo-state--${slot.state}`}
+              className={`connection-combo-state connection-combo-state--${slot.state} text-caption-1`}
               id={`combo-${slot.role}-state`}
               data-connection-state={slot.state}
             >

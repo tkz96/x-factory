@@ -19,12 +19,14 @@ Global styles are imported once in `src/frontend/main.tsx` via `src/frontend/sty
 1. **Tokens (`src/frontend/styles/tokens.css`)**:
    - Spacing: 8pt grid (`--space-1` to `--space-8`).
    - Radii: the six-rung ladder (`--radius-xs` 4 → `--radius-sm` 8 → `--radius-md` 12 → `--radius-card` 16 → `--radius-lg` 20 → `--radius-full`). Where the browser supports it, `--corner-shape: superellipse(1.6)` applies to every box and the ladder's top rungs step up inside `@supports`: `--radius-card` 20 and `--radius-lg` 24. Circles and capsules opt out with `corner-shape: round` (the smoke gate enforces it beside every `--radius-full` rule), and an inner shape's radius = the outer radius − the inset between them.
-   - Typography: HIG scale (`--text-large-title` to `--text-caption-2`).
+   - Typography: two type scales, the macOS scale for a fine primary pointer on a viewport wider than 768px and the iOS scale otherwise (`--text-large-title` to `--text-caption-2`, in `rem`). Fonts: `--font-sans` and `--font-display` are Inter, and `--font-mono` is IBM Plex Mono; on Apple platforms (`data-platform="apple"`, set by the pre-paint script) they are the system font and SF Mono. Themes change colour only, and Readable font (`data-font="readable"`) is a setting. See `DESIGN.md` §5 Typography.
+   - Lines: `--hairline` (1px, 0.5px on HiDPI) and `--separator` for containers and dividers; `--border-control` (3:1) for fields and other controls that need a boundary; `--fill-control` for a button's bezel. See `DESIGN.md` §5 Lines and borders.
    - Colors: Functional tokens (`--text`, `--text-muted`, `--accent`, `--green`, `--red`, `--yellow`, `--orange`, `--border`, etc.) with light & dark theme definitions. Warnings always use `--orange` / `--orange-dim` — never `--yellow` (see `docs/reference/state-coverage.md`).
 2. **Base (`src/frontend/styles/base.css`)**:
-   - Modern CSS resets, root font configuration (Inter / SF Pro text), custom scrollbars.
+   - Modern CSS resets, root font configuration (the system stack, Inter as the fallback), custom scrollbars.
 3. **Shared Components (`src/frontend/styles/shared/*.css`)**:
-   - `buttons.css`, `cards.css`, `forms.css`, `badges.css`, `icons.css`, `scrollbar.css`.
+   - `controls.css` (the shared layer for the blocks in `components/ui/`), `forms.css`, `icons.css`, `scrollbar.css`.
+   - The blocks are the only shared components. The earlier `buttons.css`, `cards.css` and `badges.css` are deleted (spec #292, M8); a button, card or badge comes from `components/ui/`.
 4. **Utilities (`src/frontend/styles/utilities.css`)**:
    - Spacing (`.mb-1` to `.mb-8`, `.mt-*`, `.p-*`, `.gap-*`).
    - Typography (`.text-headline`, `.text-footnote`, etc.).
@@ -51,7 +53,8 @@ Global styles are imported once in `src/frontend/main.tsx` via `src/frontend/sty
 
 - **No Hardcoded Hex/RGB**: Never write `#ffffff`, `#0071e3`, `rgb(...)` outside of `tokens.css`. Always use `var(--accent)`, `var(--text)`, `var(--bg-card)`, etc.
 - **No Arbitrary Spacing**: Spacing must use `--space-*` tokens or utility classes (`.mt-4`, `.mb-2`, etc.).
-- **No Arbitrary Font Sizes**: Font sizes must follow HIG typography tokens (`--text-caption-1`, `--text-footnote`, `--text-headline`, etc.).
+- **No Arbitrary Font Sizes**: Font sizes must follow HIG typography tokens (`--text-caption-1`, `--text-footnote`, `--text-headline`, etc.). No text token is below 10px (gate G2).
+- **Shapes are tokens**: a `box-shadow` or `border-radius` value is a token, a `calc()` of tokens, or `none` (gate G1). Rings and the square corner (`--radius-none`) are tokens too.
 - **The Theme and Appearance are applied before first paint.** The server puts the saved values from `settings.json` on `<html>` (`data-saved-theme`, `data-saved-appearance`) when it serves `index.html` (`src/http/static.ts`, `injectSavedTheme`), so a fresh browser profile paints the saved choice. The pre-paint script in `index.html` prefers those attributes and falls back to localStorage. Vite dev serves no injected attributes, so there the localStorage values apply.
 
 ---
@@ -96,7 +99,8 @@ Rules:
 - **React Aria owns behaviour, tokens own every visual value.** The blocks wrap React Aria's unstyled primitives and React Aria's own stylesheet is never imported. State comes from its data attributes (`data-hovered`, `data-pressed`, `data-selected`, `data-disabled`, `data-focus-visible`) — style those, not `:hover`.
 - **Style them in `src/frontend/styles/shared/controls.css`**, the shared layer (section 3). Never inline a style, and never over-define a block from a screen: a screen composes blocks, it does not repaint them.
 - **A list is a block, not a class string.** Screens compose `ListGroup`/`ListGroupRow` (and `ListRow` for a list of records, `Table` for columns of data) and pass no box classes of their own; the grouped-list rules — one card-shaped group, inset hairlines, one hover rule — live in `controls.css` and are described in `DESIGN.md` §7.
-- **Every block a finger can hit is at least `--tap-min` (44px) tall.** `test/ui-loading-states.test.tsx` fails if one drops below it.
+- **Every block a finger can hit is at least `--tap-min` tall.** `--tap-min` is 44px where a touch input is present or the viewport is 768px or less, and a 24px hit area otherwise (`test/frontend-token-measurements.test.ts` measures both). `test/ui-loading-states.test.tsx` fails if the 44px default changes.
+- **Buttons have a filled bezel and no border.** Fields, switches and other controls keep `--border-control`. `test/theme-contrast.test.ts` proves that pair at 3:1 in every theme, appearance and contrast setting.
 - **One focus ring, one definition.** `controls.css` draws it from `--border-width-indicator` and `--border-focus` for every interactive block; the twelve-set contrast gate proves that pair at 3:1 or better.
 - **Lists load as static placeholder rows; everything else waits behind the one spinner.** Placeholder rows reserve `--list-row-height`, so the loaded list cannot jump, and they never animate. A shimmer is banned, in markup and in CSS (`test/frontend-smoke.test.ts`).
 - **Errors are announced as alerts.** `AsyncRegion`'s error state, an error-tone `FeedbackBanner` and an invalid `FieldFeedback` use `role="alert"`; informational and partial states stay polite.
@@ -112,3 +116,23 @@ bun run typecheck:frontend
 bun run test:frontend-smoke
 ```
 Both must exit with code 0.
+
+---
+
+## 9. Gates (spec #292)
+
+Every gate lives in `test/frontend-smoke.test.ts`, and each one has a fixture that shows it fails on a bad example. No gate has an allowlist or a baseline (`CLAUDE.md` rule 10).
+
+| Gate | Rule | Status |
+|---|---|---|
+| G1 | No raw `box-shadow` or `border-radius` value outside `tokens.css` | active |
+| G2 | No text token below 10px; `--text-micro`, `--text-badge`, `--text-tag` do not exist | active |
+| G3 | No raw rem/em spacing (`margin`, `padding`, `gap`, `inset`, offsets) outside `tokens.css` | active |
+| G4 | No `font-size` or `font-weight` in a component stylesheet. The text files (`utilities.css`, `controls.css`, `forms.css`, and the `html` root rule in `base.css`) may set them, with a text or weight token only | active |
+| G5 | No raw `<button>` outside `components/ui/` | active |
+| G6 | No `sprite.svg#` reference outside `components/ui/` | active |
+| G7 | No page `<header>` or page-heading class in `views/*.tsx`; PageHeader only | active |
+| G8 | No empty-state markup outside `AsyncRegion` or EmptyState | active |
+| G9 | No card class outside the Card block, except diagram node cards (`flow-node-card`) | active |
+| G10 | Button and menu-item labels use Title Case | active |
+| G11 | `buttons.css`, `cards.css` and `badges.css` do not exist; no bare `button` element style | active |

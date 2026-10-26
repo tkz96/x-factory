@@ -5,6 +5,11 @@ import { describe, expect, it } from "bun:test";
 import { readFileSync } from "node:fs";
 
 const tokens = readFileSync("src/frontend/styles/tokens.css", "utf8");
+const controlsCss = readFileSync(
+  "src/frontend/styles/shared/controls.css",
+  "utf8",
+);
+const utilitiesCss = readFileSync("src/frontend/styles/utilities.css", "utf8");
 
 describe("hard-coded values are tokens", () => {
   it("the diagram minimap mask uses the scrim token, not a literal rgba", () => {
@@ -40,12 +45,336 @@ describe("hard-coded values are tokens", () => {
       "src/frontend/components/projects/RepositorySettings.css",
       "utf8",
     );
-    expect(tsx).toContain('className="form-input repo-settings-input"');
     expect(tsx).toContain(
-      'className="form-input repo-settings-input repo-settings-input--mono"',
+      'className="form-input repo-settings-input text-callout"',
+    );
+    expect(tsx).toContain(
+      'className="form-input repo-settings-input repo-settings-input--mono text-callout"',
     );
     // The focus ring lives in styles/shared/forms.css only.
     expect(css).not.toContain("box-shadow");
     expect(css).not.toContain(":focus-visible");
   });
+});
+
+// ─── Type scale and control metrics (spec #292) ───────────────────────────
+// The tokens are rem, so the test reads them in a real browser and converts
+// them to px at the default 16px root size, the way a screen renders them. The
+// pointers are set when the browser launches: Blink's primaryPointerType and
+// availablePointerTypes settings (2 = coarse, 4 = fine). CDP media emulation
+// does not change pointer or any-pointer.
+
+const MEASURE_TIMEOUT = 120_000;
+
+const MACOS_SCALE = {
+  "--text-large-title": 26,
+  "--text-title-1": 22,
+  "--text-title-2": 17,
+  "--text-title-3": 15,
+  "--text-headline": 13,
+  "--text-body": 13,
+  "--text-callout": 12,
+  "--text-subhead": 11,
+  "--text-footnote": 10,
+  "--text-caption-1": 10,
+  "--text-caption-2": 10,
+  // Control text: a regular control is 13px and a small one 11px (spec #292, item 4).
+  "--text-control": 13,
+  "--text-control-sm": 11,
+} as const;
+
+const IOS_SCALE = {
+  "--text-large-title": 34,
+  "--text-title-1": 28,
+  "--text-title-2": 22,
+  "--text-title-3": 20,
+  "--text-headline": 17,
+  "--text-body": 17,
+  "--text-callout": 16,
+  "--text-subhead": 15,
+  "--text-footnote": 13,
+  "--text-caption-1": 12,
+  "--text-caption-2": 11,
+  "--text-control": 16,
+  "--text-control-sm": 13,
+} as const;
+
+/**
+ * The text-style classes (utilities.css) per scale: the computed size, weight
+ * and line-height in px. The size is the scale's value above. Weight and
+ * leading are Apple's published values (spec #292, "Text styles").
+ */
+const MACOS_TEXT_STYLES = {
+  "large-title": { weight: 400, lineHeight: 32 },
+  "title-1": { weight: 400, lineHeight: 26 },
+  "title-2": { weight: 400, lineHeight: 22 },
+  "title-3": { weight: 400, lineHeight: 20 },
+  headline: { weight: 700, lineHeight: 16 },
+  body: { weight: 400, lineHeight: 16 },
+  callout: { weight: 400, lineHeight: 15 },
+  subhead: { weight: 400, lineHeight: 14 },
+  footnote: { weight: 400, lineHeight: 13 },
+  "caption-1": { weight: 400, lineHeight: 13 },
+  "caption-2": { weight: 500, lineHeight: 13 },
+} as const;
+
+const IOS_TEXT_STYLES = {
+  "large-title": { weight: 400, lineHeight: 41 },
+  "title-1": { weight: 400, lineHeight: 34 },
+  "title-2": { weight: 400, lineHeight: 28 },
+  "title-3": { weight: 400, lineHeight: 25 },
+  headline: { weight: 600, lineHeight: 22 },
+  body: { weight: 400, lineHeight: 22 },
+  callout: { weight: 400, lineHeight: 21 },
+  subhead: { weight: 400, lineHeight: 20 },
+  footnote: { weight: 400, lineHeight: 18 },
+  "caption-1": { weight: 400, lineHeight: 16 },
+  "caption-2": { weight: 400, lineHeight: 13 },
+} as const;
+
+const MACOS_METRICS = {
+  "--control-height": 28,
+  "--control-height-sm": 22,
+  "--control-height-lg": 32,
+  "--header-height": 52,
+  "--sidebar-row-height": 28,
+} as const;
+
+interface MediaCondition {
+  name: string;
+  width: number;
+  /** Blink's primaryPointerType: 2 is coarse (touch), 4 is fine (mouse). */
+  primaryPointer: 2 | 4;
+  /** Blink's availablePointerTypes bit mask, the same values (2 coarse, 4 fine). */
+  availablePointers: number;
+  scale: "macos" | "ios";
+  tapMin: number;
+  /** The computed height of a regular and a small .ui-button (spec #292). */
+  buttonHeights: { regular: number; small: number };
+}
+
+/** The four conditions the spec names (#292 "Type scale and density"). */
+const MEDIA_CONDITIONS: MediaCondition[] = [
+  {
+    name: "fine pointer, wide viewport",
+    width: 1280,
+    primaryPointer: 4,
+    availablePointers: 4,
+    scale: "macos",
+    tapMin: 24,
+    buttonHeights: { regular: 28, small: 22 },
+  },
+  {
+    name: "coarse pointer",
+    width: 1280,
+    primaryPointer: 2,
+    availablePointers: 2,
+    scale: "ios",
+    tapMin: 44,
+    buttonHeights: { regular: 44, small: 44 },
+  },
+  {
+    name: "fine primary pointer with a coarse secondary pointer",
+    width: 1280,
+    primaryPointer: 4,
+    availablePointers: 6,
+    scale: "macos",
+    tapMin: 44,
+    buttonHeights: { regular: 44, small: 44 },
+  },
+  {
+    name: "fine pointer, narrow viewport",
+    width: 390,
+    primaryPointer: 4,
+    availablePointers: 4,
+    scale: "ios",
+    tapMin: 44,
+    buttonHeights: { regular: 44, small: 44 },
+  },
+];
+
+/** Reads the custom properties in the browser and returns their px values. */
+async function measureTokens(
+  page: import("playwright-core").Page,
+  names: readonly string[],
+): Promise<Record<string, number>> {
+  const raw = await page.evaluate(
+    (list) => {
+      const style = getComputedStyle(document.documentElement);
+      return Object.fromEntries(
+        list.map((name) => [name, style.getPropertyValue(name).trim()]),
+      );
+    },
+    [...names],
+  );
+  const out: Record<string, number> = {};
+  for (const [name, value] of Object.entries(raw)) {
+    const amount = Number.parseFloat(value);
+    out[name] = value.endsWith("rem") ? amount * 16 : amount;
+  }
+  return out;
+}
+
+describe("type scale and control metrics by media condition (spec #292)", () => {
+  // The tokens live in tokens.css. Loading that file alone keeps the test
+  // independent of the app's build and its server.
+  const tokenCss = tokens;
+
+  for (const condition of MEDIA_CONDITIONS) {
+    it(
+      `${condition.scale === "macos" ? "macOS" : "iOS"} scale and tap target under ${condition.name}`,
+      async () => {
+        const { chromium } = await import("playwright-core");
+        const args = [
+          `--blink-settings=primaryPointerType=${condition.primaryPointer},availablePointerTypes=${condition.availablePointers}`,
+        ];
+        let browser: import("playwright-core").Browser;
+        try {
+          browser = await chromium.launch({ args });
+        } catch {
+          browser = await chromium.launch({ channel: "chrome", args });
+        }
+        try {
+          const context = await browser.newContext({
+            viewport: { width: condition.width, height: 800 },
+          });
+          const page = await context.newPage();
+          const textSamples = Object.keys(MACOS_TEXT_STYLES)
+            .map(
+              (style) =>
+                `<p class="text-${style}" data-style="${style}">Aa</p>`,
+            )
+            .join("");
+          await page.setContent(
+            `<!doctype html><html><head><style>${tokenCss}</style><style>${controlsCss}</style><style>${utilitiesCss}</style></head><body>` +
+              `<button class="ui-button ui-button--primary" id="regular">Go</button>` +
+              `<button class="ui-button ui-button--sm" id="small">Add</button>` +
+              `<p class="page-subtitle" id="subtitle">Runs that are working</p>` +
+              textSamples +
+              `</body></html>`,
+          );
+          const heights = await page.evaluate(() => ({
+            regular:
+              document.getElementById("regular")?.getBoundingClientRect()
+                .height ?? -1,
+            small:
+              document.getElementById("small")?.getBoundingClientRect()
+                .height ?? -1,
+          }));
+          expect(heights).toEqual(condition.buttonHeights);
+
+          const scale = condition.scale === "macos" ? MACOS_SCALE : IOS_SCALE;
+          const sizes = await measureTokens(page, Object.keys(scale));
+          expect(sizes).toEqual(scale);
+
+          // Running text and controls are measured where they render (spec #292,
+          // item 4): a regular control is 13px and a small one 11px on macOS, and
+          // a page subtitle is Callout, never a 10px caption.
+          const rendered = await page.evaluate(() => ({
+            regular: Number.parseFloat(
+              getComputedStyle(document.getElementById("regular") as Element)
+                .fontSize,
+            ),
+            small: Number.parseFloat(
+              getComputedStyle(document.getElementById("small") as Element)
+                .fontSize,
+            ),
+            subtitle: Number.parseFloat(
+              getComputedStyle(document.getElementById("subtitle") as Element)
+                .fontSize,
+            ),
+          }));
+          expect(rendered.regular).toBe(scale["--text-control"]);
+          expect(rendered.small).toBe(scale["--text-control-sm"]);
+          expect(rendered.subtitle).toBe(scale["--text-callout"]);
+          expect(rendered.subtitle).toBeGreaterThanOrEqual(11);
+          // Nothing renders under 10px: the smallest text token is the 10px metadata size.
+          expect(Math.min(...Object.values(scale))).toBeGreaterThanOrEqual(10);
+
+          // Each text-style class computes its own size, weight and line-height.
+          const textStyles =
+            condition.scale === "macos" ? MACOS_TEXT_STYLES : IOS_TEXT_STYLES;
+          const computed = await page.evaluate(() =>
+            Object.fromEntries(
+              Array.from(
+                document.querySelectorAll<HTMLElement>("[data-style]"),
+              ).map((el) => {
+                const style = getComputedStyle(el);
+                return [
+                  el.dataset.style,
+                  {
+                    fontSize: Number.parseFloat(style.fontSize),
+                    weight: Number.parseInt(style.fontWeight, 10),
+                    lineHeight: Number.parseFloat(style.lineHeight),
+                  },
+                ];
+              }),
+            ),
+          );
+          for (const [style, expected] of Object.entries(textStyles)) {
+            const sizeToken = `--text-${style}` as keyof typeof scale;
+            expect(computed[style]).toEqual({
+              fontSize: scale[sizeToken],
+              weight: expected.weight,
+              lineHeight: expected.lineHeight,
+            });
+          }
+
+          const metrics = await measureTokens(page, [
+            "--tap-min",
+            ...(condition.scale === "macos"
+              ? Object.keys(MACOS_METRICS)
+              : ["--header-height"]),
+          ]);
+          expect(metrics["--tap-min"]).toBe(condition.tapMin);
+          if (condition.scale === "macos") {
+            expect(metrics).toMatchObject(MACOS_METRICS);
+          } else {
+            expect(metrics["--header-height"]).toBe(56);
+          }
+          await context.close();
+        } finally {
+          await browser.close();
+        }
+      },
+      MEASURE_TIMEOUT,
+    );
+  }
+});
+
+describe("Increase Contrast restores strong lines in every appearance (spec #292)", () => {
+  it(
+    "--separator and --hairline take the strong border under dark appearance with data-contrast=more",
+    async () => {
+      const { chromium } = await import("playwright-core");
+      let browser: import("playwright-core").Browser;
+      try {
+        browser = await chromium.launch();
+      } catch {
+        browser = await chromium.launch({ channel: "chrome" });
+      }
+      try {
+        const context = await browser.newContext();
+        const page = await context.newPage();
+        await page.emulateMedia({ colorScheme: "dark", contrast: "more" });
+        await page.setContent(
+          `<!doctype html><html data-contrast="more"><head><style>${tokens}</style></head><body></body></html>`,
+        );
+        const values = await page.evaluate(() => {
+          const style = getComputedStyle(document.documentElement);
+          return {
+            separator: style.getPropertyValue("--separator").trim(),
+            border: style.getPropertyValue("--border").trim(),
+            hairline: style.getPropertyValue("--hairline").trim(),
+          };
+        });
+        expect(values.separator).toBe(values.border);
+        expect(values.hairline).toBe("1px");
+        await context.close();
+      } finally {
+        await browser.close();
+      }
+    },
+    MEASURE_TIMEOUT,
+  );
 });

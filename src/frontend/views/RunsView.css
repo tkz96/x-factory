@@ -16,7 +16,6 @@
 }
 
 .run-row-time {
-  font-size: var(--text-caption-1);
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -43,6 +42,5 @@
     flex: 1 1 auto;
     gap: var(--space-half);
     padding-inline: var(--space-1);
-    font-size: var(--text-footnote);
   }
 }

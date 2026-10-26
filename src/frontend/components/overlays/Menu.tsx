@@ -50,7 +50,7 @@ export function MenuItem({
   const dangerClass = isDanger ? "xf-menu-item-danger" : "";
   return (
     <RACMenuItem
-      className={`xf-menu-item ${dangerClass} ${className ?? ""}`.trim()}
+      className={`xf-menu-item ${dangerClass} ${className ?? ""} text-subhead`.trim()}
       {...props}
     >
       {children}

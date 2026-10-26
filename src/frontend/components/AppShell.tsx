@@ -1,7 +1,7 @@
 import "./AppShell.css";
 import "./AppShellDocsPhone.css";
 
-import { type UIEvent, useEffect, useState } from "react";
+import { type ReactNode, type UIEvent, useEffect, useState } from "react";
 import {
   Link,
   NavLink,
@@ -13,6 +13,10 @@ import {
 import { STOPPABLE_RUN_STATUSES } from "../../shared/run-status-policy.js";
 import { ModalProvider, useModal } from "../context/ModalContext.js";
 import { NotificationProvider } from "../context/NotificationContext.js";
+import {
+  PageHeaderProvider,
+  usePageHeaderContent,
+} from "../context/PageHeaderContext.js";
 import { ProjectProvider } from "../context/ProjectContext.js";
 import {
   useProjects,
@@ -28,7 +32,11 @@ import { countRunsByFilter } from "../lib/runs-list.js";
 import { type ShortcutId, shortcutLabel } from "../shortcuts/registry.js";
 import { useGlobalShortcuts } from "../shortcuts/useGlobalShortcuts.js";
 import { DocsSidebarNav } from "./docs/DocsSidebarNav.js";
-import { NOT_FOUND_COPY, WELCOME_COPY } from "./feedback/copy-map.js";
+import {
+  NOT_FOUND_COPY,
+  STATUS_COPY,
+  WELCOME_COPY,
+} from "./feedback/copy-map.js";
 import { ModalContainer } from "./ModalContainer.js";
 import { DesktopBanners } from "./notifications/DesktopBanners.js";
 import { NotificationActivity } from "./notifications/NotificationActivity.js";
@@ -43,8 +51,12 @@ import {
 import { CommandPalette } from "./palette/CommandPalette.js";
 import { ShortcutSheet } from "./palette/ShortcutSheet.js";
 import { ProjectScopePicker } from "./projects/ProjectScopePicker.js";
+import { Badge } from "./ui/Badge.js";
 import { Button } from "./ui/Button.js";
+import { Icon } from "./ui/Icon.js";
+import { PageHeader } from "./ui/PageHeader.js";
 import { SegmentedControl } from "./ui/SegmentedControl.js";
+import { useMediaQuery } from "./ui/useMediaQuery.js";
 
 /** Scrolling past this many pixels moves the page title into the toolbar. */
 const COMPACT_TITLE_SCROLL = 32;
@@ -146,7 +158,7 @@ function DocsSidebar({ docsNavOpen, onCloseDocsNav }: DocsSidebarProps) {
         className="docs-nav-close mobile-only"
         onPress={onCloseDocsNav}
       >
-        Close document list
+        Close Document List
       </Button>
       <DocsSidebarNav />
     </aside>
@@ -178,7 +190,9 @@ function withShortcut(label: string, id: ShortcutId): string {
 /** The registry keys on the right of a menu row; nothing when the action has no chord. */
 function MenuShortcut({ id }: { id: ShortcutId }) {
   const keys = shortcutLabel(id);
-  return keys ? <kbd className="xf-menu-keys">{keys}</kbd> : null;
+  return keys ? (
+    <kbd className="xf-menu-keys text-caption-1">{keys}</kbd>
+  ) : null;
 }
 
 interface RunActionsMenuProps {
@@ -239,11 +253,11 @@ function PageAction({ section, onStartRun, onAddProject }: PageActionProps) {
         id="btn-start-run"
         variant="secondary"
         icon="icon-plus"
-        aria-label="Start Run"
-        title={withShortcut("Start Run", "newRun")}
+        aria-label="Start Run…"
+        title={withShortcut("Start Run…", "newRun")}
         onPress={onStartRun}
       >
-        <span className="page-action-label">Start Run</span>
+        <span className="page-action-label">Start Run…</span>
       </Button>
     );
   }
@@ -253,14 +267,44 @@ function PageAction({ section, onStartRun, onAddProject }: PageActionProps) {
         id="btn-add-project"
         variant="primary"
         icon="icon-plus"
-        aria-label="Add Project"
+        aria-label="Add Project…"
         onPress={onAddProject}
       >
-        <span className="page-action-label">Add Project</span>
+        <span className="page-action-label">Add Project…</span>
       </Button>
     );
   }
   return null;
+}
+
+interface PageHeaderSlotProps {
+  /** The shell's own title, standing until a view claims the heading. */
+  title: string;
+  /** The shell's own subtitle for the address, standing the same way. */
+  subtitle: string;
+  /** The section's page action, standing until a view brings its own. */
+  actions: ReactNode;
+}
+
+/**
+ * The page heading the shell renders (#298): the mounted view's claim when
+ * there is one — its title, its subtitle and its actions — and the shell's
+ * own title and section action otherwise. It is the same slot at desktop and
+ * phone width; the toolbar picks the claimed title up when the page scrolls.
+ */
+function PageHeaderSlot({ title, subtitle, actions }: PageHeaderSlotProps) {
+  const provided = usePageHeaderContent();
+  const resolvedActions =
+    provided !== null && provided.actions !== undefined
+      ? provided.actions
+      : actions;
+  return (
+    <PageHeader
+      title={provided?.title ?? title}
+      subtitle={provided?.subtitle ?? subtitle}
+      actions={resolvedActions}
+    />
+  );
 }
 
 interface AppShellHeaderProps {
@@ -307,6 +351,16 @@ function AppShellHeader({
   stopPending,
   onOpenPalette,
 }: AppShellHeaderProps) {
+  // A view that claims the page heading names itself everywhere the title
+  // shows: the compact toolbar copy and the run-page heading included (#298).
+  // Only this component and PageHeaderSlot read the claim, so a claim change
+  // re-renders the bar and the heading — never the view that made it.
+  const providedHeader = usePageHeaderContent();
+  // The breadcrumb and the search label take the phone and compact sizes.
+  const phoneWidth = useMediaQuery("(max-width: 768px)");
+  const compactSearch = useMediaQuery("(max-width: 1320px)");
+  const headingTitle = providedHeader?.title ?? title;
+  const headingSubtitle = providedHeader?.subtitle ?? subtitle;
   return (
     <header
       id="content-toolbar"
@@ -318,19 +372,24 @@ function AppShellHeader({
             className="toolbar-breadcrumb"
             aria-label="Documentation Breadcrumbs"
           >
-            <div className="docs-header-crumb-trail">
+            <div
+              className={`docs-header-crumb-trail font-bold ${phoneWidth ? "text-headline" : "text-title-2"}`}
+            >
               <span className="docs-header-crumb-root">Documentation</span>
-              <span className="docs-header-crumb-sep">›</span>
+              <span className="docs-header-crumb-sep font-regular">›</span>
               <span className="docs-header-crumb-cat">
                 {docBreadcrumb.category}
               </span>
-              <span className="docs-header-crumb-sep">›</span>
+              <span className="docs-header-crumb-sep font-regular">›</span>
               <span className="docs-header-crumb-current">
                 {docBreadcrumb.item}
               </span>
             </div>
-            <span id="toolbar-subtitle" className="toolbar-subtitle">
-              {subtitle}
+            <span
+              id="toolbar-subtitle"
+              className="toolbar-subtitle text-caption-1"
+            >
+              {headingSubtitle}
             </span>
           </nav>
         ) : isRunDetail ? (
@@ -338,11 +397,17 @@ function AppShellHeader({
           // lives here as the one h1: one line with an ellipsis, the project and
           // branch beneath it as a caption, only the title on a phone (#258, F3).
           <div className="toolbar-run-heading">
-            <h1 id="toolbar-title" className="toolbar-title is-visible">
-              {title}
+            <h1
+              id="toolbar-title"
+              className="toolbar-title is-visible text-headline font-semibold"
+            >
+              {headingTitle}
             </h1>
-            <span id="toolbar-subtitle" className="toolbar-subtitle">
-              {subtitle}
+            <span
+              id="toolbar-subtitle"
+              className="toolbar-subtitle text-caption-1"
+            >
+              {headingSubtitle}
             </span>
           </div>
         ) : (
@@ -351,8 +416,11 @@ function AppShellHeader({
           // until then nothing is rendered, so the bar never holds an empty
           // title span (#258).
           compact && (
-            <span className="toolbar-title is-visible" aria-hidden="true">
-              {title}
+            <span
+              className="toolbar-title is-visible text-title-3 font-bold"
+              aria-hidden="true"
+            >
+              {headingTitle}
             </span>
           )
         )}
@@ -391,7 +459,7 @@ function AppShellHeader({
             aria-controls="app-sidebar"
             onPress={onToggleDocsNav}
           >
-            Browse documents
+            Browse Documents
           </Button>
         )}
         {!isDocs && isRunDetail && (
@@ -405,15 +473,23 @@ function AppShellHeader({
           <Button
             id="btn-search"
             variant="quiet"
-            className="toolbar-search"
+            className="toolbar-search font-medium"
             icon="icon-search"
             aria-label="Search"
             title={withShortcut("Search", "palette")}
             aria-keyshortcuts="Control+K Meta+K"
             onPress={onOpenPalette}
           >
-            <span className="toolbar-search-label">Search</span>
-            <kbd className="toolbar-search-keys">
+            <span
+              className={
+                compactSearch
+                  ? "toolbar-search-label text-caption-2"
+                  : "toolbar-search-label"
+              }
+            >
+              Search
+            </span>
+            <kbd className="toolbar-search-keys text-caption-1">
               {shortcutLabel("palette")}
             </kbd>
           </Button>
@@ -424,12 +500,12 @@ function AppShellHeader({
         {!isDocs && isDegraded && (
           <Link
             to="/settings?tab=diagnostics"
-            className="toolbar-readiness desktop-only"
+            className="toolbar-readiness desktop-only text-footnote font-semibold"
           >
-            <svg className="icon icon-sm" aria-hidden="true">
-              <use href="/assets/icons/sprite.svg#icon-alert-circle" />
-            </svg>
-            <span>Degraded</span>
+            <Badge tone="warning">
+              <Icon name="icon-alert-circle" size="sm" />
+              {STATUS_COPY.degraded}
+            </Badge>
           </Link>
         )}
         {!isDocs && (
@@ -439,9 +515,7 @@ function AppShellHeader({
             aria-label="Settings"
             title="Settings"
           >
-            <svg className="icon icon-md" aria-hidden="true">
-              <use href="/assets/icons/sprite.svg#icon-settings" />
-            </svg>
+            <Icon name="icon-settings" size="md" />
           </NavLink>
         )}
       </div>
@@ -460,14 +534,14 @@ function AppShellMobileTabBar({ needsYouCount }: { needsYouCount: number }) {
         <NavLink
           key={section.id}
           to={`/${section.id}`}
-          className={({ isActive }) => `tab-item ${isActive ? "active" : ""}`}
+          className={({ isActive }) =>
+            `tab-item text-caption-2 font-medium ${isActive ? "active" : ""}`
+          }
         >
-          <svg className="icon icon-lg" aria-hidden="true">
-            <use href={`/assets/icons/sprite.svg#${section.icon}`} />
-          </svg>
+          <Icon name={section.icon} size="lg" />
           <span>{section.label}</span>
           {section.id === "runs" && needsYouCount > 0 && (
-            <span className="tab-count">{needsYouCount}</span>
+            <span className="tab-count text-caption-2">{needsYouCount}</span>
           )}
         </NavLink>
       ))}
@@ -627,53 +701,52 @@ function AppShellContent() {
         className={`main-content ${isRunDetail ? "main-content-locked" : ""}`}
         onScroll={onMainScroll}
       >
-        {!isWelcome && (
-          <AppShellHeader
-            isDocs={isDocs}
-            isRunDetail={isRunDetail}
-            docsNavOpen={docsNavOpen}
-            onToggleDocsNav={() => setDocsNavOpen((open) => !open)}
-            title={title}
-            subtitle={subtitle}
-            compact={compact}
-            docBreadcrumb={docBreadcrumb}
-            section={section}
-            onSelectSection={(id) => navigate(`/${id}`)}
-            needsYouCount={needsYouCount}
-            isDegraded={isDegraded}
-            activeRunId={activeRunId}
-            onStopRun={handleStopRun}
-            stopPending={stopRunMutation.isPending}
-            onOpenPalette={() => setPaletteOpen(true)}
-          />
-        )}
-
-        <div
-          id="viewport-container"
-          className={`viewport-container ${isRunDetail ? "viewport-container-locked" : ""}`}
-        >
-          {!isDocs && !isRunDetail && (
-            <div className="page-heading">
-              <div className="page-heading-text">
-                <h1 id="page-title" className="large-title">
-                  {title}
-                </h1>
-                <p className="page-subtitle">{genericSubtitle}</p>
-              </div>
-              {/* The screen's own action: the toolbar does not carry one
-                   The slot is empty on a screen without one. */}
-              <div className="page-heading-actions">
-                <PageAction
-                  section={section}
-                  onStartRun={() => openNewRunModal()}
-                  onAddProject={() => openOnboardingModal()}
-                />
-              </div>
-            </div>
+        {/* The heading slot wraps the bar and the view: while a view is
+            mounted it claims this heading through usePageHeader (#298), and
+            the toolbar and the heading below read the same claim. */}
+        <PageHeaderProvider>
+          {!isWelcome && (
+            <AppShellHeader
+              isDocs={isDocs}
+              isRunDetail={isRunDetail}
+              docsNavOpen={docsNavOpen}
+              onToggleDocsNav={() => setDocsNavOpen((open) => !open)}
+              title={title}
+              subtitle={subtitle}
+              compact={compact}
+              docBreadcrumb={docBreadcrumb}
+              section={section}
+              onSelectSection={(id) => navigate(`/${id}`)}
+              needsYouCount={needsYouCount}
+              isDegraded={isDegraded}
+              activeRunId={activeRunId}
+              onStopRun={handleStopRun}
+              stopPending={stopRunMutation.isPending}
+              onOpenPalette={() => setPaletteOpen(true)}
+            />
           )}
 
-          <Outlet />
-        </div>
+          <div
+            id="viewport-container"
+            className={`viewport-container ${isRunDetail ? "viewport-container-locked" : ""}`}
+          >
+            {!isDocs && !isRunDetail && (
+              <PageHeaderSlot
+                title={title}
+                subtitle={genericSubtitle}
+                actions={
+                  <PageAction
+                    section={section}
+                    onStartRun={() => openNewRunModal()}
+                    onAddProject={() => openOnboardingModal()}
+                  />
+                }
+              />
+            )}
+
+            <Outlet />
+          </div>
+        </PageHeaderProvider>
       </main>
 
       {!isWelcome && <AppShellMobileTabBar needsYouCount={needsYouCount} />}

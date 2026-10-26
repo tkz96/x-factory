@@ -31,24 +31,22 @@
   width: var(--sidebar-width-sm);
   flex-shrink: 0;
   position: sticky;
-  top: 5.5rem;
+  top: calc(var(--space-20) + var(--space-2));
   max-height: calc(100vh - 7rem);
   overflow-y: auto;
 }
 
 .docs-toc-sticky-box {
-  padding: 0.5rem 0 0.5rem 0.75rem;
-  border-left: var(--border-width) solid var(--border-subtle);
+  padding: var(--space-2) 0 var(--space-2) var(--space-3);
+  border-left: var(--hairline) solid var(--separator);
 }
 
 .docs-toc-header {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
-  font-size: var(--text-footnote);
-  font-weight: 600;
+  gap: var(--space-1-5);
   color: var(--text-secondary);
-  margin-bottom: 0.75rem;
+  margin-bottom: var(--space-3);
 }
 
 .docs-toc-header svg {
@@ -58,7 +56,7 @@
 .docs-toc-nav {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: var(--space-micro);
 }
 
 /* The rows themselves are the shared navigation item; what stays is the
@@ -88,47 +86,20 @@
 
 /* ── Article Content Styles ─────────────────────────────────────────── */
 
-.docs-loading-text {
-  padding: var(--space-8);
-  text-align: center;
-  color: var(--text-muted);
-}
-
-.docs-error-box {
-  padding: var(--space-8);
-  text-align: center;
-}
-
-.docs-error-msg {
-  color: var(--red);
-  margin-bottom: var(--space-4);
-}
-
 /* The pane title is the screen's one h1 (#258): every security pane uses it,
    so the heading level and its look always agree. */
 .docs-pane-title {
   font-family: var(--font-display);
-  font-size: var(--text-title-1);
-  font-weight: 700;
   letter-spacing: -0.024em;
   margin: 0 0 var(--space-4);
 }
 
 .docs-subheading {
-  font-size: var(--text-headline);
-  font-weight: 600;
   margin-bottom: var(--space-3);
-}
-
-.docs-pane-p {
-  line-height: 1.6;
-  font-size: var(--text-callout);
 }
 
 .docs-list {
   margin-left: var(--space-6);
-  line-height: 1.8;
-  font-size: var(--text-callout);
   margin-top: var(--space-4);
 }
 
@@ -138,8 +109,6 @@
   background: var(--orange-dim);
   border-radius: var(--radius-sm);
   border: var(--border-width) solid var(--orange);
-  font-size: var(--text-footnote);
-  line-height: 1.6;
 }
 
 .docs-callout-warning strong {
@@ -150,10 +119,8 @@
   margin-top: var(--space-8);
   padding: var(--space-5);
   background: var(--bg-hover);
-  border: var(--border-width) solid var(--border-subtle);
+  border: var(--hairline) solid var(--separator);
   border-radius: var(--radius-sm);
-  font-size: var(--text-footnote);
-  line-height: 1.6;
 }
 
 .docs-callout-guardrail-header {
@@ -162,13 +129,10 @@
   gap: var(--space-2);
   margin-bottom: var(--space-2);
   color: var(--text);
-  font-size: var(--text-subhead);
 }
 
 .docs-callout-guardrail-text {
   margin: 0;
-  font-size: var(--text-footnote);
-  line-height: 1.5;
 }
 
 .docs-code-blue {
@@ -180,25 +144,22 @@
 .docs-meta-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: var(--text-footnote);
   margin: var(--space-4) 0;
 }
 
 .docs-meta-table th {
   text-align: left;
-  padding: 0.6rem 0.8rem;
+  padding: var(--space-2-5) var(--space-3);
   background: var(--bg-hover);
   border-bottom: var(--border-width-thick) solid var(--border);
   color: var(--text-muted);
-  font-weight: 600;
-  font-size: var(--text-caption-1);
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
 
 .docs-meta-table td {
-  padding: 0.6rem 0.8rem;
-  border-bottom: var(--border-width) solid var(--border-subtle);
+  padding: var(--space-2-5) var(--space-3);
+  border-bottom: var(--hairline) solid var(--separator);
   color: var(--text);
 }
 

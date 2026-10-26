@@ -158,7 +158,19 @@ describe("Settings in the System Settings layout (#266)", () => {
   it("names the Connections action Add Project, not Onboard Project", () => {
     const { getByRole, queryByRole } = renderSettings("/settings?tab=trackers");
 
-    expect(getByRole("button", { name: "Add Project" })).toBeTruthy();
+    expect(getByRole("button", { name: "Add Project…" })).toBeTruthy();
     expect(queryByRole("button", { name: "Onboard Project" })).toBeNull();
+  });
+
+  // An empty registry is the EmptyState block (spec #292 "Blocks", M4): the
+  // headline renders as a heading, where the old markup was a plain paragraph.
+  it("shows an empty connections registry as the EmptyState block", async () => {
+    const { getByRole } = renderSettings("/settings?tab=trackers");
+
+    await waitFor(() => {
+      expect(
+        getByRole("heading", { level: 3, name: "No projects configured." }),
+      ).toBeTruthy();
+    });
   });
 });

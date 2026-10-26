@@ -2,11 +2,14 @@ import { AnimatePresence } from "motion/react";
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { AsyncRegion } from "../components/feedback/AsyncRegion.js";
+import { STATUS_COPY } from "../components/feedback/copy-map.js";
 import { deriveAsyncState } from "../components/feedback/derive-async-state.js";
 import { Badge } from "../components/ui/Badge.js";
+import { Icon } from "../components/ui/Icon.js";
 import { ListGroup } from "../components/ui/ListGroup.js";
 import { ListRow } from "../components/ui/ListRow.js";
 import { SegmentedControl } from "../components/ui/SegmentedControl.js";
+import { usePageHeader } from "../context/PageHeaderContext.js";
 import { useCurrentProject } from "../context/ProjectContext.js";
 import { useNow } from "../hooks/useNow.js";
 import { useRuns } from "../hooks/useQueries.js";
@@ -43,6 +46,12 @@ function runRowSubtitle(r: Run): string {
     .filter((part) => part !== "")
     .join(" · ");
 }
+
+/** The page heading the shell draws for this screen; a constant, so the claim is made once. */
+const PAGE_HEADER = {
+  title: "Runs",
+  subtitle: "Runs that are working or waiting for you",
+};
 
 /** The filter the user chose last, kept per viewer (#259). */
 const LAST_FILTER_KEY = "runs-list-filter";
@@ -94,8 +103,8 @@ function runRowStatus(r: Run): { text: string; tone: RunStatusTone } {
   const outcome = r.pullRequestOutcome;
   if (outcome) {
     return outcome.status === "merged"
-      ? { text: "Merged", tone: "success" }
-      : { text: "Closed without merging", tone: "neutral" };
+      ? { text: STATUS_COPY.prMerged, tone: "success" }
+      : { text: STATUS_COPY.prClosedUnmerged, tone: "neutral" };
   }
   return { text: runStatusText(r.status), tone: runStatusTone(r.status) };
 }
@@ -114,7 +123,7 @@ function RunRow({ r, now }: { r: Run; now: number }) {
         <>
           <Badge tone={status.tone}>{status.text}</Badge>
           <time
-            className="run-row-time"
+            className="run-row-time text-caption-1"
             dateTime={shownAt}
             title={formatTimestamp(shownAt)}
           >
@@ -133,6 +142,7 @@ function RunRow({ r, now }: { r: Run; now: number }) {
  * rows come from the runs cache, which the app-wide stream patches live.
  */
 export function RunsView() {
+  usePageHeader(PAGE_HEADER);
   const runsQuery = useRuns();
   // The shared project scope narrows the list and its counts (#260).
   const { scope } = useCurrentProject();
@@ -196,9 +206,7 @@ export function RunsView() {
               to="/tickets"
               className="ui-button ui-button--secondary ui-button--sm"
             >
-              <svg className="icon icon-sm" aria-hidden="true">
-                <use href="/assets/icons/sprite.svg#icon-layers" />
-              </svg>
+              <Icon name="icon-layers" size="sm" />
               <span>Go to Tickets</span>
             </Link>
           ) : undefined

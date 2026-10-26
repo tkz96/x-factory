@@ -2,6 +2,7 @@
 
 import type { ProjectConnectionRole } from "../../shared/types.js";
 import { Button } from "../components/ui/Button.js";
+import { Icon } from "../components/ui/Icon.js";
 import "./ConnectionCard.css";
 
 export interface ConnectionVerifyButtonProps {
@@ -20,7 +21,7 @@ export function ConnectionVerifyButton({
   const isPending = status === "pending";
 
   return (
-    <div className="connection-card-actions">
+    <div className="connection-actions">
       <Button
         id={`btn-verify-${connectionRole}`}
         variant="secondary"
@@ -30,9 +31,7 @@ export function ConnectionVerifyButton({
       >
         {isPending ? (
           <>
-            <svg className="icon icon-sm icon-spin" aria-hidden="true">
-              <use href="/assets/icons/sprite.svg#icon-loader-2" />
-            </svg>
+            <Icon name="icon-loader-2" size="sm" className="icon-spin" />
             Verifying…
           </>
         ) : status === "ok" ? (

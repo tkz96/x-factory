@@ -12,6 +12,7 @@ import {
   type ButtonProps as AriaButtonProps,
 } from "react-aria-components";
 import { withoutUndefined } from "./aria-props.js";
+import { Icon } from "./Icon.js";
 
 export type ButtonVariant = "primary" | "secondary" | "danger" | "quiet";
 /** `sm` is a row accessory: 32px tall, --radius-sm, --text-footnote. Under a
@@ -66,11 +67,7 @@ export function Button({
       ref={ref}
       className={classes.join(" ")}
     >
-      {icon !== undefined && (
-        <svg className="icon icon-sm" aria-hidden="true">
-          <use href={`/assets/icons/sprite.svg#${icon}`} />
-        </svg>
-      )}
+      {icon !== undefined && <Icon name={icon} size="sm" />}
       {children}
     </AriaButton>
   );

@@ -4,26 +4,21 @@
   display: flex;
   flex-direction: column;
   background: var(--bg-tertiary);
-  border: var(--border-width) solid var(--border);
+  border: var(--hairline) solid var(--separator);
   border-radius: var(--radius-md);
   padding: var(--space-4);
   max-height: var(--chat-thread-max-height);
   overflow-y: auto;
   margin-bottom: var(--space-4);
   font-family: var(--font-sans);
-  font-size: 0.78rem;
-  line-height: 1.6;
   color: var(--text-muted);
   border-color: var(--border);
   gap: var(--space-2);
 }
 
-.chat-thread-empty {
-  color: var(--text-muted);
-  font-size: var(--text-footnote);
-  font-style: italic;
+/* The empty line of the thread: the EmptyState block, with less air around it. */
+.chat-thread-note .ui-empty-state {
   padding: var(--space-4) 0;
-  text-align: center;
 }
 
 .chat-bubble {
@@ -31,17 +26,15 @@
   flex-direction: column;
   border-radius: var(--radius-sm);
   padding: var(--space-2) var(--space-3);
-  font-size: var(--text-footnote);
   line-height: 1.45;
   animation: chatBubbleIn var(--duration-fast) var(--ease-out);
 }
 
 .chat-bubble.bubble-system {
   background: var(--bg-secondary);
-  border: var(--border-width) solid var(--border);
+  border: var(--hairline) solid var(--separator);
   color: var(--text-secondary);
   font-family: var(--font-mono);
-  font-size: var(--text-caption-1);
 }
 
 .chat-bubble.bubble-evidence {
@@ -53,7 +46,7 @@
 
 .chat-bubble.bubble-agent {
   background: var(--bg);
-  border: var(--border-width) solid var(--border);
+  border: var(--hairline) solid var(--separator);
   color: var(--text);
 }
 
@@ -87,13 +80,12 @@
 
 .chat-bubble.bubble-chat-agent {
   background: var(--bg-secondary);
-  border: var(--border-width) solid var(--border);
+  border: var(--hairline) solid var(--separator);
   color: var(--text-secondary);
 }
 
 .chat-bubble-time {
   font-family: var(--font-mono);
-  font-size: 0.68rem;
   color: var(--text-dim);
   margin-top: var(--space-1);
   display: block;

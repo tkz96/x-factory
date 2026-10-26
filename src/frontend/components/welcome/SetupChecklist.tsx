@@ -18,6 +18,7 @@ import type {
 } from "../../lib/setup-checklist.js";
 import { WELCOME_COPY } from "../feedback/copy-map.js";
 import { Button } from "../ui/Button.js";
+import { Icon } from "../ui/Icon.js";
 import { ListGroup, ListGroupRow } from "../ui/ListGroup.js";
 
 /**
@@ -32,11 +33,7 @@ function StepMark({ done }: { done: boolean }) {
       data-done={done ? "true" : "false"}
       aria-hidden="true"
     >
-      {done && (
-        <svg className="icon icon-sm" aria-hidden="true">
-          <use href="/assets/icons/sprite.svg#icon-check" />
-        </svg>
-      )}
+      {done && <Icon name="icon-check" size="sm" />}
     </span>
   );
 }
@@ -89,7 +86,7 @@ function StepAction({
 export interface SetupChecklistProps {
   /** From `deriveSetupChecklist` — real state, never a guess (#269). */
   checklist: SetupChecklistModel;
-  /** "I'll set up later": leaves the welcome while steps are still to do. */
+  /** "I'll Set Up Later": leaves the welcome while steps are still to do. */
   onSetUpLater: () => void;
 }
 
@@ -105,7 +102,7 @@ export function SetupChecklist({
   return (
     <div className="welcome-checklist">
       <div className="welcome-progress-row">
-        <p className="welcome-progress">
+        <p className="welcome-progress text-subhead">
           {WELCOME_COPY.progress(checklist.doneCount, checklist.steps.length)}
         </p>
         {!checklist.complete && (
@@ -133,11 +130,11 @@ export function SetupChecklist({
             }
             subtitle={
               <>
-                <span className="setup-step-body">
+                <span className="setup-step-body text-body">
                   {WELCOME_COPY.stepBody[step.id]}
                 </span>
                 {step.gaps.length > 0 && (
-                  <span className="setup-step-gap">
+                  <span className="setup-step-gap text-subhead font-semibold">
                     {step.gaps.map((gap) => WELCOME_COPY.gap[gap]).join(" ")}
                   </span>
                 )}

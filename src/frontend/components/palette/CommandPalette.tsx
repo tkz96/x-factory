@@ -19,6 +19,9 @@ import { useModal } from "../../context/ModalContext.js";
 import { useProjects, useRuns } from "../../hooks/useQueries.js";
 import { isMacPlatform, shortcutLabel } from "../../shortcuts/registry.js";
 import { Dialog } from "../overlays/Dialog.js";
+import { EmptyState } from "../ui/EmptyState.js";
+import { Icon } from "../ui/Icon.js";
+import { useMediaQuery } from "../ui/useMediaQuery.js";
 import {
   buildPaletteItems,
   filterPaletteItems,
@@ -67,6 +70,8 @@ function PaletteBody({
   const [activeIndex, setActiveIndex] = useState(0);
   const listId = useId();
   const inputRef = useRef<HTMLInputElement | null>(null);
+  // On a phone the query drops a rung so more of what was typed stays on screen.
+  const compactQuery = useMediaQuery("(max-width: 480px)");
   // Focus is set after mount rather than with the autoFocus attribute, which
   // React applies during commit and which the test DOM reports as an error.
   useEffect(() => {
@@ -148,9 +153,7 @@ function PaletteBody({
   return (
     <div className="command-palette">
       <div className="command-palette-search">
-        <svg className="icon icon-md" aria-hidden="true">
-          <use href="/assets/icons/sprite.svg#icon-search" />
-        </svg>
+        <Icon name="icon-search" size="md" />
         <input
           ref={inputRef}
           type="text"
@@ -163,7 +166,7 @@ function PaletteBody({
           }
           aria-label="Search sections, projects, runs and actions"
           placeholder="Search sections, projects, runs and actions"
-          className="command-palette-input"
+          className={`command-palette-input ${compactQuery ? "text-body" : "text-title-3"}`}
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
@@ -173,9 +176,9 @@ function PaletteBody({
         />
       </div>
       {items.length === 0 ? (
-        <p className="command-palette-empty" role="status">
-          No matches for “{query.trim()}”
-        </p>
+        <div className="command-palette-status" role="status">
+          <EmptyState message={`No matches for “${query.trim()}”`} />
+        </div>
       ) : (
         <div id={listId} role="listbox" className="command-palette-list">
           {groups.map((group) => (
@@ -184,7 +187,10 @@ function PaletteBody({
               aria-labelledby={group.headerId}
               className="command-palette-group"
             >
-              <div id={group.headerId} className="command-palette-group-header">
+              <div
+                id={group.headerId}
+                className="command-palette-group-header text-footnote font-semibold"
+              >
                 {group.name}
               </div>
               {group.entries.map(({ item, index }) => (
@@ -204,12 +210,12 @@ function PaletteBody({
                 >
                   <span className="command-palette-label">{item.label}</span>
                   {item.detail ? (
-                    <span className="command-palette-detail">
+                    <span className="command-palette-detail text-footnote">
                       {item.detail}
                     </span>
                   ) : null}
                   {item.shortcutId && shortcutLabel(item.shortcutId, isMac) ? (
-                    <kbd className="command-palette-keys">
+                    <kbd className="command-palette-keys text-caption-1">
                       {shortcutLabel(item.shortcutId, isMac)}
                     </kbd>
                   ) : null}

@@ -125,6 +125,15 @@ describe("ModelConnectionsPanel (#277)", () => {
     expect(document.body.textContent).toContain("Verified");
   });
 
+  // The list item's frame is the Card block now (spec #292 "Blocks", M4).
+  it("renders each connection inside the Card block's model variant", async () => {
+    renderPanel();
+    await flush();
+    const cards = document.querySelectorAll(".ui-card--model");
+    expect(cards).toHaveLength(1);
+    expect(cards[0]?.textContent).toContain("My Gemini key");
+  });
+
   it("adds a connection with a hidden key field and the Gemini URL pre-filled", async () => {
     const create = mock(async () => connection({ id: "c2", name: "New" }));
     api.createModelConnection = create as typeof api.createModelConnection;
@@ -486,6 +495,29 @@ describe("the models table (UI round 2)", () => {
     expect(
       document.getElementById("btn-add-model-c1-gemini-3.5-flash"),
     ).toBeNull();
+  });
+
+  // No models match is a no-data state, so it renders the EmptyState block
+  // (spec #292 "Blocks", M4), not a hand-built paragraph.
+  it("renders a no-matches table state as the EmptyState block", async () => {
+    connections = [
+      connection({
+        verifiedAt: "2026-10-11T01:00:00.000Z",
+        availableModels: [{ id: "gemini-3.5-flash", name: "Gemini 3.5 Flash" }],
+      }),
+    ];
+    renderPanel();
+    await flush();
+    const search = document.querySelector(
+      ".model-table-search input",
+    ) as HTMLInputElement;
+    typeInto(search, "no such model");
+    await flush();
+    const empty = document.querySelector(".ui-empty-state");
+    expect(empty).not.toBeNull();
+    expect(empty?.textContent).toContain(MODEL_CONNECTIONS_COPY.noMatches);
+    // The tools row stays; the table itself is gone.
+    expect(document.querySelector(".ui-table")).toBeNull();
   });
 });
 

@@ -19,8 +19,6 @@
 .not-found-title {
   margin: 0;
   font-family: var(--font-display);
-  font-size: var(--text-title-2);
-  font-weight: 700;
   letter-spacing: -0.024em;
   color: var(--text);
 }
@@ -28,7 +26,6 @@
 .not-found-hint {
   margin: 0;
   max-width: 48ch;
-  font-size: var(--text-footnote);
   color: var(--text-muted);
 }
 

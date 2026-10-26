@@ -1,7 +1,7 @@
 /* src/frontend/connection/ConnectionField.css — Generic field styling */
 
 .connection-field-group {
-  margin-bottom: 1rem;
+  margin-bottom: var(--space-4);
 }
 
 .connection-field-group:last-child {

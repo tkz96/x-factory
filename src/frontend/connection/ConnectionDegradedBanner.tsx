@@ -53,7 +53,7 @@ export function ConnectionDegradedBanner({
         onRetry={onRetry}
       />
       {remediations.map((text) => (
-        <p key={text} className="connection-degraded-remediation">
+        <p key={text} className="connection-degraded-remediation text-footnote">
           {text}
         </p>
       ))}

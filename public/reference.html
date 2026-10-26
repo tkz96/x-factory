@@ -25,6 +25,8 @@
       const mm = (q) => !!window.matchMedia?.(q).matches;
       const resolved = a === "light" ? "light" : a === "dark" ? "dark" : mm("(prefers-color-scheme: dark)") ? "dark" : "light";
       const root = document.documentElement;
+      const pf = navigator.userAgentData?.platform || navigator.platform || "";
+      if (/mac|iphone|ipad|ipod/i.test(pf)) root.setAttribute("data-platform", "apple");
       root.setAttribute("data-theme", t);
       root.setAttribute("data-appearance", resolved);
       root.setAttribute("data-contrast", mm("(prefers-contrast: more)") ? "more" : "standard");

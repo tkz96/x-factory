@@ -1,5 +1,6 @@
 // src/frontend/connection/ProviderMark.tsx — Provider badge mark icon (spec #126, #130).
 
+import { Icon } from "../components/ui/Icon.js";
 import "./ProviderMark.css";
 
 interface ProviderMarkProps {
@@ -31,16 +32,11 @@ export function ProviderMark({
   return (
     <span
       role="img"
-      className={`provider-mark provider-mark-${size}`}
+      /* The mark's letter takes the badge-sized .text-caption-1 style. */
+      className={`provider-mark provider-mark-${size} text-caption-1 font-semibold`}
       aria-label={label}
     >
-      {spriteId ? (
-        <svg className={`icon icon-${size}`} aria-hidden="true">
-          <use href={`/assets/icons/sprite.svg#${spriteId}`} />
-        </svg>
-      ) : (
-        initial
-      )}
+      {spriteId ? <Icon name={spriteId} size={size} /> : initial}
     </span>
   );
 }

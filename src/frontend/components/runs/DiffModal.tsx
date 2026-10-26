@@ -53,7 +53,10 @@ export function DiffModal({
         <>
           <DialogHeader>
             <div className="diff-modal-title-wrap">
-              <span className="diff-modal-filename" id="diff-modal-filename">
+              <span
+                className="diff-modal-filename text-headline"
+                id="diff-modal-filename"
+              >
                 {file}
               </span>
               <div className="diff-modal-stats">
@@ -69,7 +72,7 @@ export function DiffModal({
           </DialogHeader>
 
           <DialogBody className="diff-modal-body">
-            <pre className="diff-modal-content">
+            <pre className="diff-modal-content text-subhead">
               {diffRows.map((row) => {
                 let lineClass = "diff-row diff-row-context";
                 let prefix = " ";

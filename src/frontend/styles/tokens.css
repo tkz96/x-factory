@@ -64,40 +64,6 @@
   src: url("/fonts/IBMPlexMono-Bold.woff2") format("woff2");
 }
 
-/* ── Graphite and Sandstone theme fonts (#249): loaded only when that theme is active ── */
-
-@font-face {
-  font-family: "IBM Plex Sans";
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url("/fonts/IBMPlexSans-Regular.woff2") format("woff2");
-}
-
-@font-face {
-  font-family: "IBM Plex Sans";
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  src: url("/fonts/IBMPlexSans-Medium.woff2") format("woff2");
-}
-
-@font-face {
-  font-family: "IBM Plex Sans";
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url("/fonts/IBMPlexSans-Semibold.woff2") format("woff2");
-}
-
-@font-face {
-  font-family: "IBM Plex Sans";
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url("/fonts/IBMPlexSans-Bold.woff2") format("woff2");
-}
-
 @font-face {
   font-family: "Atkinson Hyperlegible Next";
   font-style: normal;
@@ -169,13 +135,16 @@
      background (WCAG 1.4.11). Standard sets pin a solid value; the More sets
      reuse their solid --border. */
   --border-control: var(--border);
-  /* Fonts */
-  --font-display: system-ui, "Inter", sans-serif;
-  --font-sans: system-ui, "Inter", sans-serif;
-  --font-serif:
-    "IBM Plex Mono", ui-monospace, Menlo, Monaco, Consolas, monospace;
-  --font-mono:
-    "IBM Plex Mono", ui-monospace, Menlo, Monaco, Consolas, monospace;
+  /* Fonts — Inter and IBM Plex Mono, the web-licensed faces, everywhere but on
+     Apple platforms (spec #292 "Fonts"). Apple devices get the system font
+     from the :root[data-platform="apple"] rule below. The system names cannot
+     sit in this stack: Chromium treats BlinkMacSystemFont as system-ui on
+     every platform, so Windows and Linux would get Segoe UI or Cantarell
+     instead of Inter. */
+  --font-display: "Inter", sans-serif;
+  --font-sans: "Inter", sans-serif;
+  --font-serif: "IBM Plex Mono", ui-monospace, monospace;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
 
   /* A dimming scrim over content (modal backdrops, the diagram minimap mask). */
   --scrim: rgba(0, 0, 0, 0.4);
@@ -210,6 +179,21 @@
   --border-width-thick: 2px;
   --border-width-indicator: 3px;
   --border-width-indicator-thick: 4px;
+  /* Hairline (spec #292, DESIGN.md §Lines). Containers, lists and dividers
+     draw --hairline in --separator. Buttons use a filled bezel with no border.
+     Fields, checkboxes and radios keep the 3:1 --border-control. The 0.5px
+     width applies on HiDPI screens (see the min-resolution block below). */
+  --hairline: 1px;
+  --separator: rgba(60, 60, 67, 0.29);
+  /* Filled bezel for a button with no border (spec #292, DESIGN.md §Lines). */
+  --fill-control: rgba(120, 120, 128, 0.12);
+  --fill-control-hover: rgba(120, 120, 128, 0.2);
+  /* A secondary button on a tinted surface (a decision card, a banner) takes an opaque
+     bezel with a hairline, as the macOS bordered button does, so it reads on any fill
+     (spec #292, item 2). Each appearance sets its own pair below. */
+  --fill-bezel: #ffffff;
+  --fill-bezel-hover: #f2f2f7;
+  --shadow-bezel: inset 0 0 0 var(--hairline) rgba(0, 0, 0, 0.12);
 
   /* Radii — one ladder, six rungs (DESIGN.md §6). A control's radius comes from its
      size rather than from the screen it sits on, and an inner shape's radius is
@@ -223,19 +207,25 @@
   --radius-card: 16px;
   --radius-lg: 20px;
   --radius-full: 9999px;
+  /* A square corner, written as a token so no component carries a raw 0 (G1). */
+  --radius-none: 0;
 
   /* Continuous corners (DESIGN.md §6): Apple's corner is a superellipse, not a
      circular arc. --corner-shape is applied to every box in the @supports block
      below; circles and capsules opt out with `corner-shape: round`. A browser
      without corner-shape support keeps plain circular corners and this ladder
      as written. */
-  --corner-shape: superellipse(1.6);
+  --corner-shape: superellipse(0.8);
 
-  /* Apple HIG Type Scale */
-  --text-micro: 9px;
-  --text-badge: 10px;
-  --text-tag: 11px;
+  /* Apple HIG Type Scale — iOS / default (applies at all widths and pointer types).
+     A second, denser macOS scale applies under the fine-pointer + wide-viewport
+     media query below (spec #292). */
+  /* The root font size is a percentage, so the browser setting scales every text style. */
+  --text-root: 100%;
   --text-caption-2: 0.6875rem; /* 11px */
+  /* Control text (spec #292, item 4): a control's font follows its size, never a caption. */
+  --text-control: var(--text-callout); /* 16px, iOS regular button */
+  --text-control-sm: var(--text-footnote); /* 13px, iOS small control */
   --text-caption-1: 0.75rem; /* 12px */
   --text-footnote: 0.8125rem; /* 13px */
   --text-subhead: 0.9375rem; /* 15px */
@@ -247,14 +237,65 @@
   --text-title-1: 1.75rem; /* 28px */
   --text-large-title: 2.125rem; /* 34px */
 
+  /* Font weights for emphasis that a text style does not give. Text styles set
+     their own weight; the .font-regular/-medium/-semibold/-bold utilities in
+     utilities.css apply these. */
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Text style weight, leading and tracking (spec #292, "Text styles"). The
+     .text-* classes in utilities.css read these with the size above. Leading is
+     rem (points / 16), tracking is em (points / size). iOS values follow Apple's
+     iOS table; the macOS overrides are in the fine-pointer block below. */
+  --text-large-title-weight: 400;
+  --text-large-title-leading: 2.5625rem; /* 41px */
+  --text-large-title-tracking: 0.0109em; /* 0.37pt */
+  --text-title-1-weight: 400;
+  --text-title-1-leading: 2.125rem; /* 34px */
+  --text-title-1-tracking: 0.0129em; /* 0.36pt */
+  --text-title-2-weight: 400;
+  --text-title-2-leading: 1.75rem; /* 28px */
+  --text-title-2-tracking: 0.0159em; /* 0.35pt */
+  --text-title-3-weight: 400;
+  --text-title-3-leading: 1.5625rem; /* 25px */
+  --text-title-3-tracking: 0.019em; /* 0.38pt */
+  --text-headline-weight: 600;
+  --text-headline-leading: 1.375rem; /* 22px */
+  --text-headline-tracking: -0.0241em; /* -0.41pt */
+  --text-body-weight: 400;
+  --text-body-leading: 1.375rem; /* 22px */
+  --text-body-tracking: -0.0241em; /* -0.41pt */
+  --text-callout-weight: 400;
+  --text-callout-leading: 1.3125rem; /* 21px */
+  --text-callout-tracking: -0.02em; /* -0.32pt */
+  --text-subhead-weight: 400;
+  --text-subhead-leading: 1.25rem; /* 20px */
+  --text-subhead-tracking: -0.016em; /* -0.24pt */
+  --text-footnote-weight: 400;
+  --text-footnote-leading: 1.125rem; /* 18px */
+  --text-footnote-tracking: -0.0062em; /* -0.08pt */
+  --text-caption-1-weight: 400;
+  --text-caption-1-leading: 1rem; /* 16px */
+  --text-caption-1-tracking: 0.012em; /* 10px: +0.12pt */
+  --text-caption-2-weight: 400;
+  --text-caption-2-leading: 0.8125rem; /* 13px */
+  --text-caption-2-tracking: 0.0064em; /* 0.07pt */
+
   /* Icon Sizes */
+  /* Icon stroke: SF Symbols Regular weight. The sprite symbols carry no stroke
+     width of their own, so every glyph inherits this one value. */
+  --icon-stroke: 1.5;
   --icon-xs: 12px;
   --icon-sm: 14px;
   --icon-md: 16px;
   --icon-lg: 20px;
   --icon-xl: 32px;
 
-  /* Controls & Layout Metrics */
+  /* Controls & Layout Metrics — iOS / default (coarse pointer or narrow viewport).
+     --tap-min is 44px on touch: a finger's minimum comfortable target.
+     The macOS fine-pointer overrides below shrink it to 24px. */
   --tap-min: 44px;
   --header-height: 56px;
   --tab-bar-height: 54px;
@@ -297,9 +338,10 @@
 
   /* A small control is 32px on a pointer device and still 44px under a coarse
      pointer: size="sm" shrinks a row accessory, never a finger's target. */
+  --control-height: 44px;
   --control-height-sm: 32px;
-  --button-height: 36px;
-  --button-height-lg: 44px;
+  --control-height-lg: 50px;
+  --sidebar-row-height: 44px;
   --checkbox-size: 18px;
   /* Control blocks (#251): the row height a list row and its static
    * placeholder both reserve, and the switch's geometry. */
@@ -324,7 +366,9 @@
   --blur-md: blur(8px);
   --blur-lg: blur(20px);
   --blur-xl: blur(24px);
-  --blur-glass: 20px;
+  /* The glass material filter (spec #292). A whole filter value, like --blur-md,
+     because Chromium drops a backdrop-filter that wraps var() inside blur(). */
+  --blur-glass: blur(20px) saturate(1.8);
 
   /* Motion Ladder & Springs — Apple HIG. Motion explains a state change; it
      never decorates one. Every duration and easing a stylesheet needs comes
@@ -380,28 +424,157 @@
   --code-chip-bg: rgba(255, 255, 255, 0.06);
 }
 
-/* ── Continuous corners (DESIGN.md §6) ────────────────────────────────────
-   Apple's corners are superellipses, not circular arcs. Where the browser
-   understands corner-shape, every box gets the continuous curve and the ladder
-   is re-tuned: a superellipse corner reads tighter than a circular one at the
-   same radius, so the two large rungs grow to keep their iOS look. The pair
-   math stays in the tokens (calc(outer - inset)), so every concentric pair
-   follows the ladder automatically. `:where(*)` holds the rule at zero
-   specificity, so a rule that must stay circular — circles and capsules
-   (--radius-full) — wins with plain `corner-shape: round`. A browser without
-   corner-shape support ignores this block and keeps the ladder above. */
+/* ── Continuous corners (DESIGN.md §6, spec #292 step 2) ─────────────────────
+   The corner curve. Measured against macOS 26 window corners (the specimen's
+   comparison, .brief/shots): superellipse(0.8) matches the reference curve
+   better than superellipse(1.6), which the earlier tuning used and which reads
+   squarer. The ladder above is the same in both paths: a circular corner of the
+   same radius is within about 1 px of the reference, so no rung is enlarged to
+   compensate. `:where(*)` holds the rule at zero specificity, so a rule that must
+   stay circular — circles and capsules (--radius-full) — wins with plain
+   `corner-shape: round`. Without corner-shape support this block is ignored and
+   the circular ladder applies as written. */
 @supports (corner-shape: superellipse(2)) {
   :where(*) {
     corner-shape: var(--corner-shape);
   }
+}
 
+/* ── Hairline: 0.5px on HiDPI displays (spec #292) ──────────────────────── */
+
+@media (min-resolution: 2dppx) {
   :root {
-    --radius-card: 20px;
-    --radius-lg: 24px;
+    --hairline: 0.5px;
   }
 }
 
-/* ── Default Theme: Light Appearance (Standard Contrast) ─────────────── */
+/* ── macOS type scale and control metrics (spec #292) ─────────────────────
+   A fine primary pointer on a viewport wider than the phone breakpoint (768px).
+   Every other device gets the iOS scale above. Text tokens are rem, so the
+   browser's font-size setting scales them. */
+
+@media (pointer: fine) and (min-width: 769px) {
+  :root {
+    --text-large-title: 1.625rem; /* 26px regular */
+    --text-title-1: 1.375rem; /* 22px regular */
+    --text-title-2: 1.0625rem; /* 17px regular */
+    --text-title-3: 0.9375rem; /* 15px regular */
+    --text-headline: 0.8125rem; /* 13px bold (weight set by the text style) */
+    --text-body: 0.8125rem; /* 13px regular */
+    --text-callout: 0.75rem; /* 12px regular */
+    --text-subhead: 0.6875rem; /* 11px regular */
+    --text-control: 0.8125rem; /* 13px regular: a macOS regular control */
+    --text-control-sm: 0.6875rem; /* 11px regular: a macOS small control */
+    --text-footnote: 0.625rem; /* 10px regular */
+    --text-caption-1: 0.625rem; /* 10px regular */
+    --text-caption-2: 0.625rem; /* 10px medium (weight set by the text style) */
+    /* macOS weight, leading and tracking (spec #292). Headline is Bold and
+       Caption 2 is Medium. Tracking is 0 until Apple's macOS tracking table is
+       checked against the live page (it was not retrievable when this was set). */
+    --text-large-title-leading: 2rem; /* 32px */
+    --text-large-title-tracking: 0.0142em; /* 26px: +0.37pt */
+    --text-title-1-leading: 1.625rem; /* 26px */
+    --text-title-1-tracking: 0.0159em; /* 22px: +0.35pt */
+    --text-title-2-leading: 1.375rem; /* 22px */
+    --text-title-2-tracking: -0.0241em; /* 17px: -0.41pt */
+    --text-title-3-leading: 1.25rem; /* 20px */
+    --text-title-3-tracking: -0.016em; /* 15px: -0.24pt */
+    --text-headline-weight: 700;
+    --text-headline-leading: 1rem; /* 16px */
+    --text-headline-tracking: -0.0062em; /* 13px: -0.08pt */
+    --text-body-leading: 1rem; /* 16px */
+    --text-body-tracking: -0.0062em; /* 13px: -0.08pt */
+    --text-callout-leading: 0.9375rem; /* 15px */
+    --text-callout-tracking: 0em; /* 12px: 0pt */
+    --text-subhead-leading: 0.875rem; /* 14px */
+    --text-subhead-tracking: 0.0064em; /* 11px: +0.07pt */
+    --text-footnote-leading: 0.8125rem; /* 13px */
+    --text-footnote-tracking: 0.012em; /* 10px: +0.12pt */
+    --text-caption-1-leading: 0.8125rem; /* 13px */
+    --text-caption-1-tracking: 0.012em; /* 10px: +0.12pt */
+    --text-caption-2-weight: 500;
+    --text-caption-2-leading: 0.8125rem; /* 13px */
+    --text-caption-2-tracking: 0.012em; /* 10px: +0.12pt */
+    --control-height: 28px;
+    --control-height-sm: 22px;
+    --control-height-lg: 32px;
+    --header-height: 52px;
+    --sidebar-row-height: 28px;
+  }
+}
+
+/* ── Hit area on a precision-only device (spec #292) ──────────────────────
+   --tap-min is 44px wherever a touch input is present (any-pointer: coarse)
+   or the viewport is at most 768px. Otherwise the target is 24x24px, the
+   WCAG 2.5.8 minimum for a mouse or trackpad. */
+
+@media (min-width: 769px) and (not (any-pointer: coarse)) {
+  :root {
+    --tap-min: 24px;
+  }
+}
+
+/* ── Apple platforms (spec #292 "Fonts") ─────────────────────────────────
+   The boot script in index.html sets data-platform="apple" on macOS, iOS and
+   iPadOS before the first paint, so SF Pro and SF Mono render from the start. */
+
+:root[data-platform="apple"] {
+  --font-display:
+    -apple-system, BlinkMacSystemFont, system-ui, "Inter", sans-serif;
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, system-ui, "Inter", sans-serif;
+  --font-serif: ui-monospace, "SF Mono", Menlo, "IBM Plex Mono", monospace;
+  --font-mono: ui-monospace, "SF Mono", Menlo, "IBM Plex Mono", monospace;
+}
+
+/* ── Readable font (spec #292) ────────────────────────────────────────────
+   Settings → Accessibility sets data-font="readable" on <html>. The Atkinson
+   faces are declared above and download only when text uses them. */
+
+:root[data-font="readable"] {
+  --font-display: "Atkinson Hyperlegible Next", "Inter", sans-serif;
+  --font-sans: "Atkinson Hyperlegible Next", "Inter", sans-serif;
+  --font-mono: "Atkinson Hyperlegible Mono", "IBM Plex Mono", monospace;
+}
+
+/* ── Glass material: sidebar and toolbar only (spec #292) ───────────────────
+   Keyed on data-transparency, which useTheme resolves to "reduced" (Reduce
+   Transparency on, or Automatic with the OS setting on) or "full". Content
+   stays opaque. Without the attribute the material is glass. */
+
+.sidebar {
+  background: var(--bg-glass);
+  backdrop-filter: var(--blur-glass);
+}
+
+.toolbar {
+  background: var(--bg-glass);
+  backdrop-filter: var(--blur-glass);
+}
+
+.mobile-tab-bar {
+  background: var(--bg-glass);
+  backdrop-filter: var(--blur-glass);
+}
+
+.flow-canvas-wrapper .react-flow__minimap,
+.flow-modal-canvas .react-flow__minimap {
+  background: var(--bg-glass);
+  backdrop-filter: var(--blur-glass);
+}
+
+[data-transparency="reduced"] .sidebar,
+[data-transparency="reduced"] .toolbar,
+[data-transparency="reduced"] .mobile-tab-bar {
+  background: var(--bg-sidebar);
+  backdrop-filter: none;
+}
+
+[data-transparency="reduced"] .flow-canvas-wrapper .react-flow__minimap,
+[data-transparency="reduced"] .flow-modal-canvas .react-flow__minimap {
+  background: var(--bg-sidebar);
+  backdrop-filter: none;
+}
 
 :root,
 [data-appearance="light"],
@@ -455,6 +628,12 @@
   --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
   --shadow-lg: 0 12px 36px rgba(0, 0, 0, 0.12);
   --shadow-focus: 0 0 0 3px var(--accent-dim);
+  /* Rings drawn as shadows, so a field's edge and its focus state use tokens (G1). */
+  --shadow-ring-control: inset 0 0 0 var(--border-width) var(--border-control);
+  --shadow-ring-focus: 0 0 0 var(--border-width-indicator) var(--border-focus);
+  --shadow-search-focus:
+    inset 0 0 0 var(--border-width) var(--accent),
+    0 0 0 var(--border-width-indicator) var(--accent-dim);
   --bg-hover: rgba(0, 0, 0, 0.03);
   --bg-tertiary: rgba(0, 0, 0, 0.04);
   --bg-secondary: rgba(0, 0, 0, 0.06);
@@ -720,15 +899,6 @@
   --text-secondary: var(--text-muted);
 }
 
-[data-theme="graphite"] {
-  --font-display: "IBM Plex Sans", system-ui, sans-serif;
-  --font-sans: "IBM Plex Sans", system-ui, sans-serif;
-  --font-serif:
-    "IBM Plex Mono", ui-monospace, Menlo, Monaco, Consolas, monospace;
-  --font-mono:
-    "IBM Plex Mono", ui-monospace, Menlo, Monaco, Consolas, monospace;
-}
-
 /* ── Sandstone Theme (#249): colour tokens for each appearance × contrast ── */
 
 [data-theme="sandstone"][data-appearance="light"][data-contrast="standard"] {
@@ -885,17 +1055,6 @@
   --text-secondary: var(--text-muted);
 }
 
-[data-theme="sandstone"] {
-  --font-display: "Atkinson Hyperlegible Next", system-ui, sans-serif;
-  --font-sans: "Atkinson Hyperlegible Next", system-ui, sans-serif;
-  --font-serif:
-    "Atkinson Hyperlegible Mono", ui-monospace, Menlo, Monaco, Consolas,
-    monospace;
-  --font-mono:
-    "Atkinson Hyperlegible Mono", ui-monospace, Menlo, Monaco, Consolas,
-    monospace;
-}
-
 /* ── Media Query Fallbacks (OS settings without explicit data attributes) ─ */
 
 @media (prefers-color-scheme: dark) {
@@ -979,4 +1138,35 @@
     --duration-typing: 120ms;
     --duration-typing-offset: 0ms;
   }
+}
+
+/* ── Separator colour per appearance (spec #292) ──────────────────────────── */
+
+[data-appearance="dark"] {
+  --separator: rgba(84, 84, 88, 0.65);
+  --fill-control: rgba(118, 118, 128, 0.24);
+  --fill-control-hover: rgba(118, 118, 128, 0.34);
+  --fill-bezel: #5a5a5e;
+  --fill-bezel-hover: #6c6c70;
+  --shadow-bezel: inset 0 0 0 var(--hairline) rgba(255, 255, 255, 0.14);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-appearance]) {
+    --separator: rgba(84, 84, 88, 0.65);
+    --fill-control: rgba(118, 118, 128, 0.24);
+    --fill-control-hover: rgba(118, 118, 128, 0.34);
+    --fill-bezel: #5a5a5e;
+    --fill-bezel-hover: #6c6c70;
+    --shadow-bezel: inset 0 0 0 var(--hairline) rgba(255, 255, 255, 0.14);
+  }
+}
+
+/* ── Increase Contrast restores strong lines everywhere (spec #292) ───────── */
+
+/* :root raises this rule to the specificity of the prefers-color-scheme
+   fallback above, so the strong line wins in every appearance (spec #292). */
+:root[data-contrast="more"] {
+  --hairline: var(--border-width);
+  --separator: var(--border);
 }

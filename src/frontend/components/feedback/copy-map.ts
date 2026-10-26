@@ -39,6 +39,26 @@ export const ERROR_COPY: Readonly<
 > = PROVIDER_ERROR_COPY;
 
 /** Canonical copy for the five-state taxonomy and the uniform actions. */
+/**
+ * The one wording for a status that renders as a badge outside the run map
+ * (`lib/run-status-ui.ts` owns the run statuses): a connection, a diagnostic
+ * service, the readiness line, a run stage or a pull request. Sentence case,
+ * no emoji (DESIGN.md §7, "Interaction patterns").
+ */
+export const STATUS_COPY = {
+  verified: "Verified",
+  degraded: "Degraded",
+  verifying: "Verifying…",
+  error: "Error",
+  healthy: "Healthy",
+  unavailable: "Unavailable",
+  stageFailed: "Failed",
+  stageStopped: "Stopped",
+  waitingForYou: "Waiting for you",
+  prMerged: "Merged",
+  prClosedUnmerged: "Closed without merging",
+} as const;
+
 export const STATE_COPY = {
   /** Loading: rendered beside the indeterminate spinner in its reserved region. */
   loading: "Loading…",
@@ -49,7 +69,7 @@ export const STATE_COPY = {
   /** Stale: the visible out-of-date badge (#132). */
   stale: "Out of date",
   /** The uniform retry affordance label. */
-  retry: "Try again",
+  retry: "Try Again",
   /** The stale-region refresh label. */
   refresh: "Refresh",
   /** Fallback for any error that is not a normalized envelope. */
@@ -97,7 +117,7 @@ export const REPOSITORIES_COPY = {
   staleResults:
     "These repositories were listed for the previous connection, so they cannot be selected. Refresh to load the current list.",
   /** Stale: the action that clears the out-of-date selection. */
-  staleSelectionAction: "Start the selection again",
+  staleSelectionAction: "Start the Selection Again",
   /** Row label for a repository listed under the git-host role. */
   applicationRoleLabel: "Application repository",
   /** Row label for a repository listed only in another role. */
@@ -177,7 +197,7 @@ export const CONNECTIONS_COPY = {
   registryStatusActive: "Active",
   registryStatusArchived: "Archived",
   registryEmpty: "No projects configured.",
-  onboardProject: "Add Project",
+  onboardProject: "Add Project…",
   /** The tracker card on the project detail surface. */
   trackerCardTitle: "Issue Tracker Connection",
   trackerCardSubtitle: "Automated ticket ingestion and PR linking.",
@@ -281,9 +301,9 @@ export const QUEUE_COPY = {
   /** No project exists yet, so there is no queue to show. */
   noProjectsTitle: "No projects yet",
   noProjects: "Add a project to see its tickets.",
-  addProject: "Add Project",
+  addProject: "Add Project…",
   /** The manual path that stays open when the tracker cannot be reached. */
-  manualRun: "Start Run",
+  manualRun: "Start Run…",
 } as const;
 
 /** Copy for the single-project detail surface (#147). */
@@ -328,8 +348,10 @@ export const PROJECTS_COPY = {
   emptyActive: "Archived projects are under Archived.",
   emptyArchivedTitle: "No archived projects",
   emptyArchived: "Archive a project to find it here.",
-  addProject: "Add Project",
-  /** The detail pane on the list-only route: nothing is selected yet. */
+  addProject: "Add Project…",
+  /** The detail pane on the list-only route: nothing is selected yet. A region, so it
+   *  is an EmptyState with a title and an icon (spec #292, item 6). */
+  selectTitle: "No project selected",
   selectPrompt: "Select a project to see its repository, tracker and branch.",
   /** The way back to the list, at phone width where the detail pushes over it. */
   backToList: "Projects",
@@ -427,7 +449,7 @@ export const INSPECTION_COPY = {
   configureButton: "Configure Git Identity",
   configuringButton: "Configuring…",
   /** The explicit re-inspection affordance (never an automatic retry loop). */
-  inspectAction: "Inspect again",
+  inspectAction: "Inspect Again",
   previous: "Back",
   next: "Continue to Review",
 } as const;
@@ -789,7 +811,7 @@ export const WELCOME_COPY = {
   title: "Welcome",
   subtitle: "Three steps to your first run",
   /** Leaves the welcome for Tickets; the landing remembers it (lib/setup-later). */
-  setUpLater: "I'll set up later",
+  setUpLater: "I'll Set Up Later",
   /** One line above the steps, counted from the ticks that are really there. */
   progress: (done: number, total: number) => `${done} of ${total} steps done`,
   /** The step's state word, announced with the drawn tick. */
@@ -815,9 +837,9 @@ export const WELCOME_COPY = {
   /** The one action that takes the user to where the step is finished. */
   stepAction: {
     /** Opens the add-project assistant (#268) through the modal context. */
-    project: "Add Project",
+    project: "Add Project…",
     /** The same action once a project exists: a quieter way to add another. */
-    projectAgain: "Add Another Project",
+    projectAgain: "Add Another Project…",
     /** The pane that owns Check Connection, the models and the roles (#274). */
     model: "Open Settings › Models",
     run: "Open Tickets",

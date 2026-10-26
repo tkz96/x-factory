@@ -1,4 +1,6 @@
-/* ── Docs Sidebar Navigation (Apple HIG) ─────────────────────────────── */
+/* ── Docs Sidebar Navigation ─────────────────────────────────────────── */
+/* The rows, buttons and text are blocks (Button, IconButton, Card, EmptyState,
+   Icon) and text styles; this file only lays them out for the sidebar. */
 
 .docs-sidebar-nav-container {
   display: flex;
@@ -11,24 +13,21 @@
 .docs-sidebar-brand {
   display: flex;
   align-items: center;
-  margin-bottom: 0.75rem;
+  margin-bottom: var(--space-3);
 }
 
-/* ── Search Bar with Apple HIG Aesthetics (Option 3A) ──────────────── */
+/* ── Search bar ─────────────────────────────────────────────────────── */
 
 .docs-search-wrapper {
   position: relative;
-  margin-top: 0.25rem;
+  margin-top: var(--space-1);
   width: 100%;
 }
 
 .docs-search-label {
   display: block;
-  font-size: 0.8rem;
-  font-weight: 500;
   color: var(--text-muted);
-  margin-bottom: 0.4rem;
-  line-height: 1.25;
+  margin-bottom: var(--space-1-5);
   user-select: none;
 }
 
@@ -47,7 +46,7 @@
 }
 
 .docs-search-field:focus-within {
-  box-shadow: 0 0 0 var(--border-width-indicator) var(--border-focus);
+  box-shadow: var(--shadow-ring-focus);
 }
 
 .docs-search-icon {
@@ -64,11 +63,10 @@
   width: 100%;
   min-height: auto;
   padding: 0;
-  font-size: var(--text-callout);
   font-family: var(--font-sans);
   background: transparent;
   border: none;
-  border-radius: 0;
+  border-radius: var(--radius-none);
   box-shadow: none;
   color: var(--text);
   outline: none;
@@ -82,70 +80,17 @@
 .docs-search-controls {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
-  margin-left: 0.4rem;
+  gap: var(--space-1-5);
+  margin-left: var(--space-1-5);
   flex-shrink: 0;
 }
 
-.docs-search-spinner {
-  width: var(--icon-sm);
-  height: var(--icon-sm);
-  border: var(--border-width-thick) solid var(--border-subtle);
-  border-top-color: var(--accent);
-  border-radius: var(--radius-full);
-  corner-shape: round;
-  animation: docsSpin var(--duration-loader-slow) var(--ease-linear) infinite;
-}
-
-@keyframes docsSpin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-/* Reduced motion (#252): the search spinner becomes a static ring. */
-@media (prefers-reduced-motion: reduce) {
-  @keyframes docsSpin {
-    from,
-    to {
-      transform: none;
-    }
-  }
-
-  .docs-search-spinner {
-    animation-iteration-count: 1;
-  }
-}
-
-.docs-search-clear-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--checkbox-size);
-  height: var(--checkbox-size);
-  border: none;
-  background: transparent;
-  color: var(--text-dim);
-  cursor: pointer;
-  border-radius: var(--radius-full);
-  corner-shape: round;
-  padding: 0;
-  transition: color var(--transition-fast);
-}
-
-.docs-search-clear-btn:hover {
-  color: var(--text);
-}
-
-/* ── Full-Text Search Results View ──────────────────────────────────── */
+/* ── Search results ─────────────────────────────────────────────────── */
 
 .docs-search-results-container {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: var(--space-3);
   width: 100%;
 }
 
@@ -153,78 +98,41 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.25rem 0.4rem 0.5rem;
-  border-bottom: var(--border-width) solid var(--border-subtle);
+  padding: var(--space-1) var(--space-1-5) var(--space-2);
+  border-bottom: var(--hairline) solid var(--separator);
 }
 
 .docs-search-summary-text {
-  font-size: var(--text-caption-1);
-  font-weight: 600;
   color: var(--text-muted);
-  letter-spacing: 0.02em;
-}
-
-.docs-search-summary-clear {
-  border: none;
-  background: transparent;
-  color: var(--accent);
-  font-size: var(--text-caption-1);
-  font-weight: 500;
-  cursor: pointer;
-  padding: 0;
-  transition: opacity var(--transition-fast);
-}
-
-.docs-search-summary-clear:hover {
-  text-decoration: underline;
 }
 
 .docs-search-results-list {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: var(--space-2-5);
 }
 
+/* A result group is a Card (padding none); its rows are the Button block. */
 .docs-search-group {
-  display: flex;
-  flex-direction: column;
-  background: var(--bg-card);
-  border: var(--border-width) solid var(--border-subtle);
-  border-radius: var(--radius-sm);
   overflow: hidden;
-  box-shadow: var(--shadow-sm);
-  transition:
-    border-color var(--transition-fast),
-    box-shadow var(--transition-fast);
 }
 
-.docs-search-group:hover {
-  border-color: var(--border);
-  box-shadow: var(--shadow-sm);
-}
-
-.docs-search-group-header {
+/* A result row is a quiet Button whose content is a column of text, so it
+   drops the button's centred single-line layout. */
+.ui-button.docs-search-group-header {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  justify-content: flex-start;
+  gap: 0;
   width: 100%;
-  padding: 0.6rem 0.75rem 0.5rem;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  text-align: left;
-  transition: background var(--transition-fast);
+  min-height: 0;
+  padding: var(--space-2-5) var(--space-3) var(--space-2);
+  border-radius: var(--radius-none);
+  text-align: start;
 }
 
-.docs-search-group-header:hover {
-  background: var(--bg-hover);
-}
-
-[data-theme="light"] .docs-search-group-header:hover {
-  background: var(--bg-hover);
-}
-
-.docs-search-group-header.active {
+.ui-button.docs-search-group-header.active {
   background: var(--accent-dim);
 }
 
@@ -233,72 +141,53 @@
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  margin-bottom: 0.25rem;
+  margin-bottom: var(--space-1);
 }
 
-/* A category header in the search results: footnote, 600, --text-secondary, in
-   the case it was written in. */
 .docs-search-group-cat {
-  font-size: var(--text-footnote);
-  font-weight: 600;
   color: var(--text-secondary);
 }
 
 .docs-search-hit-badge {
-  font-size: var(--text-badge);
-  font-weight: 500;
   color: var(--text-dim);
-  letter-spacing: 0.02em;
 }
 
 .docs-search-doc-title {
-  font-size: var(--text-subhead);
-  font-weight: 600;
   color: var(--text);
-  line-height: 1.3;
   width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .docs-search-sections {
   display: flex;
   flex-direction: column;
-  border-top: var(--border-width) solid var(--border-subtle);
+  border-top: var(--hairline) solid var(--separator);
   background: transparent;
 }
 
-.docs-search-section-item {
+.ui-button.docs-search-section-item {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  justify-content: flex-start;
+  gap: 0;
   width: 100%;
-  padding: 0.45rem 0.75rem 0.5rem;
-  background: transparent;
-  border: none;
-  border-bottom: var(--border-width) solid var(--border-subtle);
-  cursor: pointer;
-  text-align: left;
-  transition: background var(--transition-fast);
+  min-height: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-none);
+  border-bottom: var(--hairline) solid var(--separator);
+  text-align: start;
 }
 
-.docs-search-section-item:last-child {
+.ui-button.docs-search-section-item:last-child {
   border-bottom: none;
-}
-
-.docs-search-section-item:hover {
-  background: var(--bg-hover);
-}
-
-[data-theme="light"] .docs-search-section-item:hover {
-  background: var(--bg-hover);
 }
 
 .docs-search-section-header {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: var(--space-1-5);
   width: 100%;
 }
 
@@ -316,7 +205,7 @@
 /* The nudge needs a pointer that hovers; without one the bullet simply
    takes the accent colour. */
 @media (hover: hover) and (pointer: fine) {
-  .docs-search-section-item:hover .docs-search-section-bullet {
+  .ui-button.docs-search-section-item:hover .docs-search-section-bullet {
     transform: translateX(var(--space-half));
     color: var(--accent);
     opacity: 1;
@@ -324,20 +213,15 @@
 }
 
 .docs-search-section-title {
-  font-size: var(--text-caption-1);
-  font-weight: 500;
   color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  line-height: 1.35;
 }
 
 .docs-search-section-snippet {
-  font-size: var(--text-caption-2);
   color: var(--text-muted);
-  line-height: 1.45;
-  margin: 0.25rem 0 0 1rem;
+  margin: var(--space-1) 0 0 var(--space-4);
   font-style: normal;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -348,57 +232,19 @@
 .docs-search-highlight {
   background: var(--accent-dim);
   color: var(--accent);
-  font-weight: 600;
   border-radius: var(--radius-xs);
-  padding: 0.05rem 0.25rem;
+  padding: var(--space-px) var(--space-1);
 }
 
-[data-theme="light"] .docs-search-highlight {
-  background: var(--accent-dim);
-  color: var(--accent);
-}
-
-/* ── Empty Search Results State ─────────────────────────────────────── */
-
-.docs-search-empty {
-  padding: 1.75rem 0.75rem;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  align-items: center;
-}
-
-.docs-search-empty-icon {
-  width: var(--icon-lg);
-  height: var(--icon-lg);
-  color: var(--text-dim);
-  opacity: 0.6;
-  margin-bottom: 0.25rem;
-}
-
-.docs-search-empty-title {
-  font-size: var(--text-subhead);
-  font-weight: 600;
-  color: var(--text);
-}
-
-.docs-search-empty-desc {
-  font-size: var(--text-caption-1);
-  color: var(--text-muted);
-  line-height: 1.4;
-  margin: 0 0 0.5rem 0;
-}
-
-/* ── Diátaxis Sections & Navigation Items ───────────────────────────── */
+/* ── Diátaxis sections and navigation items ─────────────────────────── */
 
 #docs-sidebar-nav {
   overflow-x: hidden;
-  padding: 0.75rem 0.6rem;
+  padding: var(--space-3) var(--space-2-5);
 }
 
 .docs-nav-group {
-  margin-bottom: 1.25rem;
+  margin-bottom: var(--space-5);
   width: 100%;
   max-width: 100%;
   transition:
@@ -409,11 +255,9 @@
 .docs-category-title {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-size: var(--text-footnote);
-  font-weight: 600;
+  gap: var(--space-2);
   color: var(--text-secondary);
-  padding: 0.5rem 0.65rem 0.3rem;
+  padding: var(--space-2) var(--space-2-5) var(--space-1);
   text-align: left;
 }
 
@@ -422,28 +266,43 @@
   opacity: 0.75;
 }
 
-/* The row itself is the shared navigation item. */
+/* A navigation row is the quiet Button at a row's height; the selected row
+   takes the accent fill (aria-current). */
+.ui-button.docs-nav-item {
+  justify-content: flex-start;
+  width: 100%;
+  min-height: var(--control-height);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  text-align: start;
+}
 
+.ui-button.docs-nav-item[aria-current] {
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+/* A long entry wraps to as many lines as its title needs, as the macOS sidebar does,
+   so the full title stays readable without a hover (spec #292, item 10). The row grows
+   with it: min-height only, never a fixed height. */
 .docs-nav-label {
   display: block;
   width: 100%;
   text-align: left;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
-/* ── Sidebar Footer & Back Link ──────────────────────────────────────── */
+/* ── Sidebar footer and back link ───────────────────────────────────── */
 
 .docs-back-link {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-2);
   color: var(--text-muted);
   text-decoration: none;
-  font-size: var(--text-footnote);
-  font-weight: 500;
-  padding: 0.4rem 0.5rem;
+  padding: var(--space-1-5) var(--space-2);
   border-radius: var(--radius-sm);
   transition:
     color var(--transition-fast),

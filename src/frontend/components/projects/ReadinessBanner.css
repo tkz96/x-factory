@@ -4,11 +4,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--space-4);
-  border-radius: var(--radius-card);
   margin-top: var(--space-5);
   margin-bottom: var(--space-5);
-  font-size: var(--text-callout);
 }
 
 /* A quiet tint, no border of its own: the card's own border already holds
@@ -42,7 +39,6 @@
 }
 
 .readiness-desc {
-  font-size: var(--text-footnote);
   color: var(--text-muted);
 }
 

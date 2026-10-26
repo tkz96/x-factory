@@ -12,6 +12,8 @@ import "./ProjectsSplit.css";
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { PROJECTS_COPY } from "../feedback/copy-map.js";
+import { EmptyState } from "../ui/EmptyState.js";
+import { Icon } from "../ui/Icon.js";
 import { ProjectList } from "./ProjectList.js";
 
 export interface ProjectsSplitProps {
@@ -31,14 +33,16 @@ export function ProjectsSplit({ selectedId, children }: ProjectsSplitProps) {
       <ProjectList selectedId={selectedId} />
 
       <div className="projects-detail-pane">
-        <Link to="/projects" className="projects-detail-back">
-          <svg className="icon icon-sm" aria-hidden="true">
-            <use href="/assets/icons/sprite.svg#icon-arrow-left" />
-          </svg>
+        <Link to="/projects" className="projects-detail-back text-callout">
+          <Icon name="icon-arrow-left" size="sm" />
           <span>{PROJECTS_COPY.backToList}</span>
         </Link>
         {children ?? (
-          <p className="projects-detail-prompt">{PROJECTS_COPY.selectPrompt}</p>
+          <EmptyState
+            icon="icon-folder"
+            title={PROJECTS_COPY.selectTitle}
+            message={PROJECTS_COPY.selectPrompt}
+          />
         )}
       </div>
     </section>

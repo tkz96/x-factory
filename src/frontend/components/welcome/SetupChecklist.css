@@ -21,7 +21,6 @@
 
 .welcome-progress {
   margin: 0;
-  font-size: var(--text-subhead);
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
@@ -34,7 +33,7 @@
   justify-content: center;
   width: var(--space-6);
   height: var(--space-6);
-  border: var(--border-width) solid var(--border);
+  border: var(--hairline) solid var(--separator);
   border-radius: var(--radius-full);
   corner-shape: round;
   color: var(--text-on-accent);
@@ -79,7 +78,6 @@
 .setup-step-body {
   display: block;
   max-width: 56ch;
-  font-size: var(--text-body);
   color: var(--text-muted);
 }
 
@@ -88,7 +86,5 @@
   display: block;
   margin-top: var(--space-1);
   max-width: 56ch;
-  font-size: var(--text-subhead);
-  font-weight: 600;
   color: var(--text);
 }

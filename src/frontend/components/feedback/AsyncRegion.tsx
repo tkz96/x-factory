@@ -11,6 +11,8 @@
 
 import { type ReactNode, useRef } from "react";
 import { Badge } from "../ui/Badge.js";
+import { EmptyState } from "../ui/EmptyState.js";
+import { Icon } from "../ui/Icon.js";
 import { PlaceholderRows } from "../ui/ListRow.js";
 import { Spinner } from "../ui/Spinner.js";
 import {
@@ -118,7 +120,7 @@ export function AsyncRegion({
     return (
       <div key="loading" className="async-region async-region--loading">
         <Spinner label={STATE_COPY.loading} />
-        <p className="async-region-hint">{STATE_COPY.loading}</p>
+        <p className="async-region-hint text-footnote">{STATE_COPY.loading}</p>
       </div>
     );
   }
@@ -126,16 +128,14 @@ export function AsyncRegion({
   if (derived.state === "error") {
     return (
       <div className="async-region async-region--error" role="alert">
-        <svg className="icon icon-xl" aria-hidden="true">
-          <use href="/assets/icons/sprite.svg#icon-alert-circle" />
-        </svg>
-        <p className="async-region-hint">
+        <Icon name="icon-alert-circle" size="xl" />
+        <p className="async-region-hint text-footnote">
           {errorCopy ?? resolveErrorCopy(derived.error)}
         </p>
         {onRetry !== undefined && (
           <div className="async-region-actions">
             {remainingMs !== undefined && remainingMs > 0 && (
-              <span className="feedback-countdown">
+              <span className="feedback-countdown text-caption-1">
                 {formatRetryCountdown(remainingMs)}
               </span>
             )}
@@ -151,13 +151,11 @@ export function AsyncRegion({
   }
 
   if (derived.state === "empty") {
-    // The content-unavailable pattern (DESIGN.md §7): a fitting glyph, a headline
-    // naming what is missing, one guidance line, then the action. No dashed box.
-    // A region with its own copy names the headline itself; a region without one
-    // falls back to the canonical line, which then IS the headline.
+    // The empty state is the EmptyState block (DESIGN.md §7, "Loading, empty and
+    // error"). A region with its own copy names the headline itself; a region
+    // without one falls back to the canonical line, which then IS the headline.
     const title =
       emptyTitle ?? (emptyCopy === undefined ? STATE_COPY.empty : undefined);
-    const hint = emptyCopy;
     return (
       <div
         key="content"
@@ -168,14 +166,12 @@ export function AsyncRegion({
         }
         role="status"
       >
-        <svg className="icon icon-xl" aria-hidden="true">
-          <use href={`/assets/icons/sprite.svg#${emptyIcon}`} />
-        </svg>
-        {title !== undefined && <p className="async-region-title">{title}</p>}
-        {hint !== undefined && <p className="async-region-hint">{hint}</p>}
-        {emptyAction !== undefined && (
-          <div className="async-region-actions">{emptyAction}</div>
-        )}
+        <EmptyState
+          icon={emptyIcon}
+          title={title}
+          message={emptyCopy}
+          action={emptyAction}
+        />
       </div>
     );
   }

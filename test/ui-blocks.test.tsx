@@ -14,6 +14,10 @@ import { createElement, useState } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { Badge } from "../src/frontend/components/ui/Badge.js";
 import { Button } from "../src/frontend/components/ui/Button.js";
+import { Card, type CardVariant } from "../src/frontend/components/ui/Card.js";
+import { CopyButton } from "../src/frontend/components/ui/CopyButton.js";
+import { EmptyState } from "../src/frontend/components/ui/EmptyState.js";
+import { Icon } from "../src/frontend/components/ui/Icon.js";
 import { IconButton } from "../src/frontend/components/ui/IconButton.js";
 import {
   ListGroup,
@@ -33,6 +37,12 @@ import {
   TextAreaField,
   TextField,
 } from "../src/frontend/components/ui/TextField.js";
+
+const ROOT = `${import.meta.dir}/..`;
+const TOKENS = await Bun.file(`${ROOT}/src/frontend/styles/tokens.css`).text();
+const CONTROLS = await Bun.file(
+  `${ROOT}/src/frontend/styles/shared/controls.css`,
+).text();
 
 afterAll(async () => {
   cleanup();
@@ -618,5 +628,491 @@ describe("Spinner — one standard inline wait", () => {
       createElement(Spinner, { label: "Fetching…" }),
     );
     expect(getByRole("status").textContent).toBe("Fetching…");
+  });
+});
+
+describe("EmptyState — what is not here, once", () => {
+  it("renders the icon, the title as a heading, the message and the action", () => {
+    const { getByRole, getByText, container } = render(
+      createElement(EmptyState, {
+        icon: "icon-search",
+        title: "No matches",
+        message: "Try a different search.",
+        action: createElement(Button, { variant: "secondary" }, "Clear Search"),
+      }),
+    );
+
+    const heading = getByRole("heading", { level: 2, name: "No matches" });
+    expect(classesOf(heading)).toContain("ui-empty-state-title");
+    expect(getByText("Try a different search.").className).toContain(
+      "ui-empty-state-message",
+    );
+    expect(getByRole("button", { name: "Clear Search" })).not.toBeNull();
+    expect(container.querySelector("use")?.getAttribute("href")).toBe(
+      "/assets/icons/sprite.svg#icon-search",
+    );
+  });
+
+  it("is quiet: the icon is decorative and the block is not a live region", () => {
+    const { container, queryByRole } = render(
+      createElement(EmptyState, { icon: "icon-folder", title: "No projects" }),
+    );
+
+    expect(container.querySelector("svg")?.getAttribute("aria-hidden")).toBe(
+      "true",
+    );
+    expect(queryByRole("status")).toBeNull();
+    expect(queryByRole("alert")).toBeNull();
+  });
+
+  it("takes the heading level from the page's outline", () => {
+    const { getByRole } = render(
+      createElement(EmptyState, { title: "Nothing yet", headingLevel: 3 }),
+    );
+    expect(
+      getByRole("heading", { level: 3, name: "Nothing yet" }),
+    ).not.toBeNull();
+  });
+
+  it("leaves out the parts it does not have", () => {
+    const { container } = render(
+      createElement(EmptyState, { message: "Only a line of guidance." }),
+    );
+    expect(container.querySelector("svg")).toBeNull();
+    expect(container.querySelector("h2")).toBeNull();
+    expect(container.querySelector(".ui-empty-state-action")).toBeNull();
+    expect(container.textContent).toBe("Only a line of guidance.");
+  });
+});
+
+describe("Icon — the one way to draw a sprite glyph (spec #292)", () => {
+  it("is decorative by default and names its sprite symbol", () => {
+    const { container } = render(<Icon name="icon-check" size="sm" />);
+    const svg = container.querySelector("svg");
+    expect(svg?.getAttribute("aria-hidden")).toBe("true");
+    expect(svg?.getAttribute("class")).toBe("icon icon-sm");
+    expect(svg?.querySelector("use")?.getAttribute("href")).toBe(
+      "/assets/icons/sprite.svg#icon-check",
+    );
+  });
+
+  it("is announced as an image when it has a label", () => {
+    const { getByRole } = render(<Icon name="icon-alert" label="Warning" />);
+    expect(getByRole("img", { name: "Warning" })).toBeTruthy();
+  });
+});
+
+// ─── Card ────────────────────────────────────────────────────────────────────
+
+const CARD_VARIANTS: CardVariant[] = [
+  "default",
+  "connection",
+  "ticket",
+  "model",
+  "review",
+  "chat",
+  "flow",
+];
+
+/** The twelve theme × appearance × contrast sets the root element carries. */
+const CARD_SETS = ["default", "graphite", "sandstone"].flatMap((theme) =>
+  ["light", "dark"].flatMap((appearance) =>
+    ["standard", "more"].map((contrast) => ({
+      name: `${theme} · ${appearance} · ${contrast}`,
+      combo: {
+        "data-theme": theme,
+        "data-appearance": appearance,
+        "data-contrast": contrast,
+      },
+    })),
+  ),
+);
+
+interface TokenRule {
+  /** Attribute conditions of one selector, e.g. [["data-theme","graphite"]]. */
+  conditions: [string, string][];
+  order: number;
+  declarations: [string, string][];
+}
+
+/** tokens.css's top-level custom-property rules. @media and @supports blocks
+ *  are skipped with their content: they gate rendering conditions (HiDPI,
+ *  system preference, corner-shape), not the twelve sets. */
+function parseTokenRules(css: string): TokenRule[] {
+  const text = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  const rules: TokenRule[] = [];
+  let order = 0;
+  let i = 0;
+  while (i < text.length) {
+    const open = text.indexOf("{", i);
+    if (open === -1) break;
+    const selectorText = text.slice(i, open).trim();
+    let depth = 1;
+    let j = open + 1;
+    while (j < text.length && depth > 0) {
+      if (text[j] === "{") depth++;
+      else if (text[j] === "}") depth--;
+      j++;
+    }
+    const body = text.slice(open + 1, j - 1);
+    i = j;
+    if (selectorText.startsWith("@")) continue;
+
+    const declarations: [string, string][] = [];
+    for (const decl of body.split(";")) {
+      const colon = decl.indexOf(":");
+      if (colon === -1) continue;
+      const prop = decl.slice(0, colon).trim();
+      const value = decl
+        .slice(colon + 1)
+        .trim()
+        .replace(/\s+/g, " ");
+      if (prop.startsWith("--") && value) declarations.push([prop, value]);
+    }
+
+    for (const selector of selectorText.split(",")) {
+      let rest = selector.trim();
+      const conditions: [string, string][] = [];
+      let supported = true;
+      while (rest.length > 0) {
+        const attr = rest.match(/^\[(data-[a-z-]+)="([^"]+)"\]/);
+        if (attr) {
+          conditions.push([attr[1] ?? "", attr[2] ?? ""]);
+          rest = rest.slice(attr[0].length);
+        } else if (rest.startsWith(":root")) {
+          rest = rest.slice(":root".length);
+        } else {
+          supported = false;
+          break;
+        }
+      }
+      if (supported) rules.push({ conditions, order: order++, declarations });
+    }
+  }
+  return rules;
+}
+
+/** The custom properties one set computes, cascaded the way a browser does:
+ *  every condition must match, then specificity (condition count), then
+ *  source order. */
+function cascadeTokens(
+  rules: TokenRule[],
+  combo: Record<string, string>,
+): Record<string, string> {
+  const matching = rules
+    .filter((rule) =>
+      rule.conditions.every(([attr, value]) => combo[attr] === value),
+    )
+    .sort(
+      (a, b) => a.conditions.length - b.conditions.length || a.order - b.order,
+    );
+  const values: Record<string, string> = {};
+  for (const rule of matching) {
+    for (const [prop, value] of rule.declarations) values[prop] = value;
+  }
+  return values;
+}
+
+/** Follow var() references until a literal value comes back. */
+function resolveToken(
+  value: string,
+  values: Record<string, string>,
+  depth = 0,
+): string {
+  if (depth > 10) return value;
+  return value.replace(
+    /var\(\s*(--[a-zA-Z0-9_-]+)\s*\)/g,
+    (_match, name: string) =>
+      resolveToken(values[name] ?? "", values, depth + 1),
+  );
+}
+
+/** Every custom property the Card's rules in controls.css draw on. */
+function cardTokenNames(css: string): string[] {
+  const stripped = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  const names = new Set<string>();
+  for (const rule of stripped.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    const selectors = (rule[1] ?? "").split(",").map((part) => part.trim());
+    if (!selectors.some((selector) => selector.startsWith(".ui-card")))
+      continue;
+    for (const match of (rule[2] ?? "").matchAll(
+      /var\(\s*(--[A-Za-z0-9_-]+)/g,
+    )) {
+      if (match[1] !== undefined) names.add(match[1]);
+    }
+  }
+  return [...names].sort();
+}
+
+/** The Card's own rules as selector/body pairs — the pointer-gated hover rule
+ *  included, read from the stylesheet the browser loads. */
+function cardRules(css: string): { selector: string; body: string }[] {
+  const stripped = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  const out: { selector: string; body: string }[] = [];
+  for (const rule of stripped.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    const selectors = (rule[1] ?? "").split(",").map((part) => part.trim());
+    const selector = selectors.find((part) => part.startsWith(".ui-card"));
+    if (selector !== undefined) out.push({ selector, body: rule[2] ?? "" });
+  }
+  return out;
+}
+
+describe("Card — the card block", () => {
+  it("renders one block per variant, named for the family it covers", () => {
+    const { container } = render(
+      CARD_VARIANTS.map((variant) => (
+        <Card key={variant} variant={variant}>
+          {variant}
+        </Card>
+      )),
+    );
+
+    expect(container.querySelectorAll(".ui-card")).toHaveLength(
+      CARD_VARIANTS.length,
+    );
+    for (const variant of CARD_VARIANTS) {
+      expect(
+        classesOf(container.querySelector(`.ui-card--${variant}`)),
+      ).toContain(`ui-card--${variant}`);
+    }
+  });
+
+  it("is a plain raised .card when the caller names no variant", () => {
+    const { container } = render(
+      <Card id="card-default" className="screen-spacing">
+        Body
+      </Card>,
+    );
+
+    expect(classesOf(container.querySelector("#card-default"))).toBe(
+      "ui-card ui-card--default screen-spacing",
+    );
+  });
+
+  it("takes a padding override and leaves the variant's padding alone without one", () => {
+    const { container } = render(
+      <>
+        <Card id="card-plain" variant="ticket">
+          Body
+        </Card>
+        <Card id="card-compact" variant="ticket" padding="compact">
+          Body
+        </Card>
+      </>,
+    );
+
+    expect(classesOf(container.querySelector("#card-plain"))).toBe(
+      "ui-card ui-card--ticket",
+    );
+    expect(classesOf(container.querySelector("#card-compact"))).toBe(
+      "ui-card ui-card--ticket ui-card--padding-compact",
+    );
+  });
+
+  it("renders every variant in every theme × appearance × contrast set", () => {
+    expect(CARD_SETS).toHaveLength(12);
+    const root = document.documentElement;
+    const attributes = [
+      "data-theme",
+      "data-appearance",
+      "data-contrast",
+    ] as const;
+    const saved = attributes.map(
+      (name) => [name, root.getAttribute(name)] as const,
+    );
+    const problems: string[] = [];
+    try {
+      for (const set of CARD_SETS) {
+        for (const [name] of saved) root.setAttribute(name, set.combo[name]);
+        const { container } = render(
+          CARD_VARIANTS.map((variant) => (
+            <Card key={variant} variant={variant}>
+              {variant}
+            </Card>
+          )),
+        );
+        if (
+          container.querySelectorAll(".ui-card").length !== CARD_VARIANTS.length
+        ) {
+          problems.push(`card count in ${set.name}`);
+        }
+        for (const variant of CARD_VARIANTS) {
+          if (container.querySelectorAll(`.ui-card--${variant}`).length !== 1) {
+            problems.push(`${variant} in ${set.name}`);
+          }
+        }
+        cleanup();
+      }
+    } finally {
+      for (const [name, value] of saved) {
+        if (value === null) root.removeAttribute(name);
+        else root.setAttribute(name, value);
+      }
+    }
+    expect(problems).toEqual([]);
+  });
+
+  it("draws every variant from tokens that resolve in all twelve sets", () => {
+    const rules = parseTokenRules(TOKENS);
+    const names = cardTokenNames(CONTROLS);
+    // The frame every raised card draws…
+    expect(names).toContain("--hairline");
+    expect(names).toContain("--separator");
+    expect(names).toContain("--bg-card");
+    expect(names).toContain("--radius-card");
+    // …and the quiet fill the inset families share.
+    expect(names).toContain("--bg-secondary");
+
+    const unresolved: string[] = [];
+    for (const set of CARD_SETS) {
+      const values = cascadeTokens(rules, set.combo);
+      for (const name of names) {
+        if (resolveToken(values[name] ?? "", values) === "") {
+          unresolved.push(`${name} in ${set.name}`);
+        }
+      }
+    }
+    expect(unresolved).toEqual([]);
+  });
+
+  it("follows appearance, theme and contrast through those tokens", () => {
+    const rules = parseTokenRules(TOKENS);
+    const resolved = (combo: Record<string, string>) => {
+      const values = cascadeTokens(rules, combo);
+      return {
+        card: resolveToken(values["--bg-card"] ?? "", values),
+        separator: resolveToken(values["--separator"] ?? "", values),
+      };
+    };
+    const light = resolved({
+      "data-theme": "default",
+      "data-appearance": "light",
+      "data-contrast": "standard",
+    });
+    const dark = resolved({
+      "data-theme": "default",
+      "data-appearance": "dark",
+      "data-contrast": "standard",
+    });
+    const sandstone = resolved({
+      "data-theme": "sandstone",
+      "data-appearance": "light",
+      "data-contrast": "standard",
+    });
+    const more = resolved({
+      "data-theme": "default",
+      "data-appearance": "light",
+      "data-contrast": "more",
+    });
+
+    expect(light.card).not.toBe("");
+    // The surface follows appearance…
+    expect(dark.card).not.toBe(light.card);
+    // …theme…
+    expect(sandstone.card).not.toBe(light.card);
+    // …and contrast: Increase Contrast swaps in the strong solid line.
+    expect(more.separator).not.toBe(light.separator);
+  });
+
+  it("styles every variant from tokens, with no type, shadow or glass", () => {
+    const rules = cardRules(CONTROLS);
+    for (const variant of CARD_VARIANTS) {
+      const selector =
+        variant === "default" ? ".ui-card" : `.ui-card--${variant}`;
+      expect(rules.some((rule) => rule.selector === selector)).toBe(true);
+    }
+    // The pressable family's affordance exists and sits behind a real
+    // pointer (asserted below), on the border pair the contrast gate proves.
+    expect(
+      rules.some((rule) => rule.selector === ".ui-card--ticket:hover"),
+    ).toBe(true);
+
+    const raw: string[] = [];
+    for (const { body } of rules) {
+      // A card has no shadow at rest, never turns content to glass, and
+      // carries no type of its own: the words inside use the text styles.
+      expect(body).not.toContain("box-shadow");
+      expect(body).not.toContain("backdrop-filter");
+      expect(body).not.toContain("font-size");
+      expect(body).not.toContain("font-weight");
+      for (const decl of body.split(";")) {
+        const colon = decl.indexOf(":");
+        if (colon === -1) continue;
+        const prop = decl.slice(0, colon).trim();
+        const value = decl.slice(colon + 1).trim();
+        const surfaces = [
+          "background",
+          "border",
+          "border-color",
+          "border-radius",
+          "padding",
+          "gap",
+        ];
+        if (
+          surfaces.includes(prop) &&
+          value !== "none" &&
+          !value.startsWith("var(")
+        ) {
+          raw.push(`${prop}: ${value.replace(/\s+/g, " ")}`);
+        }
+      }
+    }
+    expect(raw).toEqual([]);
+  });
+
+  it("keeps the ticket card's hover behind the pointer media query", () => {
+    const stripped = CONTROLS.replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(stripped).toMatch(
+      /@media \(hover: hover\) and \(pointer: fine\) \{\s*\.ui-card--ticket:hover \{[^}]*--border-hover[^}]*--bg-card-hover/s,
+    );
+    // Its transition takes its timing from the motion tokens, never a raw one.
+    const ticket = cardRules(CONTROLS).find(
+      (rule) => rule.selector === ".ui-card--ticket",
+    );
+    expect(ticket?.body).toContain("var(--transition)");
+  });
+});
+
+describe("CopyButton — the one icon button that copies text", () => {
+  it("writes the text, then names and announces itself Copied", async () => {
+    let written = "";
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: (text: string) => {
+          written = text;
+          return Promise.resolve();
+        },
+      },
+    });
+    const view = render(<CopyButton text="# Plan" label="Copy Plan" />);
+    await act(async () => {
+      fireEvent.click(view.getByRole("button", { name: "Copy Plan" }));
+    });
+    expect(written).toBe("# Plan");
+    expect(view.getByRole("button", { name: "Copied" })).toBeTruthy();
+    expect(view.container.querySelector("[aria-live]")?.textContent).toBe(
+      "Copied",
+    );
+  });
+});
+
+describe("SegmentedControl — icon-only segments", () => {
+  it("draws only the icon and keeps the label as the segment's name", () => {
+    const view = render(
+      <SegmentedControl
+        label="Text view"
+        value="preview"
+        onChange={() => {}}
+        options={[
+          { id: "preview", label: "Preview", icon: "icon-eye", iconOnly: true },
+          { id: "raw", label: "Raw", icon: "icon-code", iconOnly: true },
+        ]}
+      />,
+    );
+    expect(view.getByRole("radio", { name: "Preview" })).toBeTruthy();
+    const icon = view.container.querySelector(".ui-segment-icon");
+    expect(icon?.getAttribute("title")).toBe("Preview");
+    expect(icon?.querySelector(".sr-only")?.textContent).toBe("Preview");
   });
 });

@@ -15,6 +15,7 @@ import {
   RadioGroup as AriaRadioGroup,
 } from "react-aria-components";
 import { withoutUndefined } from "./aria-props.js";
+import { Icon } from "./Icon.js";
 import { SelectField } from "./SelectField.js";
 import { useMediaQuery } from "./useMediaQuery.js";
 
@@ -28,6 +29,8 @@ export interface SegmentedControlOption {
   isDisabled?: boolean | undefined;
   /** A count shown after the label, read as part of the segment's name (#259). */
   count?: number | undefined;
+  /** Draws only the icon. The label stays the segment's accessible name and its tooltip. */
+  iconOnly?: boolean | undefined;
 }
 
 export interface SegmentedControlProps {
@@ -179,12 +182,19 @@ export function SegmentedControl({
           })}
           data-segment-value={option.id}
         >
-          {option.icon !== undefined && (
-            <svg className="icon icon-sm" aria-hidden="true">
-              <use href={`/assets/icons/sprite.svg#${option.icon}`} />
-            </svg>
+          {option.iconOnly && option.icon !== undefined ? (
+            <span className="ui-segment-icon" title={option.label}>
+              <Icon name={option.icon} size="sm" />
+              <span className="sr-only">{option.label}</span>
+            </span>
+          ) : (
+            <>
+              {option.icon !== undefined && (
+                <Icon name={option.icon} size="sm" />
+              )}
+              <span>{option.label}</span>
+            </>
           )}
-          <span>{option.label}</span>
           {option.count !== undefined && (
             <span className="ui-segment-count">{option.count}</span>
           )}

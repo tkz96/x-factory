@@ -29,7 +29,10 @@ import { RepositorySettings } from "../components/projects/RepositorySettings.js
 import { TrackerSection } from "../components/projects/TrackerSection.js";
 import { Badge } from "../components/ui/Badge.js";
 import { Button } from "../components/ui/Button.js";
+import { Card } from "../components/ui/Card.js";
+import { EmptyState } from "../components/ui/EmptyState.js";
 import { Table, TableCell, TableRow } from "../components/ui/Table.js";
+import { usePageHeader } from "../context/PageHeaderContext.js";
 import { useConnectionLine } from "../hooks/useConnectionIdentity.js";
 import { useProviderDescriptors } from "../hooks/useProviderDescriptors.js";
 import { useProjects } from "../hooks/useQueries.js";
@@ -68,6 +71,10 @@ export function ProjectDetailView() {
       : recordedConnectionIdentityTargets(integrity, undefined, descriptors),
   );
 
+  // The shell's page heading names the project (#298): the view claims it here,
+  // so the title travels with the data. The view renders no heading of its own.
+  usePageHeader({ title: project?.name ?? "Project" });
+
   if (project === undefined || integrity === undefined) {
     return (
       <ProjectsSplit selectedId={id}>
@@ -94,40 +101,44 @@ export function ProjectDetailView() {
         {/* No second title: the page heading above the split names the
             project, so this pane starts with what the project is wired to. */}
         {project.archived && (
-          <header className="projects-detail-header">
+          <div className="projects-detail-status">
             <Badge>{PROJECT_DETAIL_COPY.archived}</Badge>
-          </header>
+          </div>
         )}
 
-        <dl className="projects-detail-facts">
-          {facts.map((fact) => (
-            <div className="projects-detail-fact" key={fact.label}>
-              <dt>{fact.label}</dt>
-              <dd
-                className={
-                  fact.isPath
-                    ? "projects-detail-fact-value projects-detail-fact-value--path"
-                    : "projects-detail-fact-value"
-                }
-              >
-                {fact.value}
-              </dd>
-            </div>
-          ))}
-        </dl>
-
-        <p className="projects-detail-id">
-          <span className="projects-detail-id-label">
-            {PROJECT_DETAIL_COPY.projectId}
-          </span>
-          <code>{project.id}</code>
-        </p>
+        {/* The three plain-word facts in one card: a glance answers what this
+            project is wired to. */}
+        <Card className="projects-detail-facts-panel" padding="regular">
+          <dl className="projects-detail-facts">
+            {facts.map((fact) => (
+              <div className="projects-detail-fact" key={fact.label}>
+                <dt className="text-subhead">{fact.label}</dt>
+                <dd
+                  className={
+                    fact.isPath
+                      ? "projects-detail-fact-value text-callout projects-detail-fact-value--path"
+                      : "projects-detail-fact-value text-subhead"
+                  }
+                >
+                  {fact.value}
+                </dd>
+              </div>
+            ))}
+          </dl>
+          {/* The identifier is not one of the three plain-word facts: it sits under them
+              in the same card, as the one line of the card's own. */}
+          <p className="projects-detail-id text-subhead">
+            <span>{PROJECT_DETAIL_COPY.projectId}</span>
+            <code>{project.id}</code>
+          </p>
+        </Card>
 
         <ConnectionComboLine
           id="project-connections-combo"
           slots={slots}
           tone={comboTone(slots, REQUIRED_POST_CREATION_ROLES)}
           descriptors={descriptors}
+          size="subhead"
         />
 
         <ReadinessBanner />
@@ -138,7 +149,9 @@ export function ProjectDetailView() {
 
         <div className="project-repos-section mt-6">
           <div className="section-header-flex mb-3">
-            <h3>{PROJECT_DETAIL_COPY.repositories}</h3>
+            <h3 className="text-headline">
+              {PROJECT_DETAIL_COPY.repositories}
+            </h3>
             <Badge id="project-detail-repo-count">{repos.length}</Badge>
           </div>
 
@@ -147,9 +160,10 @@ export function ProjectDetailView() {
               phone instead of scrolling sideways. */}
           <div id="project-detail-repos-table">
             {repos.length === 0 ? (
-              <p className="text-muted p-4">
-                {PROJECT_DETAIL_COPY.repositoriesEmpty}
-              </p>
+              <EmptyState
+                icon="icon-folder"
+                message={PROJECT_DETAIL_COPY.repositoriesEmpty}
+              />
             ) : (
               <Table
                 label={PROJECT_DETAIL_COPY.repositories}
@@ -175,13 +189,13 @@ export function ProjectDetailView() {
                       label={PROJECT_DETAIL_COPY.repositoryPathColumn}
                       className="repo-path-cell"
                     >
-                      <span className="repo-path" title={r.path}>
+                      <span className="repo-path text-callout" title={r.path}>
                         {r.path}
                       </span>
                     </TableCell>
                     <TableCell
                       label={PROJECT_DETAIL_COPY.repositoryBranchColumn}
-                      className="repo-branch-cell"
+                      className="repo-branch-cell text-callout"
                     >
                       {r.defaultBranch ||
                         PROJECT_DETAIL_COPY.defaultBranchFallback}

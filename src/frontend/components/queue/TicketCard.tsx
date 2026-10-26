@@ -2,6 +2,10 @@
 // (XFM-47, #260). Its action follows the ticket's run: Open Run when a run is
 // active, Start Run otherwise — one label, always those two words — and it
 // is a row accessory, never the region's filled button.
+//
+// The row's surface is the Card block (`variant="ticket"`, spec #292): the
+// wrapper div keeps the press target the card sits in, and the block draws
+// the card itself.
 
 import "./TicketCard.css";
 
@@ -11,6 +15,7 @@ import { useModal } from "../../context/ModalContext.js";
 import type { TicketRunLink } from "../../lib/ticket-runs.js";
 import { Badge } from "../ui/Badge.js";
 import { Button } from "../ui/Button.js";
+import { Card } from "../ui/Card.js";
 
 interface TicketCardProps {
   ticket: Ticket;
@@ -65,7 +70,7 @@ export function TicketCard({
   return (
     // biome-ignore lint/a11y/useSemanticElements: Composite card contains nested action buttons
     <div
-      className="ticket-card"
+      className="ticket-row"
       data-list-row
       onClick={handleSelect}
       onKeyDown={(e) => {
@@ -78,63 +83,65 @@ export function TicketCard({
       role="button"
       aria-label={`Select ticket ${ticket.id}: ${ticket.title}`}
     >
-      <div className="ticket-card-header">
-        <Badge variant="id" className="ticket-key">
-          {ticket.id}
-        </Badge>
-        {activeRunId ? (
-          <Link
-            to={`/runs/${activeRunId}`}
-            className="ui-button ui-button--secondary ui-button--sm btn-start-ticket"
-            data-id={ticket.id}
-            onClick={(e) => e.stopPropagation()}
-          >
-            Open Run
-          </Link>
-        ) : (
-          <Button
-            variant="secondary"
-            size="sm"
-            className="btn-start-ticket"
-            data-id={ticket.id}
-            onPress={handleSelect}
-            // The card around it is a press target too (#260): the button's own
-            // click must not reach it, or the run would open twice.
-            onClick={(event) => event.stopPropagation()}
-          >
-            Start Run
-          </Button>
-        )}
-      </div>
-
-      <h3 className="ticket-title">{ticket.title}</h3>
-
-      {criteriaPreview.length > 0 && (
-        <ul className="ticket-criteria">
-          {criteriaPreview.map((criterion) => (
-            <li key={criterion}>{criterion}</li>
-          ))}
-        </ul>
-      )}
-
-      <div className="ticket-footer">
-        <div className="ticket-tags">
-          {labels.slice(0, 3).map((label) => (
-            <Badge key={label}>{label}</Badge>
-          ))}
+      <Card variant="ticket">
+        <div className="ticket-header">
+          <Badge variant="id" className="ticket-key">
+            {ticket.id}
+          </Badge>
+          {activeRunId ? (
+            <Link
+              to={`/runs/${activeRunId}`}
+              className="ui-button ui-button--secondary ui-button--sm btn-start-ticket"
+              data-id={ticket.id}
+              onClick={(e) => e.stopPropagation()}
+            >
+              Open Run
+            </Link>
+          ) : (
+            <Button
+              variant="secondary"
+              size="sm"
+              className="btn-start-ticket"
+              data-id={ticket.id}
+              onPress={handleSelect}
+              // The card around it is a press target too (#260): the button's own
+              // click must not reach it, or the run would open twice.
+              onClick={(event) => event.stopPropagation()}
+            >
+              Start Run
+            </Button>
+          )}
         </div>
-        {ticket.url && (
-          <a
-            href={ticket.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="ticket-ext-link"
-            onClick={(e) => e.stopPropagation()}
-          >
-            View on {ticket.provider || "tracker"} ↗
-          </a>
+
+        <h3 className="ticket-title text-headline">{ticket.title}</h3>
+
+        {criteriaPreview.length > 0 && (
+          <ul className="ticket-criteria text-subhead">
+            {criteriaPreview.map((criterion) => (
+              <li key={criterion}>{criterion}</li>
+            ))}
+          </ul>
         )}
-      </div>
+
+        <div className="ticket-footer">
+          <div className="ticket-tags">
+            {labels.slice(0, 3).map((label) => (
+              <Badge key={label}>{label}</Badge>
+            ))}
+          </div>
+          {ticket.url && (
+            <a
+              href={ticket.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="ticket-ext-link text-subhead"
+              onClick={(e) => e.stopPropagation()}
+            >
+              View on {ticket.provider || "tracker"} ↗
+            </a>
+          )}
+        </div>
+      </Card>
     </div>
   );
 }

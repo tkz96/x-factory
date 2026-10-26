@@ -9,10 +9,13 @@ registerHappyDom();
 import { afterAll, afterEach, describe, expect, it } from "bun:test";
 import { cleanup, render } from "@testing-library/react";
 import { ChatThread } from "../src/frontend/components/runs/ChatThread.js";
+import { TokenUsage } from "../src/frontend/components/runs/TokenUsage.js";
+import { formatUsd } from "../src/frontend/lib/format-money.js";
 import {
-  formatUsage,
+  formatTokenCount,
   latestModelFor,
   stageStartedText,
+  usageFor,
 } from "../src/frontend/lib/run-models.js";
 import type { RunEvent, StageModelUse } from "../src/shared/types.js";
 
@@ -57,17 +60,66 @@ describe("run model helpers (#279)", () => {
     expect(latestModelFor([BUILDER], "reviewer")).toBeUndefined();
   });
 
-  it("formats usage compactly, and says nothing when nothing was reported", () => {
-    expect(formatUsage(BUILDER)).toBe("12.4K in · 2.1K out · $0.0062");
-    expect(formatUsage(REVIEWER)).toBe("");
-    expect(formatUsage({ ...REVIEWER, tokensIn: 900 })).toBe("900 in");
+  it("writes token counts compactly", () => {
+    expect(formatTokenCount(900)).toBe("900");
+    expect(formatTokenCount(12_400)).toBe("12.4K");
+    expect(formatTokenCount(2_000)).toBe("2K");
+    expect(formatTokenCount(3_250_000)).toBe("3.3M");
   });
 
   it("writes cost with two decimals, and more only below a cent", () => {
-    expect(formatUsage({ ...REVIEWER, costUsd: 0 })).toBe("$0.00");
-    expect(formatUsage({ ...REVIEWER, costUsd: 0.047 })).toBe("$0.05");
-    expect(formatUsage({ ...REVIEWER, costUsd: 0.0047 })).toBe("$0.0047");
-    expect(formatUsage({ ...REVIEWER, costUsd: 3.5 })).toBe("$3.50");
+    expect(formatUsd(0)).toBe("$0.00");
+    expect(formatUsd(0.047)).toBe("$0.05");
+    expect(formatUsd(0.0047)).toBe("$0.0047");
+    expect(formatUsd(3.5)).toBe("$3.50");
+  });
+
+  it("adds a role's usage over every stage, and names the steps that reported none", () => {
+    const plan = { ...BUILDER, stage: "plan", step: "plan", tokensIn: 600 };
+    const code = {
+      ...BUILDER,
+      step: "execute",
+      tokensIn: undefined,
+      tokensOut: undefined,
+      costUsd: undefined,
+    };
+    const usage = usageFor([BUILDER, plan, REVIEWER, code], "builder");
+    expect(usage?.modelId).toBe("gemini-flash-lite-latest");
+    expect(usage?.tokensIn).toBe(13_000);
+    expect(usage?.tokensOut).toBe(4_200);
+    expect(usage?.costUsd).toBeCloseTo(0.0124);
+    expect(usage?.unreportedSteps).toEqual(["execute"]);
+    expect(usageFor([BUILDER], "reviewer")).toBeUndefined();
+    expect(usageFor([REVIEWER], "reviewer")?.tokensIn).toBeUndefined();
+  });
+
+  it("shows tokens in and out each with a glyph, and the unreported steps on hover", () => {
+    const usage = usageFor(
+      [
+        BUILDER,
+        {
+          ...BUILDER,
+          tokensIn: undefined,
+          tokensOut: undefined,
+          costUsd: undefined,
+        },
+      ],
+      "builder",
+    );
+    if (!usage) throw new Error("no usage");
+    const { container } = render(<TokenUsage usage={usage} />);
+    expect(container.querySelector(".token-usage-in")?.textContent).toBe(
+      "12.4K tokens in",
+    );
+    expect(container.querySelector(".token-usage-out")?.textContent).toBe(
+      "2.1K tokens out",
+    );
+    expect(container.querySelector(".token-usage-cost")?.textContent).toBe(
+      "$0.0062",
+    );
+    expect(container.querySelector(".token-usage")?.getAttribute("title")).toBe(
+      "Not reported for Code",
+    );
   });
 
   it("describes a stage start in words", () => {

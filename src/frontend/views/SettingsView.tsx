@@ -11,20 +11,26 @@ import { Link, useSearchParams } from "react-router-dom";
 import type { Project } from "../../shared/types.js";
 import { ConnectionComboLine } from "../components/connections/ConnectionComboLine.js";
 import { comboTone } from "../components/connections/connection-state.js";
-import { CONNECTIONS_COPY } from "../components/feedback/copy-map.js";
+import {
+  CONNECTIONS_COPY,
+  STATUS_COPY,
+} from "../components/feedback/copy-map.js";
 import { RetryAction } from "../components/feedback/RetryAction.js";
-import { Modal, ModalFooter } from "../components/Modal.js";
+import { AlertDialog } from "../components/overlays/AlertDialog.js";
 import {
   comboSlots,
   deriveConnectionIntegrity,
   REQUIRED_POST_CREATION_ROLES,
   recordedConnectionIdentityTargets,
 } from "../components/projects/connection-integrity.js";
+import { AccessibilitySettings } from "../components/settings/AccessibilitySettings.js";
 import { DesktopNotificationsSetting } from "../components/settings/DesktopNotificationsSetting.js";
 import { ModelConnectionsPanel } from "../components/settings/ModelConnectionsPanel.js";
 import { RolesPanel } from "../components/settings/RolesPanel.js";
 import { Badge } from "../components/ui/Badge.js";
 import { Button } from "../components/ui/Button.js";
+import { EmptyState } from "../components/ui/EmptyState.js";
+import { Icon } from "../components/ui/Icon.js";
 import {
   ListGroup,
   ListGroupRow,
@@ -52,6 +58,7 @@ import {
 
 type SettingsTab =
   | "general"
+  | "accessibility"
   | "trackers"
   | "models"
   | "git"
@@ -65,6 +72,7 @@ const SETTINGS_CATEGORIES: readonly {
   icon: string;
 }[] = [
   { id: "general", label: "General", icon: "icon-settings" },
+  { id: "accessibility", label: "Accessibility", icon: "icon-eye" },
   { id: "trackers", label: "Connections", icon: "icon-layers" },
   { id: "models", label: "Models", icon: "icon-code" },
   { id: "git", label: "Git", icon: "icon-git-branch" },
@@ -95,7 +103,7 @@ interface DiagnosticStatusProps {
 function DiagnosticStatus({ status }: DiagnosticStatusProps) {
   return (
     <Badge tone={status === "healthy" ? "success" : "error"}>
-      {status === "healthy" ? "Healthy" : "Unavailable"}
+      {status === "healthy" ? STATUS_COPY.healthy : STATUS_COPY.unavailable}
     </Badge>
   );
 }
@@ -230,8 +238,8 @@ function GeneralTabContent({
 
   return (
     <div className="settings-pane">
-      <h2 className="settings-pane-title">General</h2>
-      <p className="settings-pane-subtitle">
+      <h2 className="settings-pane-title text-title-3">General</h2>
+      <p className="settings-pane-subtitle text-subhead">
         Appearance, notifications and the data folder.
       </p>
 
@@ -311,43 +319,26 @@ function GeneralTabContent({
         />
       </ListGroup>
 
-      <Modal
+      <AlertDialog
         id="modal-confirm-unsandboxed"
-        title="Run agents without a sandbox?"
         isOpen={showConfirmModal}
         onClose={handleCancel}
-        closeButtonId="btn-close-unsandboxed-modal"
+        title="Run agents without a sandbox?"
+        description="Coding agents will execute directly on this machine without container isolation. The agent will have access to your local filesystem, network, and environment."
+        confirmText={
+          isSavingUnsandboxed ? "Enabling…" : "Enable Unsandboxed Execution"
+        }
+        cancelText="Cancel"
+        variant="danger"
+        isConfirmDisabled={isSavingUnsandboxed === true}
+        onConfirm={handleConfirm}
       >
-        <div className="unsandboxed-modal-content">
-          <p className="unsandboxed-modal-warning">
-            Coding agents will execute directly on this machine without
-            container isolation. The agent will have access to your local
-            filesystem, network, and environment.
-          </p>
-          <p className="text-muted text-footnote mt-2">
-            Only enable this if you trust the repository and model, or if you do
-            not have <code>sbx</code> installed. You can also enable this
-            per-process with <code>X_FACTORY_ALLOW_UNSANDBOXED=1</code>.
-          </p>
-        </div>
-        <ModalFooter>
-          <Button
-            id="btn-cancel-unsandboxed"
-            variant="secondary"
-            onPress={handleCancel}
-          >
-            Cancel
-          </Button>
-          <Button
-            id="btn-confirm-unsandboxed"
-            variant="danger"
-            isDisabled={isSavingUnsandboxed}
-            onPress={handleConfirm}
-          >
-            {isSavingUnsandboxed ? "Enabling…" : "Enable Unsandboxed Execution"}
-          </Button>
-        </ModalFooter>
-      </Modal>
+        <p className="text-muted text-footnote mt-2">
+          Only enable this if you trust the repository and model, or if you do
+          not have <code>sbx</code> installed. You can also enable this
+          per-process with <code>X_FACTORY_ALLOW_UNSANDBOXED=1</code>.
+        </p>
+      </AlertDialog>
     </div>
   );
 }
@@ -388,8 +379,8 @@ function ConnectionsTabContent({
     <div className="settings-pane">
       <div className="settings-pane-head">
         <div>
-          <h2 className="settings-pane-title">Connections</h2>
-          <p className="settings-pane-subtitle">
+          <h2 className="settings-pane-title text-title-3">Connections</h2>
+          <p className="settings-pane-subtitle text-subhead">
             {CONNECTIONS_COPY.registrySubtitle}
           </p>
         </div>
@@ -406,7 +397,7 @@ function ConnectionsTabContent({
       {isLoading ? (
         <PlaceholderRows count={3} group />
       ) : projects.length === 0 ? (
-        <p className="text-muted">{CONNECTIONS_COPY.registryEmpty}</p>
+        <EmptyState title={CONNECTIONS_COPY.registryEmpty} headingLevel={3} />
       ) : (
         /* One inset group, one row per project: the project's name and
            its combo line lead, the status and the way in trail — no column
@@ -442,9 +433,7 @@ function ConnectionsTabContent({
                         ? CONNECTIONS_COPY.registryStatusArchived
                         : CONNECTIONS_COPY.registryStatusActive}
                     </Badge>
-                    <svg className="icon icon-sm" aria-hidden="true">
-                      <use href="/assets/icons/sprite.svg#icon-chevron-right" />
-                    </svg>
+                    <Icon name="icon-chevron-right" size="sm" />
                   </>
                 }
               />
@@ -460,8 +449,8 @@ function ConnectionsTabContent({
 function ModelsTabContent() {
   return (
     <div className="settings-pane">
-      <h2 className="settings-pane-title">Models</h2>
-      <p className="settings-pane-subtitle">
+      <h2 className="settings-pane-title text-title-3">Models</h2>
+      <p className="settings-pane-subtitle text-subhead">
         The connections that serve models, and the model each role uses.
       </p>
       <ModelConnectionsPanel />
@@ -474,8 +463,8 @@ function ModelsTabContent() {
 function HelpTabContent() {
   return (
     <div className="settings-pane">
-      <h2 className="settings-pane-title">Help</h2>
-      <p className="settings-pane-subtitle">
+      <h2 className="settings-pane-title text-title-3">Help</h2>
+      <p className="settings-pane-subtitle text-subhead">
         Guides for X-Factory and its API.
       </p>
       {/* Two rows, each an anchor with the same box, trailing the
@@ -485,21 +474,13 @@ function HelpTabContent() {
           href="/docs"
           isExternal
           title="Documentation"
-          trailing={
-            <svg className="icon icon-sm" aria-hidden="true">
-              <use href="/assets/icons/sprite.svg#icon-arrow-up-right" />
-            </svg>
-          }
+          trailing={<Icon name="icon-arrow-up-right" size="sm" />}
         />
         <ListGroupRow
           href="/reference"
           isExternal
           title="API Reference"
-          trailing={
-            <svg className="icon icon-sm" aria-hidden="true">
-              <use href="/assets/icons/sprite.svg#icon-arrow-up-right" />
-            </svg>
-          }
+          trailing={<Icon name="icon-arrow-up-right" size="sm" />}
         />
       </ListGroup>
     </div>
@@ -509,8 +490,10 @@ function HelpTabContent() {
 function GitTabContent() {
   return (
     <div className="settings-pane">
-      <h2 className="settings-pane-title">Git</h2>
-      <p className="settings-pane-subtitle">Where run worktrees are stored.</p>
+      <h2 className="settings-pane-title text-title-3">Git</h2>
+      <p className="settings-pane-subtitle text-subhead">
+        Where run worktrees are stored.
+      </p>
       <ListGroup title="Worktrees">
         <ListGroupRow
           title="Worktree path"
@@ -569,9 +552,7 @@ export function SettingsView() {
                     className="ui-nav-item"
                     aria-current={isCurrent ? "page" : undefined}
                   >
-                    <svg className="icon icon-md" aria-hidden="true">
-                      <use href={`/assets/icons/sprite.svg#${category.icon}`} />
-                    </svg>
+                    <Icon name={category.icon} size="md" />
                     <span>{category.label}</span>
                   </Link>
                 </li>
@@ -582,9 +563,7 @@ export function SettingsView() {
 
         <div className="settings-detail">
           <Link to="/settings" className="settings-back">
-            <svg className="icon icon-sm" aria-hidden="true">
-              <use href="/assets/icons/sprite.svg#icon-arrow-left" />
-            </svg>
+            <Icon name="icon-arrow-left" size="sm" />
             <span>Settings</span>
           </Link>
 
@@ -598,6 +577,18 @@ export function SettingsView() {
               onUpdateUnsandboxed={handleUpdateUnsandboxed}
               isSavingUnsandboxed={saveSettingsMutation.isPending}
             />
+          )}
+
+          {activeTab === "accessibility" && (
+            <div className="settings-pane">
+              <h2 className="settings-pane-title text-title-3">
+                Accessibility
+              </h2>
+              <p className="settings-pane-subtitle text-subhead">
+                Text and transparency. Both apply to every screen.
+              </p>
+              <AccessibilitySettings />
+            </div>
           )}
 
           {activeTab === "trackers" && (
@@ -614,8 +605,8 @@ export function SettingsView() {
 
           {activeTab === "diagnostics" && (
             <div className="settings-pane">
-              <h2 className="settings-pane-title">Diagnostics</h2>
-              <p className="settings-pane-subtitle">
+              <h2 className="settings-pane-title text-title-3">Diagnostics</h2>
+              <p className="settings-pane-subtitle text-subhead">
                 Real-time health status, database integrity, background worker
                 fleet, and job telemetry.
               </p>

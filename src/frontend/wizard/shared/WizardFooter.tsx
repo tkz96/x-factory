@@ -2,8 +2,8 @@
 // active step's Back and Continue, pinned to the sheet's right edge (#268, spec
 // #241 story 114).
 //
-// The buttons are the control-vocabulary block (#251), never a bare <button>:
-// React Aria owns press, keyboard and disabled semantics. Cancel sits to their
+// The buttons are the control-vocabulary block (#251), never a bare button
+// element: React Aria owns press, keyboard and disabled semantics. Cancel sits to their
 // LEFT and belongs to the sheet, not to a step, because it means the same thing
 // on every step.
 
@@ -48,7 +48,7 @@ export function WizardFooter({
   const actions = (
     <>
       {status !== undefined && (
-        <div className="wizard-footer-status">{status}</div>
+        <div className="wizard-footer-status text-callout">{status}</div>
       )}
       <div className="wizard-footer-buttons">
         {onBack !== undefined && (

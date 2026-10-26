@@ -68,7 +68,8 @@ export function stagesDoneCount(groups: readonly StageGroup[]): number {
 /**
  * Groups a run's chat items under the six stages, in order. A status item moves the stage to its
  * own stage (a null stage keeps the previous one); a stage item moves it to the stage it names;
- * every other item belongs to the current stage; items before any stage go to prepare.
+ * every other item belongs to the current stage; items before any stage go to prepare. Notices
+ * just before a stage item announce it ("Conducting automated code review…"), so they move with it.
  */
 export function groupItemsByStage(
   items: readonly ChatItem[],
@@ -83,8 +84,14 @@ export function groupItemsByStage(
   for (const item of items) {
     if (item.kind === "status") {
       walked = STATUS_TO_STAGE[item.status] ?? walked;
-    } else if (item.kind === "stage" && item.stage) {
+    } else if (item.kind === "stage" && item.stage && item.stage !== walked) {
+      const left = buckets.get(walked) ?? [];
+      const announced: ChatItem[] = [];
+      while (left.at(-1)?.kind === "notice") {
+        announced.unshift(left.pop() as ChatItem);
+      }
       walked = item.stage;
+      buckets.get(walked)?.push(...announced);
     }
     buckets.get(walked)?.push(item);
   }

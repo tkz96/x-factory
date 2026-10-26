@@ -42,30 +42,56 @@ describe("Theme choice before first paint (#249)", () => {
   });
 });
 
-describe("theme fonts (#249)", () => {
-  it("Default uses system-ui then the bundled Inter, with IBM Plex Mono for code", () => {
-    const display = ruleBody(":root");
-    expect(display).toMatch(
-      /--font-sans:\s*system-ui,\s*"Inter",\s*sans-serif;/,
+describe("theme fonts (#249, spec #292)", () => {
+  it("off Apple platforms the stack is the bundled Inter and IBM Plex Mono, with no system font name", () => {
+    // Chromium treats BlinkMacSystemFont as system-ui on every platform, so a
+    // system name here would give Windows Segoe UI and Linux Cantarell.
+    const root = ruleBody(":root").replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(root).toMatch(/--font-sans:\s*"Inter",\s*sans-serif;/);
+    expect(root).toMatch(
+      /--font-mono:\s*"IBM Plex Mono",\s*ui-monospace,\s*monospace;/,
     );
-    expect(display).toMatch(/--font-mono:\s*"IBM Plex Mono"/);
+    for (const name of ["-apple-system", "BlinkMacSystemFont", "system-ui"]) {
+      expect(root).not.toContain(name);
+    }
   });
 
-  it("Graphite and Sandstone name only their own families", () => {
-    const graphite = ruleBody('[data-theme="graphite"]');
-    const sandstone = ruleBody('[data-theme="sandstone"]');
-    expect(graphite).toContain('"IBM Plex Sans"');
-    expect(graphite).toContain('"IBM Plex Mono"');
-    expect(sandstone).toContain('"Atkinson Hyperlegible Next"');
-    expect(sandstone).toContain('"Atkinson Hyperlegible Mono"');
-    expect(sandstone).not.toContain("IBM Plex");
-    expect(graphite).not.toContain("Atkinson");
+  it("on Apple platforms the stack is the system font, then Inter, with SF Mono first", () => {
+    const apple = ruleBody(':root[data-platform="apple"]');
+    expect(apple).toMatch(
+      /--font-sans:\s*-apple-system,\s*BlinkMacSystemFont,\s*system-ui,\s*"Inter",\s*sans-serif;/,
+    );
+    expect(apple).toMatch(
+      /--font-mono:\s*ui-monospace,\s*"SF Mono",\s*Menlo,\s*"IBM Plex Mono",\s*monospace;/,
+    );
   });
 
-  it("every theme font face points at a woff2 file that is bundled with the app", () => {
+  it("the pre-paint script marks Apple platforms before the first paint", () => {
+    expect(indexHtml).toContain('setAttribute("data-platform","apple")');
+    expect(indexHtml).toMatch(/\/mac\|iphone\|ipad\|ipod\/i\.test\(pf\)/);
+  });
+
+  it("themes change colour only: no theme sets a font token", () => {
+    for (const theme of [
+      '[data-theme="graphite"]',
+      '[data-theme="sandstone"]',
+    ]) {
+      const body = ruleBody(theme);
+      expect(body).not.toMatch(/--font-/);
+    }
+  });
+
+  it("the readable font is set by data-font, not by a theme", () => {
+    const readable = ruleBody('[data-font="readable"]');
+    expect(readable).toContain('"Atkinson Hyperlegible Next"');
+    expect(readable).toContain('"Atkinson Hyperlegible Mono"');
+  });
+
+  it("every font face points at a woff2 file that is bundled with the app", () => {
     const families = fontFaceFamilies();
     for (const family of [
-      "IBM Plex Sans",
+      "Inter",
+      "IBM Plex Mono",
       "Atkinson Hyperlegible Next",
       "Atkinson Hyperlegible Mono",
     ]) {
@@ -78,12 +104,11 @@ describe("theme fonts (#249)", () => {
     }
   });
 
-  it("a font face is only ever used by the theme that names it", () => {
-    // Default must not name a theme-only family, so its files never download
-    // unless a theme is active.
-    const defaultStack = ruleBody(":root");
-    expect(defaultStack).not.toContain("IBM Plex Sans");
-    expect(defaultStack).not.toContain("Atkinson");
+  it("IBM Plex Sans is no longer declared or bundled", () => {
+    expect(tokens).not.toContain("IBM Plex Sans");
+    expect(
+      fs.existsSync(path.join(ROOT, "public/fonts/IBMPlexSans-Regular.woff2")),
+    ).toBe(false);
   });
 });
 

@@ -6,6 +6,7 @@
 // the glyph becomes a static indicator. The wait is announced once, through the
 // status role, with a visually hidden label.
 
+import { Icon } from "./Icon.js";
 export interface SpinnerProps {
   /** The announced wait. Canonical copy lives in the feedback copy map. */
   label?: string;
@@ -18,9 +19,7 @@ export function Spinner({ label = "Loading…", className }: SpinnerProps) {
   if (className !== undefined) classes.push(className);
   return (
     <span className={classes.join(" ")} role="status">
-      <svg className="icon icon-lg icon-spin" aria-hidden="true">
-        <use href="/assets/icons/sprite.svg#icon-loader-2" />
-      </svg>
+      <Icon name="icon-loader-2" size="lg" className="icon-spin" />
       <span className="sr-only">{label}</span>
     </span>
   );

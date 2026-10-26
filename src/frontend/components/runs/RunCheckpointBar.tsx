@@ -107,11 +107,19 @@ export function RunCheckpointBar({
 }: RunCheckpointBarProps) {
   const entries = checkpointBarEntries(status, reworkReady);
   if (entries.length === 0 && !conflict) return null;
+  // A decision card has exactly one primary action (DESIGN.md §7, "Interaction
+  // patterns"). A status that offers only secondary actions promotes its first.
+  const hasPrimary = entries.some(
+    ({ action }) => VARIANT[action] === "primary",
+  );
+  const primaryAction = entries[0]?.action;
+  const isPrimary = (action: CheckpointAction) =>
+    VARIANT[action] === "primary" || (!hasPrimary && action === primaryAction);
 
   return (
     <section className="run-checkpoint-bar" aria-label="Checkpoint">
       {conflict && (
-        <p className="run-checkpoint-conflict" role="alert">
+        <p className="run-checkpoint-conflict text-callout" role="alert">
           This run already moved on. Showing the latest.
         </p>
       )}
@@ -124,8 +132,10 @@ export function RunCheckpointBar({
             return (
               <Button
                 key={action}
-                variant={VARIANT[action]}
+                variant={isPrimary(action) ? "primary" : VARIANT[action]}
                 size="sm"
+                // Mod+Enter presses only a real decision. A promoted action on a
+                // finished run (Start New Run) looks primary but is never one key away.
                 data-primary-action={
                   VARIANT[action] === "primary" ? "" : undefined
                 }

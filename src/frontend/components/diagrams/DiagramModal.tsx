@@ -9,6 +9,7 @@ import {
 } from "@xyflow/react";
 import { Dialog } from "../overlays/Dialog.js";
 import { Badge } from "../ui/Badge.js";
+import { Button } from "../ui/Button.js";
 import { customNodeTypes } from "./CustomNodes.js";
 import type { DiagramDefinition } from "./registry.js";
 
@@ -38,23 +39,28 @@ export function DiagramModal({
           <Badge tone="accent" className="flow-diagram-badge">
             Detailed Inspection
           </Badge>
-          <h3 id="flow-modal-heading" className="flow-diagram-title">
+          <h3
+            id="flow-modal-heading"
+            className="flow-diagram-title text-headline"
+          >
             {diagram.title}
           </h3>
-          <span className="flow-diagram-subtitle">{diagram.subtitle}</span>
+          <span className="flow-diagram-subtitle text-subhead">
+            {diagram.subtitle}
+          </span>
         </div>
-        <button
-          type="button"
-          className="flow-modal-close-btn"
-          onClick={onClose}
+        <Button
+          variant="secondary"
+          size="sm"
+          onPress={onClose}
           title="Close modal (Esc)"
         >
           <span>Close</span>
-          <kbd className="code-sub">Esc</kbd>
-        </button>
+          <kbd className="code-sub text-footnote">Esc</kbd>
+        </Button>
       </div>
 
-      <div className="flow-modal-canvas">
+      <div className="flow-modal-canvas text-caption-1">
         <ReactFlow
           nodes={diagram.nodes}
           edges={diagram.edges}

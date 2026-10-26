@@ -5,11 +5,14 @@
 
 import "./RunDetailView.css";
 
-import { type CSSProperties, useRef } from "react";
+import { type CSSProperties, useMemo, useRef } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
+import { AsyncRegion } from "../components/feedback/AsyncRegion.js";
+import { deriveAsyncState } from "../components/feedback/derive-async-state.js";
 import { FeedbackBanner } from "../components/feedback/FeedbackBanner.js";
 import { RunChat } from "../components/runs/RunChat.js";
 import type { CheckpointAction } from "../components/runs/RunCheckpointBar.js";
+import { RunDetailsProvider } from "../components/runs/RunDetailsContext.js";
 import {
   RunInspector,
   RunInspectorSheet,
@@ -20,7 +23,9 @@ import {
   useRunCheckpointActions,
 } from "../components/runs/useRunCheckpointActions.js";
 import { useRunSplit } from "../components/runs/useRunSplit.js";
+import { EmptyState } from "../components/ui/EmptyState.js";
 import { useMediaQuery } from "../components/ui/useMediaQuery.js";
+import { usePageHeader } from "../context/PageHeaderContext.js";
 import { useRunDetail } from "../hooks/useRunDetail.js";
 
 /** What a screen that opens this run may pass along in its navigation state. */
@@ -31,13 +36,35 @@ interface RunPageState {
 
 type RunData = ReturnType<typeof useRunDetail>;
 
-function RunLoadingState({ runId }: { runId: string | undefined }) {
+/** The region while the run loads: the one loading state, with no data yet. */
+const LOADING = deriveAsyncState({
+  data: undefined,
+  isPending: true,
+  isError: false,
+  error: undefined,
+});
+
+/** The page heading before the run loads: the same words the shell uses. */
+const PAGE_HEADER = {
+  title: "Run",
+  subtitle: "What the run is doing and what it needs from you",
+};
+
+/** A loaded run is named by its ticket, the way the shell names it. */
+function runPageHeader(
+  run: ReturnType<typeof useRunDetail>["run"],
+): typeof PAGE_HEADER {
+  if (!run) return PAGE_HEADER;
+  return {
+    title: `${run.ticket?.id || run.id} — ${run.ticket?.title || "Task"}`,
+    subtitle: `${run.project?.name} · ${run.branch}`,
+  };
+}
+
+function RunLoadingState() {
   return (
     <section id="area-runs" className="area-view active">
-      <div className="empty-state card">
-        <div className="spinner-sm" />
-        <h3 className="mt-4">Loading Run {runId}…</h3>
-      </div>
+      <AsyncRegion derived={LOADING} />
     </section>
   );
 }
@@ -45,23 +72,19 @@ function RunLoadingState({ runId }: { runId: string | undefined }) {
 function RunNotFoundState({ runId }: { runId: string | undefined }) {
   return (
     <section id="area-runs" className="area-view active">
-      <div className="empty-state card">
-        <div className="empty-icon">
-          <svg className="icon icon-xl" aria-hidden="true">
-            <use href="/assets/icons/sprite.svg#icon-alert-circle" />
-          </svg>
-        </div>
-        <h3>Run Not Found</h3>
-        <p className="text-muted">
-          No active or historical run matches ID: {runId}
-        </p>
-        <Link
-          to="/runs"
-          className="ui-button ui-button--secondary ui-button--sm mt-4"
-        >
-          ← Back to Runs
-        </Link>
-      </div>
+      <EmptyState
+        icon="icon-alert-circle"
+        title="Run Not Found"
+        message={`No active or historical run matches ID: ${runId}`}
+        action={
+          <Link
+            to="/runs"
+            className="ui-button ui-button--secondary ui-button--sm"
+          >
+            ← Back to Runs
+          </Link>
+        }
+      />
     </section>
   );
 }
@@ -128,66 +151,71 @@ function RunDetailLayout({
   const inspectorProps = { run, events, connected };
 
   return (
-    <section id="area-runs" className="area-view active run-detail-container">
-      <div
-        ref={layoutRef}
-        className={
-          isPhone
-            ? "run-detail-layout run-detail-layout--phone"
-            : "run-detail-layout run-detail-layout--split"
-        }
-        style={
-          isPhone
-            ? undefined
-            : ({ "--run-split": `${split}%` } as CSSProperties)
-        }
-      >
-        <div className="run-detail-main">
-          {notice && <FeedbackBanner tone="info" message={notice} />}
-          {actionError && (
-            <div id="run-error" className="error-message">
-              {actionError}
-            </div>
-          )}
+    <RunDetailsProvider isPhone={isPhone}>
+      <section id="area-runs" className="area-view active run-detail-container">
+        <div
+          ref={layoutRef}
+          className={
+            isPhone
+              ? "run-detail-layout run-detail-layout--phone"
+              : "run-detail-layout run-detail-layout--split"
+          }
+          style={
+            isPhone
+              ? undefined
+              : ({ "--run-split": `${split}%` } as CSSProperties)
+          }
+        >
+          <div className="run-detail-main">
+            {notice && <FeedbackBanner tone="info" message={notice} />}
+            {actionError && (
+              <div id="run-error">
+                <FeedbackBanner tone="error" message={actionError} />
+              </div>
+            )}
 
-          {/* Keyed by the run: the chat's own state (the reader's lines, the composer draft, the
+            {/* Keyed by the run: the chat's own state (the reader's lines, the composer draft, the
               open stages) belongs to one run and never leaks into the next. */}
-          <RunChat
-            key={run.id}
-            run={run}
-            events={events}
-            onAction={onAction}
-            pending={pending}
-            conflict={conflict}
-            detailsTrigger={
-              isPhone ? <RunInspectorSheet {...inspectorProps} /> : undefined
-            }
-          />
-        </div>
+            <RunChat
+              key={run.id}
+              run={run}
+              events={events}
+              onAction={onAction}
+              pending={pending}
+              conflict={conflict}
+              detailsTrigger={
+                isPhone ? <RunInspectorSheet {...inspectorProps} /> : undefined
+              }
+            />
+          </div>
 
-        {!isPhone && (
-          <RunSplitHandle
-            containerRef={layoutRef}
-            split={split}
-            onSplit={setSplit}
-            onReset={resetSplit}
-          />
-        )}
-        {/* Keyed by the run: the pane's own state (the raw-log sheet, the open diff) belongs to
+          {!isPhone && (
+            <RunSplitHandle
+              containerRef={layoutRef}
+              split={split}
+              onSplit={setSplit}
+              onReset={resetSplit}
+            />
+          )}
+          {/* Keyed by the run: the pane's own state (the raw-log sheet, the open diff) belongs to
             one run and never leaks into the next. */}
-        {!isPhone && <RunInspector key={run.id} {...inspectorProps} />}
-      </div>
-    </section>
+          {!isPhone && <RunInspector key={run.id} {...inspectorProps} />}
+        </div>
+      </section>
+    </RunDetailsProvider>
   );
 }
 
 export function RunDetailView() {
+  // The run page's heading is the shell's toolbar title: the view claims it, and draws none of its own.
   const { runId } = useParams<{ runId: string }>();
   const { run, isLoading, error, events, connected } = useRunDetail(runId);
+  const header = useMemo(() => runPageHeader(run), [run]);
+  usePageHeader(header);
   const location = useLocation();
   const notice = (location.state as RunPageState | null)?.notice;
 
-  if (isLoading) return <RunLoadingState runId={runId} />;
+  if (isLoading) return <RunLoadingState />;
   if (error || !run) return <RunNotFoundState runId={runId} />;
 
   return (

@@ -1,0 +1,91 @@
+// src/frontend/views/SpecimenView.tsx — The dev-only specimen page (spec #292,
+// step 2, #294). It lists every block of components/ui/ and the overlays, the
+// type scale and the corner comparison, and switches the root data attributes
+// so one page shows the whole system in each theme, appearance and contrast.
+//
+// This route exists only in development builds: routes.tsx declares it behind
+// import.meta.env.DEV, so the production bundle has no trace of this module.
+
+import "./SpecimenView.css";
+
+import { useEffect, useState } from "react";
+import { SpecimenBlocks } from "../components/specimen/SpecimenBlocks.js";
+import { SpecimenControls } from "../components/specimen/SpecimenControls.js";
+import { SpecimenOverlays } from "../components/specimen/SpecimenOverlays.js";
+import {
+  SpecimenCorners,
+  SpecimenTypeScale,
+} from "../components/specimen/SpecimenSurfaces.js";
+import { SpecimenTuner } from "../components/specimen/SpecimenTuner.js";
+import type { SpecimenSettings } from "../components/specimen/specimen-settings.js";
+import { usePageHeader } from "../context/PageHeaderContext.js";
+import { applyThemeToDocument, useTheme } from "../hooks/useTheme.js";
+
+/** Automatic follows the OS query, as the app's own setting does. */
+function resolveSpecimenTransparency(
+  setting: SpecimenSettings["transparency"],
+): "reduced" | "full" | undefined {
+  if (setting !== "automatic") return setting;
+  const query = globalThis.matchMedia?.(
+    "(prefers-reduced-transparency: reduce)",
+  );
+  return query?.matches ? "reduced" : undefined;
+}
+
+/** The app's own settings, read once when the specimen mounts. */
+function snapshotOf(global: ReturnType<typeof useTheme>): AppSnapshot {
+  return {
+    theme: global.theme,
+    resolvedAppearance: global.resolvedAppearance,
+    contrast: global.contrast,
+    transparency: global.resolvedTransparency,
+    readableFont: global.readableFont,
+  };
+}
+
+type AppSnapshot = Parameters<typeof applyThemeToDocument>[0];
+
+/** The shell draws the specimen's heading, as it does for every screen. */
+const PAGE_HEADER = {
+  title: "Specimen",
+  subtitle: "Development only. Every block in components/ui and the overlays.",
+};
+
+function SpecimenView() {
+  usePageHeader(PAGE_HEADER);
+  const global = useTheme();
+  const [snapshot] = useState(() => snapshotOf(global));
+  const [settings, setSettings] = useState<SpecimenSettings>({
+    theme: "default",
+    appearance: global.resolvedAppearance,
+    contrast: global.contrast,
+    transparency: "automatic",
+    readableFont: global.readableFont,
+  });
+
+  // The specimen owns the root attributes while it is shown; on leaving it
+  // hands them back to the app's own settings.
+  useEffect(() => {
+    applyThemeToDocument({
+      theme: settings.theme,
+      resolvedAppearance: settings.appearance,
+      contrast: settings.contrast,
+      transparency: resolveSpecimenTransparency(settings.transparency),
+      readableFont: settings.readableFont,
+    });
+    return () => applyThemeToDocument(snapshot);
+  }, [settings, snapshot]);
+
+  return (
+    <div className="specimen specimen--tuning">
+      <SpecimenControls settings={settings} onChange={setSettings} />
+      <SpecimenBlocks />
+      <SpecimenOverlays />
+      <SpecimenTypeScale />
+      <SpecimenCorners />
+      <SpecimenTuner />
+    </div>
+  );
+}
+
+export default SpecimenView;

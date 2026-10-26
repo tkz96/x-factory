@@ -21,21 +21,24 @@
 
 .md-block-label {
   min-width: 0;
-  font-size: var(--text-footnote);
-  font-weight: 600;
   color: var(--text);
   overflow-wrap: anywhere;
 }
 
+.md-block-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-inline-start: auto;
+}
+
 .md-block-toggle {
   flex: none;
-  font-size: var(--text-caption-1);
 }
 
 /* Plain text keeps its line breaks and its words; it takes the size of its container. */
 .md-block-plain {
   margin: 0;
-  font-size: inherit;
   color: var(--text);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -49,7 +52,6 @@
   border-radius: var(--radius-sm);
   background: var(--bg-secondary);
   font-family: var(--font-mono);
-  font-size: var(--text-caption-1);
   line-height: 1.5;
   color: var(--text);
   white-space: pre-wrap;
@@ -60,7 +62,6 @@
 /* ── Preview typography ──────────────────────────────────────────────── */
 
 .md-block-preview .md-viewer {
-  font-size: inherit;
   line-height: 1.5;
   color: var(--text);
   word-break: normal;
@@ -87,33 +88,25 @@
 }
 
 .md-block-preview .md-viewer h1 {
-  font-size: var(--text-headline);
-  font-weight: 600;
   margin: var(--space-3) 0 var(--space-1-5);
 }
 
 .md-block-preview .md-viewer h2 {
-  font-size: var(--text-subhead);
-  font-weight: 600;
   margin: var(--space-3) 0 var(--space-1);
 }
 
 .md-block-preview .md-viewer h3,
 .md-block-preview .md-viewer h4 {
-  font-size: var(--text-footnote);
-  font-weight: 600;
   margin: var(--space-2-5) 0 var(--space-1);
 }
 
 .md-block-compact .md-block-preview .md-viewer h1 {
-  font-size: var(--text-subhead);
   margin: var(--space-2) 0 var(--space-1);
 }
 
 .md-block-compact .md-block-preview .md-viewer h2,
 .md-block-compact .md-block-preview .md-viewer h3,
 .md-block-compact .md-block-preview .md-viewer h4 {
-  font-size: var(--text-footnote);
   margin: var(--space-2) 0 var(--space-0-5);
 }
 
@@ -135,7 +128,6 @@
 
 .md-block-preview .md-viewer strong,
 .md-block-preview .md-viewer .md-bold {
-  font-weight: 600;
   color: var(--text);
 }
 
@@ -145,7 +137,6 @@
   border-radius: var(--radius-xs);
   background: var(--bg-secondary);
   font-family: var(--font-mono);
-  font-size: 0.85em;
   color: var(--text);
 }
 
@@ -163,7 +154,6 @@
 
 .md-block-preview .md-code-pre {
   padding: var(--space-2) var(--space-3);
-  font-size: var(--text-caption-1);
 }
 
 .md-block-preview .md-link,

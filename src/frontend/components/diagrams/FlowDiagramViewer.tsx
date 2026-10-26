@@ -13,6 +13,8 @@ import {
 import { useEffect, useState } from "react";
 import { useTheme } from "../../hooks/useTheme.js";
 import { Badge } from "../ui/Badge.js";
+import { Button } from "../ui/Button.js";
+import { Card } from "../ui/Card.js";
 import { customNodeTypes } from "./CustomNodes.js";
 import { DiagramModal } from "./DiagramModal.js";
 import { DIAGRAM_REGISTRY, type DiagramDefinition } from "./registry.js";
@@ -26,44 +28,40 @@ function DiagramToolbar({ onExpand }: DiagramToolbarProps) {
 
   return (
     <div className="flow-diagram-actions">
-      <button
-        type="button"
-        className="flow-btn-tool"
-        onClick={() => fitView({ padding: 0.2, duration: 250 })}
+      <Button
+        variant="secondary"
+        size="sm"
+        icon="icon-refresh-cw"
+        onPress={() => fitView({ padding: 0.2, duration: 250 })}
         title="Fit diagram to viewport"
       >
-        <svg className="icon" aria-hidden="true">
-          <use href="/assets/icons/sprite.svg#icon-refresh-cw" />
-        </svg>
-        <span>Fit</span>
-      </button>
-      <button
-        type="button"
-        className="flow-btn-tool"
-        onClick={() => zoomIn({ duration: 250 })}
+        Fit
+      </Button>
+      <Button
+        variant="secondary"
+        size="sm"
+        onPress={() => zoomIn({ duration: 250 })}
         title="Zoom in"
       >
-        <span>+</span>
-      </button>
-      <button
-        type="button"
-        className="flow-btn-tool"
-        onClick={() => zoomOut({ duration: 250 })}
+        +
+      </Button>
+      <Button
+        variant="secondary"
+        size="sm"
+        onPress={() => zoomOut({ duration: 250 })}
         title="Zoom out"
       >
-        <span>−</span>
-      </button>
-      <button
-        type="button"
-        className="flow-btn-tool"
-        onClick={onExpand}
+        −
+      </Button>
+      <Button
+        variant="secondary"
+        size="sm"
+        icon="icon-external-link"
+        onPress={onExpand}
         title="Expand diagram to full screen"
       >
-        <svg className="icon" aria-hidden="true">
-          <use href="/assets/icons/sprite.svg#icon-external-link" />
-        </svg>
-        <span>Expand</span>
-      </button>
+        Expand
+      </Button>
     </div>
   );
 }
@@ -87,14 +85,18 @@ function InnerFlowCanvas({
             <Badge tone="accent" className="flow-diagram-badge">
               Architecture
             </Badge>
-            <span className="flow-diagram-title">{diagram.title}</span>
+            <span className="flow-diagram-title text-headline">
+              {diagram.title}
+            </span>
           </div>
-          <span className="flow-diagram-subtitle">{diagram.subtitle}</span>
+          <span className="flow-diagram-subtitle text-subhead">
+            {diagram.subtitle}
+          </span>
         </div>
         <DiagramToolbar onExpand={onExpand} />
       </div>
 
-      <div className="flow-canvas-wrapper">
+      <div className="flow-canvas-wrapper text-caption-1">
         <ReactFlow
           nodes={diagram.nodes}
           edges={diagram.edges}
@@ -142,23 +144,29 @@ export function FlowDiagramViewer({ diagramId }: FlowDiagramViewerProps) {
 
   if (!diagram) {
     return (
-      <div className="flow-fallback-card">
-        <span className="flow-fallback-title">Diagram not found</span>
-        <p className="flow-fallback-desc">
+      <Card variant="flow" className="flow-fallback">
+        <span className="flow-fallback-title text-headline">
+          Diagram not found
+        </span>
+        <p className="flow-fallback-desc text-callout">
           Unknown architecture diagram ID: <code>{diagramId}</code>
         </p>
-      </div>
+      </Card>
     );
   }
 
   // SSR fallback: In non-browser / static render, output clean semantic fallback
   if (!isMounted || typeof window === "undefined") {
     return (
-      <div className="flow-fallback-card">
-        <span className="flow-fallback-title">{diagram.title}</span>
-        <p className="flow-fallback-desc">{diagram.subtitle}</p>
-        <span className="code-sub">Interactive Architecture Diagram</span>
-      </div>
+      <Card variant="flow" className="flow-fallback">
+        <span className="flow-fallback-title text-headline">
+          {diagram.title}
+        </span>
+        <p className="flow-fallback-desc text-callout">{diagram.subtitle}</p>
+        <span className="code-sub text-footnote">
+          Interactive Architecture Diagram
+        </span>
+      </Card>
     );
   }
 

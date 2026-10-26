@@ -304,12 +304,12 @@ describe("the decision card", () => {
 });
 
 describe("the message box's tips button", () => {
-  it("is labelled Message tips and describes the textarea keys on focus", async () => {
+  it("is labelled Message Tips and describes the textarea keys on focus", async () => {
     const { container } = render(
       <RunChat run={makeRun("awaiting_plan_approval")} events={[]} />,
     );
     const tips = within(container).getByRole("button", {
-      name: "Message tips",
+      name: "Message Tips",
     });
     expect(tips).toBeTruthy();
 
@@ -336,7 +336,7 @@ describe("the message box's tips button", () => {
     const form = container.querySelector("form.run-chat-input") as HTMLElement;
     expect(form.querySelector("textarea")).not.toBeNull();
     expect(
-      within(form).getByRole("button", { name: "Message tips" }),
+      within(form).getByRole("button", { name: "Message Tips" }),
     ).toBeTruthy();
     expect(within(form).getByRole("button", { name: "Send" })).toBeTruthy();
   });

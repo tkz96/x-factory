@@ -123,7 +123,7 @@ describe("the raw log count sits on the footer button", () => {
         connected={false}
       />,
     );
-    const button = within(container).getByRole("button", { name: /Raw log/ });
+    const button = within(container).getByRole("button", { name: /Raw Log/ });
     expect(button.querySelector(".run-inspector-count")?.textContent).toBe(
       "2 events",
     );
@@ -145,7 +145,7 @@ describe("the raw log count sits on the footer button", () => {
         connected={false}
       />,
     );
-    const button = within(container).getByRole("button", { name: /Raw log/ });
+    const button = within(container).getByRole("button", { name: /Raw Log/ });
     expect(button.textContent).toContain("1 event");
     expect(button.textContent).not.toContain("1 events");
   });
@@ -160,8 +160,8 @@ describe("the send control", () => {
       ),
       "utf-8",
     );
-    expect(source).toContain('aria-label="Send"');
-    expect(source).toContain("sprite.svg#icon-send");
+    expect(source).toContain('label="Send"');
+    expect(source).toContain('icon="icon-send"');
     const sprite = readFileSync(
       path.join(process.cwd(), "public/assets/icons/sprite.svg"),
       "utf-8",

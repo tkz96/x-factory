@@ -32,8 +32,6 @@
 /* The small muted caption that heads each section. */
 .run-inspector-caption {
   margin: 0;
-  font-size: var(--text-caption-1);
-  font-weight: 600;
   color: var(--text-muted);
 }
 
@@ -50,7 +48,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: var(--text-caption-1);
   font-variant-numeric: tabular-nums;
   color: var(--text-muted);
 }
@@ -63,15 +60,13 @@
 }
 
 /* One row: the label on the left in the sans font, the value on the right in the mono font. */
-.run-inspector-row,
-.run-inspector-file {
+.run-inspector-row {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
   gap: var(--space-3);
   min-width: 0;
   margin: 0;
-  font-size: var(--text-footnote);
 }
 
 /* A label never truncates: it keeps its full width and the value beside it gives way instead. */
@@ -81,7 +76,6 @@
   min-width: 0;
   margin: 0;
   overflow-wrap: anywhere;
-  font-weight: 400;
   color: var(--text);
 }
 
@@ -137,6 +131,62 @@
   text-decoration: underline;
 }
 
+/* A row with an action is one target: the link or copy button stretches over the whole
+   row, which carries the shared hover fill (.ui-row-hover). */
+.run-inspector-stretch::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+.run-inspector-stretch:focus-visible,
+.run-inspector-stretch[data-focus-visible] {
+  outline: none;
+}
+
+.run-inspector-row:has(
+  .run-inspector-stretch:focus-visible,
+  .run-inspector-stretch[data-focus-visible]
+) {
+  outline: var(--border-width-indicator) solid var(--border-focus);
+  outline-offset: var(--space-1);
+  border-radius: var(--radius-sm);
+}
+
+.ui-button.run-inspector-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  max-width: 100%;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-none);
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+}
+
+.ui-button.run-inspector-copy[data-hovered],
+.ui-button.run-inspector-copy[data-pressed] {
+  background: transparent;
+  color: inherit;
+  transform: none;
+}
+
+.run-inspector-copy-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.run-inspector-copy .icon {
+  flex: none;
+  color: var(--text-secondary);
+}
+
 .run-inspector-files {
   list-style: none;
   display: flex;
@@ -146,37 +196,47 @@
   padding: 0;
 }
 
-/* A file row is a real button drawn at the same height as the other rows: no padding, no margin, the full
-   column width, so its counts end flush right like every other value. The hit area and the hover fill
-   are a pseudo-element that reaches past the row without changing its layout. */
-.run-inspector-file {
+/* A file row is the quiet button drawn at the same height as the other rows: no padding, no margin, the
+   full column width, so its counts end flush right like every other value. The hover fill is a
+   pseudo-element that reaches past the row without changing its layout. */
+.ui-button.run-inspector-file {
   position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
   width: 100%;
+  min-width: 0;
+  min-height: 0;
   margin: 0;
   padding: 0;
   border: 0;
+  border-radius: var(--radius-none);
   background: transparent;
   color: var(--text);
   font-family: inherit;
   line-height: inherit;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 
-.run-inspector-file::before {
-  content: "";
-  position: absolute;
-  inset: calc(var(--space-1) * -1) calc(var(--space-2) * -1);
-  border-radius: var(--radius-sm);
+.ui-button.run-inspector-file[data-hovered] {
   background: transparent;
-  transition: background-color var(--transition-fast);
+  color: var(--text);
 }
 
-.run-inspector-file:hover::before {
-  background: var(--bg-hover);
+.ui-button.run-inspector-file[data-pressed] {
+  transform: none;
 }
 
-.run-inspector-file:focus-visible {
+/* A finger's target: the row keeps --tap-min under a touch pointer or a phone width. */
+@media (any-pointer: coarse), (max-width: 768px) {
+  .ui-button.run-inspector-file {
+    min-height: var(--tap-min);
+  }
+}
+
+.run-inspector-file[data-focus-visible] {
   outline: var(--border-width-indicator) solid var(--border-focus);
   outline-offset: calc(var(--border-width-indicator) * -1);
 }
@@ -205,17 +265,20 @@
   color: var(--red);
 }
 
-.run-inspector-empty {
+/* The empty note of a section: the EmptyState block, without its own air. */
+/* A one-line "nothing here" inside a list of rows stays inline: the row text style,
+   left-aligned, no region around it (spec #292, item 6). EmptyState is for a region. */
+.run-inspector-none {
   margin: 0;
-  font-size: var(--text-footnote);
   color: var(--text-muted);
+  text-align: start;
 }
 
 /* The footer: a full-width "Raw log" button pinned under the scroll area. */
 .run-inspector-footer {
   flex: none;
   padding: var(--space-2) var(--space-4);
-  border-top: var(--border-width) solid var(--border-subtle);
+  border-top: var(--hairline) solid var(--separator);
 }
 
 .ui-button.run-inspector-raw-log {
@@ -232,8 +295,6 @@
 }
 
 .run-inspector-count {
-  font-size: var(--text-caption-1);
-  font-weight: 400;
   font-variant-numeric: tabular-nums;
   color: var(--text-muted);
 }
@@ -296,15 +357,52 @@
   margin-bottom: 0;
   padding: 0;
   border: none;
-  border-radius: 0;
+  border-radius: var(--radius-none);
   background: transparent;
 }
 
 .run-inspector-log .chat-bubble {
-  font-size: var(--text-caption-1);
   padding: var(--space-1) var(--space-2);
 }
 
 .run-inspector-log .chat-bubble-header {
   margin-bottom: var(--space-half);
+}
+
+/* A model row: the model's name, then its token use (TokenUsage). */
+.run-inspector-model {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1) var(--space-3);
+}
+
+.token-usage {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.token-usage-in,
+.token-usage-out {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-0-5);
+}
+
+/* In is what the model read, out is what it wrote: two colours, two glyphs. */
+.token-usage-in {
+  color: var(--accent);
+}
+
+.token-usage-out {
+  color: var(--green);
+}
+
+.token-usage-cost,
+.token-usage-note,
+.token-usage--none {
+  color: var(--text-secondary);
 }

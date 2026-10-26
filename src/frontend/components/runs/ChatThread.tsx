@@ -8,6 +8,7 @@ import { useEffect, useRef } from "react";
 import type { RunEvent } from "../../../shared/types.js";
 import { formatTimestamp } from "../../lib/format-timestamp.js";
 import { Badge } from "../ui/Badge.js";
+import { EmptyState } from "../ui/EmptyState.js";
 
 export interface ChatThreadProps {
   events: RunEvent[];
@@ -22,7 +23,10 @@ function renderStatusBubble(item: RunEvent<"status">) {
         <span>{runStatusText(status)}</span>
       </div>
       <div className="chat-bubble-body">{text ?? ""}</div>
-      <time className="chat-bubble-time" dateTime={item.timestamp}>
+      <time
+        className="chat-bubble-time text-caption-2"
+        dateTime={item.timestamp}
+      >
         {formatTimestamp(item.timestamp)}
       </time>
     </div>
@@ -38,7 +42,10 @@ function renderEvidenceBubble(item: RunEvent<"stage_evidence">) {
         {stage && <strong>{stageLabel(stage)}</strong>}
       </div>
       <div className="chat-bubble-body">✓ {evidence}</div>
-      <time className="chat-bubble-time" dateTime={item.timestamp}>
+      <time
+        className="chat-bubble-time text-caption-2"
+        dateTime={item.timestamp}
+      >
         {formatTimestamp(item.timestamp)}
       </time>
     </div>
@@ -56,7 +63,10 @@ function renderRalphBubble(item: RunEvent<"ralph_progress">) {
         {iteration ? <span>Iteration #{String(iteration)}</span> : null}
       </div>
       <div className="chat-bubble-body">{text}</div>
-      <time className="chat-bubble-time" dateTime={item.timestamp}>
+      <time
+        className="chat-bubble-time text-caption-2"
+        dateTime={item.timestamp}
+      >
         {formatTimestamp(item.timestamp)}
       </time>
     </div>
@@ -78,7 +88,10 @@ function renderPiChunkBubble(item: RunEvent<"pi_output_chunk">) {
         <Badge className="chat-bubble-badge">{badgeLabel}</Badge>
       </div>
       <div className="chat-bubble-body">{text}</div>
-      <time className="chat-bubble-time" dateTime={item.timestamp}>
+      <time
+        className="chat-bubble-time text-caption-2"
+        dateTime={item.timestamp}
+      >
         {formatTimestamp(item.timestamp)}
       </time>
     </div>
@@ -100,7 +113,10 @@ function renderChatUserBubble(item: RunEvent<"chat_user">) {
       <div className="chat-bubble-body">
         {snippet || "User sent message in chat"}
       </div>
-      <time className="chat-bubble-time" dateTime={item.timestamp}>
+      <time
+        className="chat-bubble-time text-caption-2"
+        dateTime={item.timestamp}
+      >
         {formatTimestamp(item.timestamp)}
       </time>
     </div>
@@ -118,7 +134,10 @@ function renderChatAgentBubble(item: RunEvent<"chat_agent">) {
       <div className="chat-bubble-body">
         {snippet || "Agent replied in chat"}
       </div>
-      <time className="chat-bubble-time" dateTime={item.timestamp}>
+      <time
+        className="chat-bubble-time text-caption-2"
+        dateTime={item.timestamp}
+      >
         {formatTimestamp(item.timestamp)}
       </time>
     </div>
@@ -134,7 +153,10 @@ function renderErrorBubble(item: RunEvent<"error">) {
         </Badge>
       </div>
       <div className="chat-bubble-body">{item.payload.message}</div>
-      <time className="chat-bubble-time" dateTime={item.timestamp}>
+      <time
+        className="chat-bubble-time text-caption-2"
+        dateTime={item.timestamp}
+      >
         {formatTimestamp(item.timestamp)}
       </time>
     </div>
@@ -152,7 +174,10 @@ function renderInfoBubble(item: RunEvent<"info">) {
           </Badge>
         </div>
         <div className="chat-bubble-body">{text}</div>
-        <time className="chat-bubble-time" dateTime={item.timestamp}>
+        <time
+          className="chat-bubble-time text-caption-2"
+          dateTime={item.timestamp}
+        >
           {formatTimestamp(item.timestamp)}
         </time>
       </div>
@@ -165,7 +190,10 @@ function renderTextBubble(item: RunEvent, text: string) {
   return (
     <div key={item.id} className="chat-bubble bubble-system">
       <div className="chat-bubble-body">{text}</div>
-      <time className="chat-bubble-time" dateTime={item.timestamp}>
+      <time
+        className="chat-bubble-time text-caption-2"
+        dateTime={item.timestamp}
+      >
         {formatTimestamp(item.timestamp)}
       </time>
     </div>
@@ -243,12 +271,14 @@ export function ChatThread({ events }: ChatThreadProps) {
     <div
       id="chat-thread"
       ref={containerRef}
-      className="chat-thread-container"
+      className="chat-thread-container text-subhead"
       aria-live="polite"
       role="log"
     >
       {events.length === 0 ? (
-        <div className="chat-thread-empty">Waiting for the first update…</div>
+        <div className="chat-thread-note">
+          <EmptyState message="Waiting for the first update…" />
+        </div>
       ) : (
         events.map((event) => renderBubble(event))
       )}

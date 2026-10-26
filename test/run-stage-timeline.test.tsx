@@ -80,7 +80,6 @@ function renderTimeline(overrides: Partial<RunStageTimelineProps> = {}) {
     open: new Set<WorkflowStage>(["plan"]),
     onToggle: () => {},
     now: NOW,
-    onOpenFile: () => {},
     waiting: false,
     ...overrides,
   };

@@ -42,7 +42,7 @@ export function Tooltip({ className, children, ...props }: TooltipProps) {
   return (
     <RACTooltip
       ref={tooltipRef}
-      className={`xf-tooltip ${className ?? ""}`.trim()}
+      className={`xf-tooltip ${className ?? ""} text-caption-1`.trim()}
       {...props}
     >
       {children}

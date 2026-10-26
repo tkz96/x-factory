@@ -10,7 +10,6 @@
 
 .run-review-summary {
   margin: 0;
-  font-size: var(--text-footnote);
   color: var(--text);
   overflow-wrap: anywhere;
 }
@@ -28,8 +27,6 @@
 
 .run-review-caption {
   margin: 0;
-  font-size: var(--text-caption-1);
-  font-weight: 600;
   color: var(--text-muted);
 }
 
@@ -47,7 +44,6 @@
   align-items: baseline;
   gap: var(--space-2);
   min-width: 0;
-  font-size: var(--text-footnote);
 }
 
 .run-review-criterion {
@@ -55,7 +51,6 @@
   flex-direction: column;
   gap: var(--space-1);
   min-width: 0;
-  font-size: var(--text-footnote);
 }
 
 .run-review-criterion-row {
@@ -91,7 +86,6 @@
 
 .run-review-notes {
   margin: 0;
-  font-size: var(--text-caption-1);
   color: var(--text-muted);
   overflow-wrap: anywhere;
 }

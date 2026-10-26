@@ -7,7 +7,8 @@
 @media (forced-colors: active) {
   /* Components drop their outline and draw a box-shadow ring instead; box-shadow is
    * lost in forced colours, so the focus ring is an outline here, on every control. */
-  :root :is(button, a, input, textarea, select, [tabindex]):focus-visible {
+  :root
+  :is(a, input, textarea, select, [tabindex], .ui-table-sort):focus-visible {
     outline: var(--border-width-thick) solid Highlight;
     outline-offset: var(--space-0-5);
   }
@@ -21,16 +22,11 @@
     color: LinkText;
   }
 
-  :root button,
+  :root .ui-table-sort,
   :root .ui-nav-item {
     background: ButtonFace;
     color: ButtonText;
     border: var(--border-width) solid ButtonBorder;
-  }
-
-  :root button:disabled {
-    color: GrayText;
-    border-color: GrayText;
   }
 
   /* Selected navigation rows paint Highlight themselves: without opting out,
@@ -62,8 +58,7 @@
   :root .ui-badge--success,
   :root .ui-badge--warning,
   :root .ui-badge--error,
-  :root .ui-badge--id,
-  :root .filter-pill {
+  :root .ui-badge--id {
     background: Canvas;
     color: CanvasText;
     border: var(--border-width) solid CanvasText;
@@ -83,6 +78,25 @@
     background: ButtonFace;
     color: ButtonText;
     border: var(--border-width) solid ButtonBorder;
+  }
+
+  /* A primary action is the one filled control on a screen, so it takes the
+     system selection pair (spec #292, item 1): without it the primary button
+     is an outlined pill like the secondary one beside it. */
+  :root .ui-button--primary {
+    /* Opted out of forced adjustment, as the selected segment is: the browser's Canvas
+       backplate behind the label would otherwise hide HighlightText. forced-color-adjust
+       is inherited, so the label takes the same opt-out. */
+    forced-color-adjust: none;
+    background: Highlight;
+    color: HighlightText;
+    border-color: Highlight;
+  }
+
+  :root .ui-button--primary[data-disabled] {
+    background: ButtonFace;
+    color: GrayText;
+    border-color: GrayText;
   }
 
   /* The browser paints a Canvas backplate behind text in forced colours, which
@@ -184,11 +198,38 @@
     color: HighlightText;
   }
 
-  :root .card,
+  /* A row with an action: the hover fill becomes a Highlight outline, so the row's own
+     text keeps its system colour. */
+  :root .ui-row-hover:hover::before,
+  :root .ui-row-hover[data-hovered]::before {
+    background: Canvas;
+    outline: var(--border-width) solid Highlight;
+  }
+
   :root .ui-list-group {
     background: Canvas;
     color: CanvasText;
     border: var(--border-width) solid CanvasText;
+  }
+
+  /* The Card block (#296): one surface family in system colours — raised and
+     inset alike — and the pressable family's hover kept visible, exactly as
+     the pressable list row above. */
+  :root .ui-card,
+  :root .ui-card--connection,
+  :root .ui-card--ticket,
+  :root .ui-card--model,
+  :root .ui-card--review,
+  :root .ui-card--chat,
+  :root .ui-card--flow {
+    background: Canvas;
+    color: CanvasText;
+    border: var(--border-width) solid CanvasText;
+  }
+
+  :root .ui-card--ticket:hover {
+    background: Highlight;
+    color: HighlightText;
   }
 
   /* Component-local controls (#249): buttons, links and menu items keep a system
@@ -204,7 +245,6 @@
   :root .flow-btn-tool,
   :root .flow-modal-close-btn,
   :root .react-flow__controls-button,
-  :root .md-copy-btn,
   :root .docs-back-link,
   :root .docs-toc-link,
   :root .toolbar-select,

@@ -14,7 +14,7 @@ export function ProjectScopePicker() {
   return (
     <select
       id="select-project"
-      className="toolbar-select"
+      className="toolbar-select text-subhead"
       aria-label="Project"
       value={scope}
       onChange={(e) => setSelectedProjectId(e.target.value)}

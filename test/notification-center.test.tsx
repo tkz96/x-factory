@@ -167,7 +167,8 @@ describe("notification bell (#264)", () => {
   it("lists a Needs-you notification with its ticket and kind, and the empty state otherwise", async () => {
     renderCenter(snapshot());
     fireEvent.click(bell());
-    expect(await view().findByText("No notifications yet.")).toBeTruthy();
+    const empty = await view().findByText("No notifications yet.");
+    expect(empty.closest(".ui-empty-state")).not.toBeNull();
   });
 
   it("a live plan-ready event is a new unread notification, and a second plan is another one", async () => {

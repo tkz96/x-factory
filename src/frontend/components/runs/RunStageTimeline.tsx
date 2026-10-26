@@ -5,8 +5,7 @@
 import "./RunChat.css";
 import "./RunStageTimeline.css";
 
-import { type ReactNode, useId } from "react";
-import type { DiffFileSummary } from "../../../shared/diff-summary.js";
+import { type ReactNode, useId, useState } from "react";
 import type { WorkflowStage } from "../../../shared/types.js";
 import type { ChatItem } from "../../lib/run-chat-items.js";
 import { groupRows } from "../../lib/run-chat-rows.js";
@@ -15,7 +14,12 @@ import {
   type StageGroup,
   type StageState,
 } from "../../lib/run-stages.js";
+import { STATUS_COPY } from "../feedback/copy-map.js";
+import { Badge, type BadgeTone } from "../ui/Badge.js";
+import { EmptyState } from "../ui/EmptyState.js";
+import { Icon } from "../ui/Icon.js";
 import { RunChatRow } from "./RunChatItem.js";
+import { RunDisclosure } from "./RunDisclosure.js";
 
 export interface RunStageTimelineProps {
   groups: StageGroup[];
@@ -24,7 +28,6 @@ export interface RunStageTimelineProps {
   onToggle: (stage: WorkflowStage) => void;
   /** The clock the chat rows' relative times read from. */
   now: number;
-  onOpenFile: (file: DiffFileSummary) => void;
   /** The retry offered for a trailing error row, if any. */
   retryFor?: (item: ChatItem) => (() => void) | undefined;
   /** Rendered at the end of the body of the decision stage (see `defaultDecisionStage`). */
@@ -74,20 +77,44 @@ export function defaultDecisionStage(
   return focusStage(groups) ?? groups.at(-1)?.stage ?? null;
 }
 
-const STATE_STATUS: Partial<Record<StageState, string>> = {
-  failed: "Failed",
-  stopped: "Stopped",
+const STATE_STATUS: Partial<
+  Record<StageState, { text: string; tone: BadgeTone }>
+> = {
+  failed: { text: STATUS_COPY.stageFailed, tone: "error" },
+  stopped: { text: STATUS_COPY.stageStopped, tone: "neutral" },
 };
+
+/** A folded run of agent updates: one disclosure row, closed until the reader opens it. */
+function ActivityGroup({ items, now }: { items: ChatItem[]; now: number }) {
+  const [isOpen, setOpen] = useState(false);
+  const id = useId();
+  return (
+    <div className="run-chat-group">
+      <RunDisclosure
+        id={`${id}-head`}
+        controls={`${id}-body`}
+        isOpen={isOpen}
+        onToggle={() => setOpen((open) => !open)}
+        className="run-chat-group-header"
+      >
+        <span className="text-subhead">{`${items.length} agent updates`}</span>
+      </RunDisclosure>
+      <div id={`${id}-body`} className="run-chat-group-body" hidden={!isOpen}>
+        {items.map((item) => (
+          <RunChatRow key={item.id} item={item} now={now} />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function StageRows({
   items,
   now,
-  onOpenFile,
   retryFor,
 }: {
   items: ChatItem[];
   now: number;
-  onOpenFile: (file: DiffFileSummary) => void;
   retryFor?: ((item: ChatItem) => (() => void) | undefined) | undefined;
 }) {
   return (
@@ -98,21 +125,10 @@ function StageRows({
             key={row.item.id}
             item={row.item}
             now={now}
-            onOpenFile={onOpenFile}
             onRetry={retryFor?.(row.item)}
           />
         ) : (
-          <details key={row.id} className="run-chat-group">
-            <summary>{`${row.items.length} progress updates`}</summary>
-            {row.items.map((item) => (
-              <RunChatRow
-                key={item.id}
-                item={item}
-                now={now}
-                onOpenFile={onOpenFile}
-              />
-            ))}
-          </details>
+          <ActivityGroup key={row.id} items={row.items} now={now} />
         ),
       )}
     </>
@@ -124,7 +140,6 @@ export function RunStageTimeline({
   open,
   onToggle,
   now,
-  onOpenFile,
   retryFor,
   decision,
   decisionStage,
@@ -146,58 +161,38 @@ export function RunStageTimeline({
           <li key={group.stage} className="run-stage" data-state={group.state}>
             <span className="run-stage-node" aria-hidden="true">
               {group.state === "done" && (
-                <svg
+                <Icon
+                  name="icon-stage-done"
+                  size="sm"
                   className="run-stage-check"
-                  viewBox="0 0 16 16"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  focusable="false"
-                  aria-hidden="true"
-                >
-                  <path d="M3.5 8.5 6.5 11.5 12.5 4.5" />
-                </svg>
+                />
               )}
             </span>
-            <button
-              type="button"
+            <RunDisclosure
               id={headId}
+              controls={bodyId}
+              isOpen={isOpen}
+              onToggle={() => onToggle(group.stage)}
               className="run-stage-header"
-              aria-expanded={isOpen}
-              aria-controls={bodyId}
-              onClick={() => onToggle(group.stage)}
             >
-              <span className="run-stage-label">{group.label}</span>
+              <span className="run-stage-label text-headline">
+                {group.label}
+              </span>
               {group.tookMs !== null && (
-                <span className="run-stage-took">
+                <span className="run-stage-took text-footnote">
                   {`Took ${formatTook(group.tookMs)}`}
                 </span>
               )}
               {statusText && (
-                <span className="run-stage-status">{statusText}</span>
+                <Badge tone={statusText.tone}>{statusText.text}</Badge>
               )}
               {isCurrent && waiting && (
-                <span className="run-stage-waiting">
+                <Badge tone="warning">
                   <span className="run-stage-waiting-dot" aria-hidden="true" />
-                  Waiting for you
-                </span>
+                  {STATUS_COPY.waitingForYou}
+                </Badge>
               )}
-              <svg
-                className="run-stage-chevron"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                focusable="false"
-                aria-hidden="true"
-              >
-                <path d="M6 3.5 10.5 8 6 12.5" />
-              </svg>
-            </button>
+            </RunDisclosure>
             <section
               id={bodyId}
               aria-labelledby={headId}
@@ -207,14 +202,11 @@ export function RunStageTimeline({
             >
               <div className="run-stage-panel">
                 {group.items.length === 0 && !holdsDecision && (
-                  <p className="run-stage-empty">Nothing yet.</p>
+                  <div className="run-stage-note">
+                    <EmptyState message="Nothing yet." />
+                  </div>
                 )}
-                <StageRows
-                  items={group.items}
-                  now={now}
-                  onOpenFile={onOpenFile}
-                  retryFor={retryFor}
-                />
+                <StageRows items={group.items} now={now} retryFor={retryFor} />
                 {holdsDecision && decision}
               </div>
             </section>

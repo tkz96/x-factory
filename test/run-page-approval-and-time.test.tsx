@@ -11,7 +11,10 @@ import { cleanup, fireEvent, render, within } from "@testing-library/react";
 import { RunChat } from "../src/frontend/components/runs/RunChat.js";
 import { checkpointBarEntries } from "../src/frontend/components/runs/RunCheckpointBar.js";
 import { RunInspector } from "../src/frontend/components/runs/RunInspector.js";
-import { formatTimestamp } from "../src/frontend/lib/format-timestamp.js";
+import {
+  formatClockTime,
+  formatTimestamp,
+} from "../src/frontend/lib/format-timestamp.js";
 import { runStatusUi } from "../src/frontend/lib/run-status-ui.js";
 import { canRunAction, TRANSITIONS } from "../src/shared/run-status-policy.js";
 import type { Run, RunEvent, RunStatus } from "../src/shared/types.js";
@@ -238,10 +241,12 @@ describe("one event shows one time across the run page", () => {
     const chatTime = chat.container.querySelector(
       `time[datetime="${INSTANT}"]`,
     );
-    expect(chatTime?.textContent).toBe(expected);
+    // The timeline shows the time of day; its exact time, on hover, is the log's time.
+    expect(chatTime?.getAttribute("title")).toBe(expected);
+    expect(chatTime?.textContent).toBe(formatClockTime(INSTANT));
     // The raw log lives in its sheet, opened from the pane's footer.
     fireEvent.click(
-      within(log.container).getByRole("button", { name: /Raw log/ }),
+      within(log.container).getByRole("button", { name: /Raw Log/ }),
     );
     const sheet = within(document.body).getByRole("dialog", {
       name: "Raw log",

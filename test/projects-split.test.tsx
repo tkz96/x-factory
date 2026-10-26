@@ -422,6 +422,31 @@ describe("The project detail pane (#267)", () => {
     );
   });
 
+  it("renders no page header of its own: the archived badge sits in the pane body", () => {
+    const view = renderProjects("/projects/demo-app", [
+      makeProject({ archived: true }),
+    ]);
+
+    // The shell's page heading names the project (#298), so the pane has no
+    // header element; the archived status is a plain block in the pane body.
+    expect(view.container.querySelector(".projects-detail header")).toBeNull();
+    expect(
+      view.container.querySelector(".projects-detail .projects-detail-status"),
+    ).not.toBeNull();
+  });
+
+  it("says a project with no repositories in an empty state, inside the repositories table", () => {
+    const view = renderProjects("/projects/demo-app", [
+      makeProject({ repositories: [] }),
+    ]);
+
+    const region = view.container.querySelector("#project-detail-repos-table");
+    expect(region?.querySelector(".ui-empty-state")).not.toBeNull();
+    expect(region?.textContent).toContain(
+      PROJECT_DETAIL_COPY.repositoriesEmpty,
+    );
+  });
+
   it("marks an archived project as archived", () => {
     const view = renderProjects("/projects/demo-app", [
       makeProject({ archived: true }),

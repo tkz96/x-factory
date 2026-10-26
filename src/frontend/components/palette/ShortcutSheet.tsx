@@ -43,7 +43,9 @@ export function ShortcutSheet({ isOpen, onClose }: ShortcutSheetProps) {
       <DialogBody className="shortcut-sheet-body">
         {GROUP_ORDER.map((group) => (
           <section key={group} className="shortcut-group">
-            <h3 className="shortcut-group-title">{group}</h3>
+            <h3 className="shortcut-group-title text-footnote font-semibold">
+              {group}
+            </h3>
             <dl className="shortcut-list">
               {SHORTCUTS.filter((s) => s.group === group).map((s) => {
                 const keys = formatShortcut(s, isMac);
@@ -52,9 +54,11 @@ export function ShortcutSheet({ isOpen, onClose }: ShortcutSheetProps) {
                     <dt>{s.label}</dt>
                     <dd>
                       {keys ? (
-                        <kbd className="shortcut-keys">{keys}</kbd>
+                        <kbd className="shortcut-keys text-caption-1">
+                          {keys}
+                        </kbd>
                       ) : null}
-                      <span className="shortcut-alternative">
+                      <span className="shortcut-alternative text-caption-1">
                         {keys ? "Also: " : ""}
                         {s.alternative}
                       </span>

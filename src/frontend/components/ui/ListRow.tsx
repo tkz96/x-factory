@@ -19,6 +19,7 @@ import type { ReactNode } from "react";
 import { Button as AriaButton } from "react-aria-components";
 import { Link } from "react-router-dom";
 import { withoutUndefined } from "./aria-props.js";
+import { Icon } from "./Icon.js";
 
 export interface ListRowContentProps {
   /** The row's title, on the leading edge. */
@@ -66,11 +67,7 @@ export function ListRowContent({
   return (
     <>
       {leading}
-      {leadingIcon !== undefined && (
-        <svg className="icon icon-md" aria-hidden="true">
-          <use href={`/assets/icons/sprite.svg#${leadingIcon}`} />
-        </svg>
-      )}
+      {leadingIcon !== undefined && <Icon name={leadingIcon} size="md" />}
       {titleHref === undefined ? (
         <span className="ui-list-row-main">{body}</span>
       ) : (

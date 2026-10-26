@@ -117,6 +117,30 @@ describe("groupItemsByStage: assignment", () => {
     expect(groups[4]?.items.map((i) => i.id)).toEqual(["event-2", "event-3"]);
   });
 
+  it("moves the notices that announce a stage into that stage", () => {
+    const events = [
+      status(1, "executing", 0),
+      ev(2, "info", { text: "Preparing workspace" }, 1),
+      ev(3, "stage_started", { stage: "execute", attempt: 1, model: MODEL }, 2),
+      ev(4, "diff_summary", { files: [], totalAdded: 0, totalRemoved: 0 }, 3),
+      ev(5, "info", { text: "Conducting automated code review" }, 4),
+      ev(
+        6,
+        "stage_started",
+        { stage: "execute", step: "review", attempt: 1, model: MODEL },
+        5,
+      ),
+    ];
+    const groups = groupsFor("awaiting_review", events);
+    expect(groups[3]?.items.map((i) => i.id)).toEqual([
+      "event-1",
+      "event-2",
+      "event-3",
+      "event-4",
+    ]);
+    expect(groups[4]?.items.map((i) => i.id)).toEqual(["event-5", "event-6"]);
+  });
+
   it("keeps the previous stage on a status with no stage", () => {
     const events = [
       status(1, "planning", 0),

@@ -16,7 +16,7 @@
   min-width: 0;
 }
 
-.projects-detail-header {
+.projects-detail-status {
   display: flex;
   align-items: center;
   gap: var(--space-3);
@@ -25,7 +25,12 @@
 }
 
 /* The three plain-word facts (#267): repository, tracker, branch. A three-up
-   card, so a glance answers "what is this project wired to?". */
+   card, so a glance answers "what is this project wired to?". The Card block
+   owns the surface and its padding; this only sets the margin. */
+.projects-detail-facts-panel {
+  margin: var(--space-5) 0 0;
+}
+
 .projects-detail-facts {
   display: grid;
   /* `min(…, 100%)` so a 290px pane takes one full-width column instead of
@@ -35,11 +40,7 @@
       minmax(min(var(--grid-card-sm), 100%), 1fr)
     );
   gap: var(--space-5);
-  margin: var(--space-5) 0 0;
-  padding: var(--space-5) var(--space-6);
-  background: var(--bg-card);
-  border: var(--border-width) solid var(--border-subtle);
-  border-radius: var(--radius-card);
+  margin: 0;
 }
 
 .projects-detail-fact {
@@ -50,40 +51,17 @@
 }
 
 .projects-detail-fact dt {
-  font-size: var(--text-caption-1);
-  font-weight: 600;
   color: var(--text-muted);
 }
 
 .projects-detail-fact-value {
   margin: 0;
-  font-size: var(--text-subhead);
   color: var(--text);
   overflow-wrap: anywhere;
 }
 
 .projects-detail-fact-value--path {
   font-family: var(--font-mono);
-  font-size: var(--text-footnote);
-}
-
-.projects-detail-id {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  margin: var(--space-2) 0 0;
-  font-size: var(--text-footnote);
-  color: var(--text-muted);
-}
-
-.projects-detail-id code {
-  font-family: var(--font-mono);
-  font-size: var(--text-footnote);
-  color: var(--text-muted);
-}
-
-.projects-detail-id-label {
-  font-weight: 600;
 }
 
 /* ── Project Detail View ─────────────────────────────────────────────── */
@@ -101,7 +79,7 @@
   gap: var(--space-3) var(--space-6);
   margin: var(--space-4) 0 0;
   padding-top: var(--space-3);
-  border-top: var(--border-width) solid var(--border-subtle);
+  border-top: var(--hairline) solid var(--separator);
 }
 
 .project-meta-item {
@@ -113,15 +91,12 @@
 
 /* A meta label reads as a sentence, not as a small-caps stamp. */
 .project-meta-item strong {
-  font-size: var(--text-caption-1);
   color: var(--text-muted);
-  font-weight: 600;
 }
 
 .project-meta-item code,
 .project-meta-item .meta-val {
   font-family: var(--font-mono);
-  font-size: 0.85rem;
   color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -140,7 +115,6 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: var(--font-mono);
-  font-size: var(--text-footnote);
   color: var(--text-secondary);
 }
 
@@ -158,6 +132,20 @@
 
 .repo-branch-cell {
   font-family: var(--font-mono);
-  font-size: var(--text-footnote);
   white-space: nowrap;
+}
+
+/* The identifier under the facts: a line of the card's own, in the facts' text style. */
+.projects-detail-id {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 0;
+  color: var(--text-muted);
+}
+
+.projects-detail-id code {
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
 }

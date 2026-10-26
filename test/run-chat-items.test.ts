@@ -176,3 +176,57 @@ describe("mapEventsToChatItems", () => {
     expect(items[3]).toMatchObject({ text: "Boom" });
   });
 });
+
+describe("mapEventsToChatItems — what the reader already saw (run page simplification)", () => {
+  const MODEL = { role: "reviewer", modelId: "auto" };
+
+  it("drops a status that repeats the status before it", () => {
+    const items = mapEventsToChatItems([
+      ev(1, "status", { status: "executing", text: "Plan approved" }),
+      ev(2, "info", { text: "Preparing workspace" }),
+      ev(3, "status", { status: "executing", text: "Spawning loop" }),
+    ]);
+    expect(items.map((i) => i.kind)).toEqual(["status", "notice"]);
+  });
+
+  it("drops an agent output line that repeats the progress line before it", () => {
+    const items = mapEventsToChatItems([
+      ev(1, "ralph_progress", { text: "Iteration 1 of 25", iteration: 1 }),
+      ev(2, "pi_output_chunk", { role: "ralph", text: "Iteration 1 of 25\n" }),
+      ev(3, "pi_output_chunk", { role: "ralph", text: "All tasks completed." }),
+    ]);
+    expect(items.map((i) => i.kind)).toEqual(["progress", "output"]);
+  });
+
+  it("drops a stage summary that restates the result before it", () => {
+    const items = mapEventsToChatItems([
+      ev(1, "review", {
+        result: {
+          passed: true,
+          summary: "Review passed: all 7 criteria satisfied.",
+        },
+      }),
+      ev(2, "stage_evidence", {
+        stage: "review",
+        evidence: "Review approved: Review passed: all 7 criteria satisfied.",
+      }),
+      ev(3, "stage_evidence", {
+        stage: "deliver",
+        evidence: "Pull request created.",
+      }),
+    ]);
+    expect(items.map((i) => i.kind)).toEqual(["result", "evidence"]);
+  });
+
+  it("puts a review step under Review, though the worker runs it in execute", () => {
+    const [item] = mapEventsToChatItems([
+      ev(1, "stage_started", {
+        stage: "execute",
+        step: "review",
+        attempt: 1,
+        model: MODEL,
+      }),
+    ]);
+    expect(item?.kind === "stage" ? item.stage : undefined).toBe("review");
+  });
+});

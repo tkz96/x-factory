@@ -22,6 +22,7 @@ import {
 } from "../overlays/index.js";
 import { Badge } from "../ui/Badge.js";
 import { Button } from "../ui/Button.js";
+import { EmptyState } from "../ui/EmptyState.js";
 import { IconButton } from "../ui/IconButton.js";
 import { DesktopNotificationPrompt } from "./DesktopNotificationPrompt.js";
 
@@ -95,7 +96,9 @@ export function NotificationBell() {
         <PopoverContent aria-label="Notifications">
           <DesktopNotificationPrompt />
           <div className="notification-popover-head">
-            <h2 className="notification-popover-title">Notifications</h2>
+            <h2 className="notification-popover-title text-headline">
+              Notifications
+            </h2>
             <Button
               variant="quiet"
               size="sm"
@@ -106,17 +109,19 @@ export function NotificationBell() {
             </Button>
           </div>
           {notifications.length === 0 ? (
-            <p className="notification-empty">No notifications yet.</p>
+            <div className="notification-status">
+              <EmptyState message="No notifications yet." />
+            </div>
           ) : (
             <ul className="notification-list">
               {notifications.map((item) => (
                 <li key={item.id} className="notification-row">
                   <OverlayTriggerButton
-                    className="notification-item"
+                    className="notification-item text-subhead"
                     onPress={() => choose(item)}
                   >
                     <span className="notification-item-main">
-                      <span className="notification-item-title">
+                      <span className="notification-item-title font-semibold">
                         {item.text}
                       </span>
                       <span className="notification-item-ticket">
@@ -127,7 +132,7 @@ export function NotificationBell() {
                           {item.detail}
                         </span>
                       )}
-                      <span className="notification-item-meta">
+                      <span className="notification-item-meta text-footnote">
                         {item.projectName} ·{" "}
                         <time
                           dateTime={item.time}

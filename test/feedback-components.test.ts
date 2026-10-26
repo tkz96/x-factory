@@ -60,7 +60,7 @@ describe("AsyncRegion — five-state taxonomy", () => {
     expect(html).toContain(
       "The credentials were rejected. Check the token and try again.",
     );
-    expect(html).toContain(">Try again</button>");
+    expect(html).toContain(">Try Again</button>");
     expect(retried).toBe(false);
   });
 
@@ -133,7 +133,7 @@ describe("AsyncRegion — five-state taxonomy", () => {
         ),
       }),
     );
-    expect(html).toContain("async-region-actions");
+    expect(html).toContain("ui-empty-state-action");
     expect(html).toContain("Onboard Project");
   });
 
@@ -266,7 +266,7 @@ describe("FeedbackBanner — tones, partial items, timed guidance", () => {
         onRetry: () => {},
       }),
     );
-    expect(html).toContain(">Try again</button>");
+    expect(html).toContain(">Try Again</button>");
     expect(html).not.toContain("Retry available");
     expect(html).not.toContain("disabled");
   });
@@ -331,7 +331,7 @@ describe("RetryAction — the uniform retry affordance", () => {
     const html = render(
       React.createElement(RetryAction, { onRetry: () => {} }),
     );
-    expect(html).toContain(">Try again</button>");
+    expect(html).toContain(">Try Again</button>");
     expect(html).toContain("icon-refresh-cw");
     expect(html).toContain("retry-action");
   });
