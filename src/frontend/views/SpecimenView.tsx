@@ -18,7 +18,7 @@ import {
 } from "../components/specimen/SpecimenSurfaces.js";
 import { SpecimenTuner } from "../components/specimen/SpecimenTuner.js";
 import type { SpecimenSettings } from "../components/specimen/specimen-settings.js";
-import { PageHeader } from "../components/ui/PageHeader.js";
+import { usePageHeader } from "../context/PageHeaderContext.js";
 import { applyThemeToDocument, useTheme } from "../hooks/useTheme.js";
 
 /** Automatic follows the OS query, as the app's own setting does. */
@@ -45,7 +45,14 @@ function snapshotOf(global: ReturnType<typeof useTheme>): AppSnapshot {
 
 type AppSnapshot = Parameters<typeof applyThemeToDocument>[0];
 
+/** The shell draws the specimen's heading, as it does for every screen. */
+const PAGE_HEADER = {
+  title: "Specimen",
+  subtitle: "Development only. Every block in components/ui and the overlays.",
+};
+
 function SpecimenView() {
+  usePageHeader(PAGE_HEADER);
   const global = useTheme();
   const [snapshot] = useState(() => snapshotOf(global));
   const [settings, setSettings] = useState<SpecimenSettings>({
@@ -70,20 +77,14 @@ function SpecimenView() {
   }, [settings, snapshot]);
 
   return (
-    <main className="specimen specimen--tuning" aria-labelledby="page-title">
-      {/* The specimen is a dev route outside AppShell, so it carries the
-          shell's PageHeader block itself: its one h1 and its note. */}
-      <PageHeader
-        title="Specimen"
-        subtitle="Development only. Every block in components/ui and the overlays."
-      />
+    <div className="specimen specimen--tuning">
       <SpecimenControls settings={settings} onChange={setSettings} />
       <SpecimenBlocks />
       <SpecimenOverlays />
       <SpecimenTypeScale />
       <SpecimenCorners />
       <SpecimenTuner />
-    </main>
+    </div>
   );
 }
 
