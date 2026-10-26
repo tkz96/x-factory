@@ -15,6 +15,7 @@ import { cleanup, render } from "@testing-library/react";
 import { createElement } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { AsyncRegion } from "../src/frontend/components/feedback/AsyncRegion.js";
+import { EmptyState } from "../src/frontend/components/ui/EmptyState.js";
 import { ModalProvider } from "../src/frontend/context/ModalContext.js";
 import { ProjectProvider } from "../src/frontend/context/ProjectContext.js";
 import { queryKeys } from "../src/frontend/lib/query-policies.js";
@@ -212,6 +213,75 @@ describe("placeholder rows are static, and the wait is one spinner", () => {
     ).toHaveLength(5);
     expect(container.querySelector(".icon-spin")).toBeNull();
     expect((await findByRole("status")).textContent).toBe("Loading…");
+  });
+});
+
+describe("empty data renders the EmptyState block", () => {
+  it("AsyncRegion shows the block with its title, message and action", () => {
+    const { container, getByRole, getByText } = render(
+      createElement(AsyncRegion, {
+        derived: { state: "empty", suppressed: [], error: undefined },
+        emptyTitle: "No runs are working",
+        emptyCopy: "Start one from Tickets.",
+        emptyIcon: "icon-play",
+        emptyAction: createElement(
+          "button",
+          { type: "button" },
+          "Go to Tickets",
+        ),
+      }),
+    );
+
+    const status = getByRole("status");
+    expect(status.classList.contains("async-region--empty")).toBe(true);
+    expect(status.querySelector(".ui-empty-state")).not.toBeNull();
+    expect(
+      getByRole("heading", { name: "No runs are working" }),
+    ).not.toBeNull();
+    expect(getByText("Start one from Tickets.")).not.toBeNull();
+    expect(getByRole("button", { name: "Go to Tickets" })).not.toBeNull();
+    expect(container.querySelector("use")?.getAttribute("href")).toBe(
+      "/assets/icons/sprite.svg#icon-play",
+    );
+  });
+
+  it("falls back to the canonical line as the headline, with no copy of its own", () => {
+    const { getByRole } = render(
+      createElement(AsyncRegion, {
+        derived: { state: "empty", suppressed: [], error: undefined },
+      }),
+    );
+    expect(getByRole("heading", { name: "Nothing here yet." })).not.toBeNull();
+  });
+
+  it("works with no data load at all, for example no search results", () => {
+    // No query, no provider: a screen that filters data in memory hands the
+    // derived state straight to the region.
+    const { getByRole, queryByRole } = render(
+      createElement(AsyncRegion, {
+        derived: { state: "empty", suppressed: [], error: undefined },
+        emptyTitle: "No Matches",
+        emptyCopy: "Try a different search.",
+        emptyIcon: "icon-search",
+      }),
+    );
+
+    expect(getByRole("heading", { name: "No Matches" })).not.toBeNull();
+    expect(getByRole("status").textContent).toContain(
+      "Try a different search.",
+    );
+    expect(queryByRole("button")).toBeNull();
+  });
+
+  it("the block itself is usable on its own, with no AsyncRegion", () => {
+    const { getByRole } = render(
+      createElement(EmptyState, {
+        icon: "icon-search",
+        title: "No Matches",
+        message: "Try a different search.",
+      }),
+    );
+    expect(getByRole("heading", { name: "No Matches" })).not.toBeNull();
   });
 });
 

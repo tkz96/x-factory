@@ -250,7 +250,7 @@ describe("Runs — feedback-family read region (#258, formerly History)", () => 
 
     // The empty state is a headline and one guidance line (E3).
     expect(
-      view.container.querySelector(".async-region-title")?.textContent,
+      view.container.querySelector(".ui-empty-state-title")?.textContent,
     ).toBe("No runs are working");
     expect(s.getByRole("status").textContent).toContain(
       "Start one from Tickets",
@@ -267,7 +267,7 @@ describe("Runs — feedback-family read region (#258, formerly History)", () => 
     const s = within(view.container);
 
     expect(
-      view.container.querySelector(".async-region-title")?.textContent,
+      view.container.querySelector(".ui-empty-state-title")?.textContent,
     ).toBe("No finished runs yet");
     expect(s.queryByRole("link", { name: /Go to Tickets/ })).toBeNull();
   });

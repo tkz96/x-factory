@@ -792,6 +792,49 @@
   color: var(--text-muted);
 }
 
+/* ── Empty state: what is not here, once (DESIGN.md §7) ─────────────────────
+ * Centred and quiet, with no card or box around it, as macOS shows an empty
+ * view. The title is Title 3 (15px on macOS), the message is the secondary
+ * label colour, and the message measure stays readable in a wide column. */
+
+.ui-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-8) var(--space-4);
+  text-align: center;
+}
+
+.ui-empty-state-icon {
+  color: var(--text-dim);
+}
+
+.ui-empty-state-title {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-title-3);
+  line-height: 1.3;
+  color: var(--text);
+}
+
+.ui-empty-state-message {
+  margin: 0;
+  max-width: 48ch;
+  font-size: var(--text-callout);
+  line-height: 1.5;
+  color: var(--text-muted);
+  text-wrap: balance;
+}
+
+.ui-empty-state-action {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
 /* ── Grouped inset list ──────────────────────────────────────────────────
  * One group: a --radius-card container on --bg-card whose rows share inset
  * hairlines instead of each row drawing its own box. The rows are the shared

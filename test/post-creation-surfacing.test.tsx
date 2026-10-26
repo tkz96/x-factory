@@ -1059,7 +1059,7 @@ describe("Work Queue — combo state matrix", () => {
       }
     });
     // The empty state is a headline and one guidance line (E3).
-    expect(container.querySelector(".async-region-title")?.textContent).toBe(
+    expect(container.querySelector(".ui-empty-state-title")?.textContent).toBe(
       QUEUE_COPY.emptyTitle,
     );
     expect(container.textContent).toContain(

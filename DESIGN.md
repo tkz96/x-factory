@@ -312,12 +312,21 @@ For flows, check the Patterns section first: onboarding, search, feedback, data 
 
 A screen composes blocks; it never hand-rolls a control. The vocabulary lives in `src/frontend/components/ui/` and is built on React Aria's unstyled primitives — React Aria owns behaviour (keyboard, press, focus visibility, disabled and touch semantics) and the tokens own every visual value. The one stylesheet is `src/frontend/styles/shared/controls.css`; see [docs/agents/frontend-styling.md](./docs/agents/frontend-styling.md) for the rules and the gate that enforces them.
 
-- button, icon button, text field, text area, select, segmented control, switch, badge, grouped list, list row, table, spinner.
+- button, icon button, text field, text area, select, segmented control, switch, badge, grouped list, list row, table, spinner, empty state.
 - **Tap targets.** Every block a finger can hit is at least `--tap-min` tall: 44px where a touch input is present or the viewport is 768px or less, otherwise a 24px hit area (spec #292).
 - **Focus.** One ring definition, drawn from `--border-width-indicator` and `--border-focus`, proved at 3:1 or better by the twelve-set contrast gate.
 - **Feedback.** The feedback family in `src/frontend/components/feedback/` renders through these blocks. Errors are announced as alerts; informational and partial states stay polite.
 - **Loading.** A list reserves static placeholder rows at the height the loaded rows will have (`--list-row-height`) — no layout shift and no shimmer, ever. Every other wait is the one standard spinner, for small inline waits only.
 - **Icon-only controls** always carry an accessible name, and no status is ever an emoji.
+
+### Loading, empty and error
+
+Every async region renders through `AsyncRegion` (`components/feedback/`). A screen derives the state with `deriveAsyncState` and never writes its own empty or error markup.
+
+- **Loading.** Lists reserve placeholder rows. Every other wait is the one standard spinner.
+- **Empty.** `AsyncRegion` renders the `EmptyState` block: a glyph, a title that names what is missing (Title 3), one line of guidance in the secondary label colour, and an optional action (a `Button`). It is centred, with no card or box around it. A screen with no data load, such as no search results, renders `EmptyState` directly.
+- **Error.** Normalized copy from `components/feedback/copy-map.ts`, a retry action, and an alert role. A raw payload is never shown.
+- **Wording.** Titles and guidance are sentence case, name what is missing, and say the next step. No emoji.
 
 ### Lists, headers and sizes
 
