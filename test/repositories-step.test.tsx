@@ -838,7 +838,7 @@ describe("Repositories Step — stale selection & progression gate (spec #133, t
       // ...and the only structural change is the selection summary.
       const added = structural.flatMap((record) => [...record.addedNodes]);
       expect(added.map((node) => (node as HTMLElement).className)).toEqual([
-        "repositories-selection-summary",
+        "repositories-selection-summary text-subhead",
       ]);
 
       // The selection never re-runs discovery: the list is already the source.
@@ -1719,6 +1719,11 @@ describe("Repositories Step — filter and entered repository first (#284)", () 
     typeInput(getEl<HTMLInputElement>("repositories-filter"), "zzz");
     expect(listedNames()).toEqual([]);
     expect(discoveryRegion().textContent).toContain(
+      REPOSITORIES_COPY.noFilterMatches("zzz"),
+    );
+    // The no-match message is the EmptyState block, announced as a status.
+    const status = discoveryRegion().querySelector('[role="status"]');
+    expect(status?.querySelector(".ui-empty-state-message")?.textContent).toBe(
       REPOSITORIES_COPY.noFilterMatches("zzz"),
     );
   });

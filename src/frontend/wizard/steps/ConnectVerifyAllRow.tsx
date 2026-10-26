@@ -1,6 +1,7 @@
 // src/frontend/wizard/steps/ConnectVerifyAllRow.tsx — Verify All button row.
 
 import { Button } from "../../components/ui/Button.js";
+import { Icon } from "../../components/ui/Icon.js";
 import "./ConnectStep.css";
 
 export interface ConnectVerifyAllRowProps {
@@ -27,9 +28,7 @@ export function ConnectVerifyAllRow({
       >
         {isVerifying ? (
           <>
-            <svg className="icon icon-sm icon-spin" aria-hidden="true">
-              <use href="/assets/icons/sprite.svg#icon-loader-2" />
-            </svg>
+            <Icon name="icon-loader-2" size="sm" className="icon-spin" />
             Verifying Connections…
           </>
         ) : (
