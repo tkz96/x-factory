@@ -1298,6 +1298,20 @@
   padding: var(--space-4);
 }
 
+/* The padding override (Card's padding prop). These come after the variant
+   rules, so they win over a variant's padding on source order. */
+.ui-card--padding-none {
+  padding: var(--space-0);
+}
+
+.ui-card--padding-compact {
+  padding: var(--space-3) var(--space-4);
+}
+
+.ui-card--padding-regular {
+  padding: var(--space-6);
+}
+
 /* ── Page header: the shell's page heading (#298) ───────────────────────── */
 /* AppShell renders this block once per screen (components/ui/PageHeader.tsx)
    from the content a view claims through usePageHeader. The large title

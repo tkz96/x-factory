@@ -888,6 +888,26 @@ describe("Card — the card block", () => {
     );
   });
 
+  it("takes a padding override and leaves the variant's padding alone without one", () => {
+    const { container } = render(
+      <>
+        <Card id="card-plain" variant="ticket">
+          Body
+        </Card>
+        <Card id="card-compact" variant="ticket" padding="compact">
+          Body
+        </Card>
+      </>,
+    );
+
+    expect(classesOf(container.querySelector("#card-plain"))).toBe(
+      "ui-card ui-card--ticket",
+    );
+    expect(classesOf(container.querySelector("#card-compact"))).toBe(
+      "ui-card ui-card--ticket ui-card--padding-compact",
+    );
+  });
+
   it("renders every variant in every theme × appearance × contrast set", () => {
     expect(CARD_SETS).toHaveLength(12);
     const root = document.documentElement;

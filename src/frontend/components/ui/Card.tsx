@@ -32,9 +32,17 @@ export type CardVariant =
   | "chat"
   | "flow";
 
+/**
+ * Inner padding. Leave it out to keep the variant's own padding. `none` removes
+ * it, `compact` is the inset rhythm, `regular` is the raised-card rhythm.
+ */
+export type CardPadding = "none" | "compact" | "regular";
+
 export interface CardProps {
   /** Which card family the block stands in for (DESIGN.md §7 "Cards"). */
   variant?: CardVariant;
+  /** Inner padding override; the variant's own padding when left out. */
+  padding?: CardPadding | undefined;
   /** Layout only — the look comes from the block. */
   id?: string | undefined;
   className?: string | undefined;
@@ -43,11 +51,13 @@ export interface CardProps {
 
 export function Card({
   variant = "default",
+  padding,
   id,
   className,
   children,
 }: CardProps) {
   const classes = ["ui-card", `ui-card--${variant}`];
+  if (padding !== undefined) classes.push(`ui-card--padding-${padding}`);
   if (className !== undefined) classes.push(className);
   return (
     <div {...(id ? { id } : {})} className={classes.join(" ")}>
