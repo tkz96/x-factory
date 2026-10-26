@@ -149,7 +149,7 @@ The design system is being migrated to the blocks. Until M8 lands, the code has 
 - M1 Shell and shared layer (AppShell, notifications, palette, overlays, feedback, Markdown, Modal, forms, controls, utilities, NotFound, Welcome, SetupChecklist)
 - M2 Tickets (QueueView, queue, NewRunModal)
 - M3 Projects (ProjectsView, ProjectDetailView, projects)
-- M4 Settings and connections
+- M4 Settings and connections — migrated: no G3–G9 findings remain in `SettingsView`, `settings/*`, `connection/*` or `connections/*`
 - M5 Wizard
 - M6 Runs (RunsView, RunDetailView, runs)
 - M7 Docs and diagrams (DocsView, DocsSidebarNav, diagrams). G3 to G9 land here.
