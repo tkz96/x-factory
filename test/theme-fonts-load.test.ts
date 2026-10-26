@@ -1,16 +1,16 @@
-// test/theme-fonts-load.test.ts — Theme fonts load only when their theme is active (#249).
-// The Graphite and Sandstone faces are declared in tokens.css, but a browser only
-// fetches a face a page uses. This drives the real app in Chromium and records the
-// font requests: a fresh profile on the Default theme requests none of them, and
-// choosing Graphite requests its face.
+// test/theme-fonts-load.test.ts — Theme fonts load only when their setting is on (#249, spec #292).
+// Themes change colour only, so no theme requests a font. The Readable font
+// (Atkinson Hyperlegible) is the only extra face, and a browser fetches it only
+// when text uses it. This drives the real app in Chromium and records the font
+// requests: a fresh profile requests none of them, and switching theme requests none.
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { type Browser, chromium } from "playwright-core";
 import { startIsolatedInstance } from "../scripts/screenshots/instance.js";
 
 const TIMEOUT = 240_000;
-/** Graphite's face (IBM Plex Sans) and Sandstone's face (Atkinson Hyperlegible Next). */
-const THEME_FONT = /\/fonts\/(IBMPlexSans|AtkinsonHyperlegible(Next|Mono))-/;
+/** The Readable font faces (Atkinson Hyperlegible Next and Mono). */
+const READABLE_FONT = /\/fonts\/AtkinsonHyperlegible(Next|Mono)-/;
 
 describe("theme fonts load only when active (#249)", () => {
   let instance: Awaited<ReturnType<typeof startIsolatedInstance>>;
@@ -31,13 +31,13 @@ describe("theme fonts load only when active (#249)", () => {
   });
 
   test(
-    "the Default theme requests no Graphite or Sandstone font, and Graphite requests its own",
+    "no theme requests a font file, and switching to Graphite requests none",
     async () => {
       const context = await browser.newContext();
       const page = await context.newPage();
       const fontRequests: string[] = [];
       page.on("request", (request) => {
-        if (THEME_FONT.test(new URL(request.url()).pathname)) {
+        if (READABLE_FONT.test(new URL(request.url()).pathname)) {
           fontRequests.push(new URL(request.url()).pathname);
         }
       });
@@ -62,9 +62,7 @@ describe("theme fonts load only when active (#249)", () => {
         () => document.documentElement.dataset.theme === "graphite",
       );
       await page.waitForLoadState("networkidle");
-      expect(fontRequests.some((path) => path.includes("IBMPlexSans-"))).toBe(
-        true,
-      );
+      expect(fontRequests).toEqual([]);
       await context.close();
     },
     TIMEOUT,

@@ -245,7 +245,7 @@
 }
 
 .docs-search-hit-badge {
-  font-size: var(--text-badge);
+  font-size: var(--text-caption-1);
   font-weight: 500;
   color: var(--text-dim);
   letter-spacing: 0.02em;

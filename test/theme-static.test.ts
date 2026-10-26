@@ -42,35 +42,44 @@ describe("Theme choice before first paint (#249)", () => {
   });
 });
 
-describe("theme fonts (#249)", () => {
-  it("Default uses system-ui then the bundled Inter, with IBM Plex Mono for code", () => {
-    const display = ruleBody(":root");
-    expect(display).toMatch(
-      /--font-sans:\s*system-ui,\s*"Inter",\s*sans-serif;/,
+describe("theme fonts (#249, spec #292)", () => {
+  it("Default uses the system stack first, then the bundled Inter, with SF Mono before IBM Plex Mono", () => {
+    const root = ruleBody(":root");
+    expect(root).toMatch(
+      /--font-sans:\s*-apple-system,\s*BlinkMacSystemFont,\s*"Inter",\s*sans-serif;/,
     );
-    expect(display).toMatch(/--font-mono:\s*"IBM Plex Mono"/);
+    expect(root).toMatch(
+      /--font-mono:\s*ui-monospace,\s*"SF Mono",\s*Menlo,\s*"IBM Plex Mono",\s*monospace;/,
+    );
+    expect(root).not.toContain("system-ui");
   });
 
-  it("Graphite and Sandstone name only their own families", () => {
-    const graphite = ruleBody('[data-theme="graphite"]');
-    const sandstone = ruleBody('[data-theme="sandstone"]');
-    expect(graphite).toContain('"IBM Plex Sans"');
-    expect(graphite).toContain('"IBM Plex Mono"');
-    expect(sandstone).toContain('"Atkinson Hyperlegible Next"');
-    expect(sandstone).toContain('"Atkinson Hyperlegible Mono"');
-    expect(sandstone).not.toContain("IBM Plex");
-    expect(graphite).not.toContain("Atkinson");
+  it("themes change colour only: no theme sets a font token", () => {
+    for (const theme of [
+      '[data-theme="graphite"]',
+      '[data-theme="sandstone"]',
+    ]) {
+      const body = ruleBody(theme);
+      expect(body).not.toMatch(/--font-/);
+    }
   });
 
-  it("every theme font face points at a woff2 file that is bundled with the app", () => {
+  it("the readable font is set by data-font, not by a theme", () => {
+    const readable = ruleBody('[data-font="readable"]');
+    expect(readable).toContain('"Atkinson Hyperlegible Next"');
+    expect(readable).toContain('"Atkinson Hyperlegible Mono"');
+  });
+
+  it("every font face points at a woff2 file that is bundled with the app", () => {
     const families = fontFaceFamilies();
     for (const family of [
-      "IBM Plex Sans",
+      "Inter",
+      "IBM Plex Mono",
       "Atkinson Hyperlegible Next",
       "Atkinson Hyperlegible Mono",
     ]) {
       const sources = families.get(family) ?? [];
-      expect(sources.length).toBe(4);
+      expect(sources.length).toBeGreaterThan(0);
       for (const src of sources) {
         expect(src.startsWith("/fonts/")).toBe(true);
         expect(fs.existsSync(path.join(ROOT, "public", src))).toBe(true);
@@ -78,12 +87,11 @@ describe("theme fonts (#249)", () => {
     }
   });
 
-  it("a font face is only ever used by the theme that names it", () => {
-    // Default must not name a theme-only family, so its files never download
-    // unless a theme is active.
-    const defaultStack = ruleBody(":root");
-    expect(defaultStack).not.toContain("IBM Plex Sans");
-    expect(defaultStack).not.toContain("Atkinson");
+  it("IBM Plex Sans is no longer declared or bundled", () => {
+    expect(tokens).not.toContain("IBM Plex Sans");
+    expect(
+      fs.existsSync(path.join(ROOT, "public/fonts/IBMPlexSans-Regular.woff2")),
+    ).toBe(false);
   });
 });
 

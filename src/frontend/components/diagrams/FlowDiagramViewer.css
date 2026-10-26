@@ -71,7 +71,7 @@
   align-items: center;
   gap: 0.3rem;
   padding: 0.25rem 0.55rem;
-  font-size: var(--text-tag);
+  font-size: var(--text-caption-1);
   font-weight: 500;
   color: var(--text-muted);
   background: var(--bg-card);
