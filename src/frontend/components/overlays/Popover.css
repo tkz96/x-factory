@@ -2,7 +2,7 @@
 
 .xf-popover {
   background: var(--bg-modal);
-  border: var(--border-width) solid var(--border);
+  border: var(--hairline) solid var(--separator);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
   z-index: var(--z-popover);

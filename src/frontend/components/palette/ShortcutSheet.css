@@ -27,7 +27,7 @@
   align-items: baseline;
   gap: var(--space-3);
   padding: var(--space-2) 0;
-  border-bottom: var(--border-width) solid var(--border-subtle);
+  border-bottom: var(--hairline) solid var(--separator);
 }
 
 .shortcut-row dt {
@@ -48,7 +48,7 @@
   font-family: var(--font-mono);
   font-size: var(--text-caption-1);
   padding: var(--space-0-5) var(--space-1-5);
-  border: var(--border-width) solid var(--border);
+  border: var(--hairline) solid var(--separator);
   border-radius: var(--radius-xs);
   background: var(--bg-surface-2);
   color: var(--text);

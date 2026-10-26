@@ -38,7 +38,7 @@
 
 .docs-toc-sticky-box {
   padding: 0.5rem 0 0.5rem 0.75rem;
-  border-left: var(--border-width) solid var(--border-subtle);
+  border-left: var(--hairline) solid var(--separator);
 }
 
 .docs-toc-header {
@@ -150,7 +150,7 @@
   margin-top: var(--space-8);
   padding: var(--space-5);
   background: var(--bg-hover);
-  border: var(--border-width) solid var(--border-subtle);
+  border: var(--hairline) solid var(--separator);
   border-radius: var(--radius-sm);
   font-size: var(--text-footnote);
   line-height: 1.6;
@@ -198,7 +198,7 @@
 
 .docs-meta-table td {
   padding: 0.6rem 0.8rem;
-  border-bottom: var(--border-width) solid var(--border-subtle);
+  border-bottom: var(--hairline) solid var(--separator);
   color: var(--text);
 }
 

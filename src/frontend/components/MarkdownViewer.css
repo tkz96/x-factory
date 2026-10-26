@@ -14,7 +14,7 @@
   letter-spacing: -0.02em;
   margin: 1.5rem 0 0.8rem;
   padding-bottom: 0.4rem;
-  border-bottom: var(--border-width) solid var(--border-subtle);
+  border-bottom: var(--hairline) solid var(--separator);
   color: var(--text);
 }
 
@@ -61,7 +61,7 @@
 .md-viewer hr {
   margin: 1.5rem 0;
   border: none;
-  border-top: var(--border-width) solid var(--border);
+  border-top: var(--hairline) solid var(--separator);
 }
 
 /* ── Code Block ──────────────────────────────────────────────────────── */
@@ -69,7 +69,7 @@
 .md-code-container {
   margin: 1rem 0;
   border-radius: var(--radius-sm);
-  border: var(--border-width) solid var(--border);
+  border: var(--hairline) solid var(--separator);
   background: var(--bg-code);
   overflow: hidden;
 }
@@ -80,7 +80,7 @@
   align-items: center;
   padding: 0.35rem 0.8rem;
   background: var(--bg-hover);
-  border-bottom: var(--border-width) solid var(--border-subtle);
+  border-bottom: var(--hairline) solid var(--separator);
   font-size: var(--text-caption-1);
   color: var(--text-muted);
   font-family: var(--font-mono);
@@ -88,7 +88,7 @@
 
 .md-copy-btn {
   background: transparent;
-  border: var(--border-width) solid var(--border-subtle);
+  border: var(--hairline) solid var(--separator);
   color: var(--text-muted);
   padding: 0.15rem 0.5rem;
   border-radius: var(--radius-sm);
@@ -172,7 +172,8 @@
   background: var(--accent-dim);
   color: var(--text-muted);
   font-style: italic;
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  border-radius: var(--radius-none) var(--radius-sm) var(--radius-sm)
+    var(--radius-none);
 }
 
 .md-quote-line {
@@ -264,7 +265,7 @@
 
 .md-viewer td {
   padding: 0.45rem 0.8rem;
-  border-bottom: var(--border-width) solid var(--border-subtle);
+  border-bottom: var(--hairline) solid var(--separator);
   color: var(--text-muted);
 }
 

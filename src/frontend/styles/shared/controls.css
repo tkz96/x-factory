@@ -52,7 +52,8 @@
   font-family: var(--font-sans);
   font-size: var(--text-callout);
   font-weight: 600;
-  border: var(--border-width) solid transparent;
+  /* Buttons have a filled bezel and no border (spec #292). */
+  border: 0;
   border-radius: var(--radius-md);
   cursor: pointer;
   transition:
@@ -90,24 +91,17 @@
 }
 
 .ui-button--secondary {
-  background: var(--bg-card);
+  background: var(--fill-control);
   color: var(--text);
-  border-color: var(--border-control);
 }
 
 .ui-button--secondary[data-hovered] {
-  background: var(--bg-card-hover);
-  border-color: var(--border-hover);
+  background: var(--fill-control-hover);
 }
 
 .ui-button--danger {
   background: var(--red-dim);
   color: var(--red);
-  border-color: transparent;
-}
-
-.ui-button--danger[data-hovered] {
-  border-color: var(--red);
 }
 
 .ui-button--quiet {
@@ -154,7 +148,8 @@
   height: var(--tap-min);
   min-width: var(--tap-min);
   min-height: var(--tap-min);
-  border: var(--border-width) solid var(--border-subtle);
+  /* Icon-only buttons have a filled bezel and no border (spec #292). */
+  border: 0;
   border-radius: var(--radius-full);
   corner-shape: round;
   background: var(--bg-circle-btn);
@@ -171,7 +166,6 @@
 
 .ui-icon-button[data-hovered] {
   background: var(--bg-circle-btn-hover);
-  border-color: var(--border-hover);
   color: var(--text);
 }
 
@@ -403,7 +397,7 @@
   max-width: 100%;
   background: var(--bg-tertiary);
   border: none;
-  box-shadow: inset 0 0 0 var(--border-width) var(--border-control);
+  box-shadow: var(--shadow-ring-control);
   border-radius: var(--radius-md);
 }
 
@@ -675,7 +669,7 @@
   text-align: left;
   color: var(--text);
   background: var(--bg-card);
-  border: var(--border-width) solid var(--border-control);
+  border: var(--hairline) solid var(--separator);
   border-radius: var(--radius-card);
 }
 
@@ -821,7 +815,7 @@
   flex-direction: column;
   gap: 0;
   background: var(--bg-card);
-  border: var(--border-width) solid var(--border-subtle);
+  border: var(--hairline) solid var(--separator);
   border-radius: var(--radius-card);
   overflow: hidden;
   /* A size container: the rows respond to how wide the LIST is, not to the
@@ -889,14 +883,14 @@
   position: absolute;
   inset-inline: var(--space-4) 0;
   top: 0;
-  border-top: var(--border-width) solid var(--border-subtle);
+  border-top: var(--hairline) solid var(--separator);
 }
 
 /* Inside a group the row draws no box of its own: the group is the box. */
 .ui-list-group .ui-list-row {
   background: transparent;
   border: none;
-  border-radius: 0;
+  border-radius: var(--radius-none);
 }
 
 /* The row the URL names reads as chosen: one filled row, no border. */
@@ -996,7 +990,7 @@
   container-type: inline-size;
   container-name: ui-table;
   background: var(--bg-card);
-  border: var(--border-width) solid var(--border-subtle);
+  border: var(--hairline) solid var(--separator);
   border-radius: var(--radius-card);
   overflow: hidden;
 }
@@ -1016,7 +1010,7 @@
   text-align: start;
   white-space: nowrap;
   background: var(--bg-secondary);
-  border-bottom: var(--border-width) solid var(--border-subtle);
+  border-bottom: var(--hairline) solid var(--separator);
 }
 
 .ui-table-sort {
@@ -1083,7 +1077,7 @@
 /* Hairlines between rows, not around them. */
 .ui-table-row + .ui-table-row > *,
 .ui-table-detail + .ui-table-row > * {
-  border-top: var(--border-width) solid var(--border-subtle);
+  border-top: var(--hairline) solid var(--separator);
 }
 
 .ui-table-row--highlighted {
@@ -1122,7 +1116,7 @@
 
   .ui-table-row + .ui-table-row,
   .ui-table-detail + .ui-table-row {
-    border-top: var(--border-width) solid var(--border-subtle);
+    border-top: var(--hairline) solid var(--separator);
   }
 
   .ui-table-row + .ui-table-row > *,

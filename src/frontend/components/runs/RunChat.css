@@ -335,7 +335,7 @@
   border-radius: var(--radius-md) var(--radius-md) var(--radius-md)
     var(--radius-xs);
   background: var(--bg-card);
-  border: var(--border-width) solid var(--border-subtle);
+  border: var(--hairline) solid var(--separator);
   font-size: var(--text-subhead);
 }
 
@@ -471,7 +471,7 @@
   align-items: flex-end;
   gap: var(--space-2);
   padding: var(--space-3) var(--space-4);
-  border-top: var(--border-width) solid var(--border-subtle);
+  border-top: var(--hairline) solid var(--separator);
   flex-shrink: 0;
 }
 
@@ -483,7 +483,7 @@
   field-sizing: content;
   resize: none;
   padding: var(--space-2) var(--space-3);
-  border: var(--border-width) solid var(--border);
+  border: var(--hairline) solid var(--separator);
   border-radius: var(--radius-md);
   background: var(--bg-input);
   color: var(--text);

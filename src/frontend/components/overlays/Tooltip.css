@@ -2,7 +2,7 @@
 
 .xf-tooltip {
   background: var(--bg-card);
-  border: var(--border-width) solid var(--border);
+  border: var(--hairline) solid var(--separator);
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-sm);
   padding: var(--space-1) var(--space-2);
