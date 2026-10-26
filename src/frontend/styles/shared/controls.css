@@ -1156,3 +1156,65 @@
     margin-inline-start: auto;
   }
 }
+
+/* ── Page header: the shell's page heading (#298) ───────────────────────── */
+/* AppShell renders this block once per screen (components/ui/PageHeader.tsx)
+   from the content a view claims through usePageHeader. The large title
+   scrolls with the page as the screen's one h1; the screen's actions sit in
+   the same row, trailing, and the toolbar never carries one (DESIGN.md §7). */
+
+.page-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin: 0 0 var(--space-5);
+}
+
+.page-heading-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.page-heading-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+/* A screen without an action leaves the slot empty rather than holding a gap. */
+.page-heading-actions:empty {
+  display: none;
+}
+
+.large-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-large-title);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  color: var(--text);
+}
+
+.page-subtitle {
+  margin: 0;
+  font-size: var(--text-subhead);
+  color: var(--text-muted);
+}
+
+@media (max-width: 768px) {
+  /* The page's action keeps its accessible name and drops its label: the
+     trailing slot is an icon-only button on a phone. */
+  .page-action-label {
+    display: none;
+  }
+
+  .page-heading-actions .ui-button {
+    min-width: var(--tap-min);
+    padding: var(--space-2);
+  }
+}
