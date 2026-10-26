@@ -223,6 +223,14 @@
   --text-title-1: 1.75rem; /* 28px */
   --text-large-title: 2.125rem; /* 34px */
 
+  /* Font weights for emphasis that a text style does not give. Text styles set
+     their own weight; the .font-regular/-medium/-semibold/-bold utilities in
+     utilities.css apply these. */
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
   /* Text style weight, leading and tracking (spec #292, "Text styles"). The
      .text-* classes in utilities.css read these with the size above. Leading is
      rem (points / 16), tracking is em (points / size). iOS values follow Apple's

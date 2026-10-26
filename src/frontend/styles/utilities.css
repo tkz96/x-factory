@@ -153,11 +153,17 @@
   line-height: var(--text-caption-2-leading);
   letter-spacing: var(--text-caption-2-tracking);
 }
+.font-regular {
+  font-weight: var(--font-weight-regular);
+}
+.font-medium {
+  font-weight: var(--font-weight-medium);
+}
 .font-semibold {
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 .font-bold {
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
 }
 
 /* ── Layout Utilities ───────────────────────────────────────────────── */
@@ -217,9 +223,6 @@
 .d-none {
   display: none;
 }
-.font-medium {
-  font-weight: 500;
-}
 
 /* ── Color Utilities ────────────────────────────────────────────────── */
 .color-muted,
@@ -249,12 +252,12 @@
 
 /* ── Error Message ──────────────────────────────────────────────────── */
 .error-message {
-  margin-top: 1rem;
-  padding: 0.6rem 0.8rem;
+  margin-top: var(--space-4);
+  padding: var(--space-2-5) var(--space-3);
   background: var(--red-dim);
   color: var(--red);
   border-radius: var(--radius-sm);
-  font-size: 0.82rem;
+  font-size: var(--text-footnote);
   line-height: 1.45;
 }
 
