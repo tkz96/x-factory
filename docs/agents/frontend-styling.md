@@ -134,13 +134,13 @@ The design system is being migrated to the blocks. Until M8 lands, the code has 
 |---|---|---|---|
 | G1 | No raw `box-shadow` or `border-radius` value outside `tokens.css` | active | step 1 |
 | G2 | No text token below 10px; `--text-micro`, `--text-badge`, `--text-tag` do not exist | active | step 1 |
-| G3 | No raw rem/em spacing (`margin`, `padding`, `gap`, `inset`, offsets) outside `tokens.css` | inactive | M7 |
-| G4 | No `font-size` or `font-weight` in a component stylesheet; text styles only | inactive | M7 |
-| G5 | No raw `<button>` outside `components/ui/` | inactive | M7 |
-| G6 | No `sprite.svg#` reference outside `components/ui/` | inactive | M7 |
+| G3 | No raw rem/em spacing (`margin`, `padding`, `gap`, `inset`, offsets) outside `tokens.css` | inactive | M7 (M1 cleared its files) |
+| G4 | No `font-size` or `font-weight` in a component stylesheet; text styles only | inactive | M7 (M1 cleared its component files; the shared layer keeps text-style tokens, see below) |
+| G5 | No raw `<button>` outside `components/ui/` | inactive | M7 (M1 cleared its files) |
+| G6 | No `sprite.svg#` reference outside `components/ui/` | inactive | M7 (M1 cleared its files) |
 | G7 | No page `<header>` or page-heading class in `views/*.tsx`; PageHeader only | inactive | M7 |
-| G8 | No empty-state markup outside `AsyncRegion` or EmptyState | inactive | M7 |
-| G9 | No card class outside the Card block, except diagram node cards | inactive | M7 |
+| G8 | No empty-state markup outside `AsyncRegion` or EmptyState | inactive | M7 (M1 cleared its files) |
+| G9 | No card class outside the Card block, except diagram node cards | inactive | M7 (M1 cleared its files) |
 | G10 | Button and menu-item labels use Title Case | inactive | step 5 |
 | G11 | `buttons.css`, `cards.css` and `badges.css` do not exist; no bare `button` style | inactive | M8 |
 
@@ -156,5 +156,11 @@ The design system is being migrated to the blocks. Until M8 lands, the code has 
 - M8 Legacy CSS removal (`buttons.css`, `cards.css`, `badges.css`). G11 lands here.
 
 Between step 3 and M7, drift in migrated areas is caught by the design-reviewer check, not by a gate. M7 closes that gap.
+
+**M1 (shell and shared layer) is done.** Its files print clean for G3, G5, G6 and G8, and their component stylesheets have no `font-size` or `font-weight`. Three kinds of declaration remain on purpose, and M7 must treat them as allowed before G4 lands:
+
+- `styles/utilities.css` defines the `.text-*` text styles and the `.font-*` weight utilities, so it holds the only `font-size` that is a text style itself.
+- `styles/shared/controls.css` keeps `font-size: var(--text-*)` with its weight token where a block sets its own text style.
+- `styles/shared/forms.css` sets the bare `label`, input and `.form-*` text with text-style tokens, because its classes are used by every screen.
 
 Each migration PR updates the gate table. M8 deletes this section.

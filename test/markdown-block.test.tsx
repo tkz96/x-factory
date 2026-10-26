@@ -72,7 +72,7 @@ describe("MarkdownBlock previews Markdown as elements", () => {
     const { container, getByText, getByRole } = render(
       <MarkdownBlock content={PLAN} label="Plan" />,
     );
-    expect(getByText("Plan").className).toBe("md-block-label");
+    expect(getByText("Plan").classList.contains("md-block-label")).toBe(true);
     const group = getByRole("radiogroup", { name: "Text view" });
     expect(group).toBeTruthy();
     expect((toggle(container, "Preview") as HTMLInputElement).checked).toBe(
