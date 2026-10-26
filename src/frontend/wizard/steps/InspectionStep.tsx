@@ -166,10 +166,10 @@ export function InspectionStep() {
       noValidate
     >
       <div className="git-identity-form-header">
-        <h3 className="git-identity-form-title">
+        <h3 className="git-identity-form-title text-headline">
           {INSPECTION_COPY.configureTitle}
         </h3>
-        <p className="git-identity-form-hint">
+        <p className="git-identity-form-hint text-subhead">
           {INSPECTION_COPY.configureHint}
         </p>
       </div>
@@ -251,7 +251,7 @@ export function InspectionStep() {
       </div>
 
       <div className="git-identity-scope-section">
-        <span className="git-identity-scope-label">
+        <span className="git-identity-scope-label text-subhead">
           {INSPECTION_COPY.scopeLabel}
         </span>
         {/* The scope choice is one control with two mutually exclusive options,
@@ -286,7 +286,7 @@ export function InspectionStep() {
         />
         {!canUseLocalScope && (
           <p
-            className="git-identity-scope-warning"
+            className="git-identity-scope-warning text-subhead"
             id="git-identity-scope-not-repo"
           >
             {isBlockingPathRepo && blockingPath
@@ -296,7 +296,10 @@ export function InspectionStep() {
                 : INSPECTION_COPY.notAGitRepository}
           </p>
         )}
-        <p className="git-identity-scope-hint" id="git-identity-scope-hint">
+        <p
+          className="git-identity-scope-hint text-subhead"
+          id="git-identity-scope-hint"
+        >
           {INSPECTION_COPY.scopeHint(formScope, targetPathString)}
         </p>
       </div>
@@ -326,8 +329,12 @@ export function InspectionStep() {
   return (
     <div id="onboard-step-4" className="wizard-step-pane inspection-step-pane">
       <div className="wizard-step-header">
-        <h2 className="wizard-step-title">{INSPECTION_COPY.title}</h2>
-        <p className="wizard-step-subtitle">{INSPECTION_COPY.subtitle}</p>
+        <h2 className="wizard-step-title text-headline">
+          {INSPECTION_COPY.title}
+        </h2>
+        <p className="wizard-step-subtitle text-callout">
+          {INSPECTION_COPY.subtitle}
+        </p>
       </div>
 
       <div id="inspection-region" className="inspection-region">
@@ -344,22 +351,22 @@ export function InspectionStep() {
           {identity && (
             <dl className="inspection-identity" id="inspection-identity">
               <div className="inspection-identity-row">
-                <dt className="inspection-identity-label">
+                <dt className="inspection-identity-label text-subhead">
                   {INSPECTION_COPY.nameLabel}
                 </dt>
                 <dd
-                  className="inspection-identity-value"
+                  className="inspection-identity-value text-callout"
                   id="inspection-identity-name"
                 >
                   {identity.name}
                 </dd>
               </div>
               <div className="inspection-identity-row">
-                <dt className="inspection-identity-label">
+                <dt className="inspection-identity-label text-subhead">
                   {INSPECTION_COPY.emailLabel}
                 </dt>
                 <dd
-                  className="inspection-identity-value code-font"
+                  className="inspection-identity-value code-font text-callout"
                   id="inspection-identity-email"
                 >
                   {identity.email}
@@ -367,11 +374,11 @@ export function InspectionStep() {
               </div>
               {inspectedPath !== undefined && (
                 <div className="inspection-identity-row">
-                  <dt className="inspection-identity-label">
+                  <dt className="inspection-identity-label text-subhead">
                     {INSPECTION_COPY.pathLabel}
                   </dt>
                   <dd
-                    className="inspection-identity-value code-font"
+                    className="inspection-identity-value code-font text-callout"
                     id="inspection-identity-path"
                   >
                     {inspectedPath}
@@ -390,7 +397,7 @@ export function InspectionStep() {
                 message={INSPECTION_COPY.identityMissing(inspectedPath)}
               />
               <div className="git-identity-explanation">
-                <p className="git-identity-explanation-text">
+                <p className="git-identity-explanation-text text-callout">
                   {INSPECTION_COPY.identityExplanation}
                 </p>
               </div>
@@ -403,7 +410,7 @@ export function InspectionStep() {
               className="inspection-missing-container"
             >
               <div className="git-identity-explanation">
-                <p className="git-identity-explanation-text">
+                <p className="git-identity-explanation-text text-callout">
                   {INSPECTION_COPY.identityExplanation}
                 </p>
               </div>

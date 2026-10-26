@@ -178,8 +178,12 @@ export function RepositoryStep() {
   return (
     <div id="onboard-step-1" className="wizard-step-pane repository-step-pane">
       <div className="wizard-step-header">
-        <h2 className="wizard-step-title">{REPOSITORY_STEP_COPY.title}</h2>
-        <p className="wizard-step-subtitle">{REPOSITORY_STEP_COPY.subtitle}</p>
+        <h2 className="wizard-step-title text-headline">
+          {REPOSITORY_STEP_COPY.title}
+        </h2>
+        <p className="wizard-step-subtitle text-callout">
+          {REPOSITORY_STEP_COPY.subtitle}
+        </p>
       </div>
 
       <TextField
@@ -196,7 +200,7 @@ export function RepositoryStep() {
         feedback={urlFeedback(urlError, urlIntake.missMessage)}
       />
 
-      <h3 className="repository-step-section">
+      <h3 className="repository-step-section text-subhead">
         {REPOSITORY_STEP_COPY.detailsTitle}
       </h3>
 

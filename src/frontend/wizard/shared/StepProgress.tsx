@@ -20,7 +20,7 @@ export function StepProgress({ step }: { step: WizardStepNumber }) {
   return (
     <div className="wizard-progress">
       <p
-        className="wizard-progress-counter"
+        className="wizard-progress-counter text-footnote"
         id="wizard-progress-counter"
         aria-live="polite"
       >

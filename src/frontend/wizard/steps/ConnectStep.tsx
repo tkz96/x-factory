@@ -40,8 +40,8 @@ export function ConnectStep() {
   return (
     <div id="onboard-step-2" className="wizard-step-pane connect-step-pane">
       <div className="wizard-step-header">
-        <h2 className="wizard-step-title">Connect Providers</h2>
-        <p className="wizard-step-subtitle">
+        <h2 className="wizard-step-title text-headline">Connect Providers</h2>
+        <p className="wizard-step-subtitle text-callout">
           Connect where your tickets live and where your code lives.
         </p>
       </div>

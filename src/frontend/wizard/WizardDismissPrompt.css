@@ -9,20 +9,17 @@
   gap: var(--space-4);
 }
 
+/* Size, weight and tracking come from the text styles on the elements
+   (`text-headline`, `text-body`). */
 .wizard-dismiss-title {
   margin: 0;
   font-family: var(--font-display);
-  font-size: var(--text-headline);
-  font-weight: 600;
   color: var(--text);
-  letter-spacing: -0.015em;
 }
 
 .wizard-dismiss-body {
   margin: 0;
-  font-size: var(--text-subhead);
   color: var(--text-muted);
-  line-height: 1.45;
 }
 
 /* Destructive action on the left, the safe pair on the right: the macOS

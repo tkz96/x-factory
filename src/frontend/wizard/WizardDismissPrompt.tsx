@@ -35,10 +35,13 @@ export function WizardDismissPrompt({
       title={WIZARD_COPY.dismissTitle}
       className="xf-dialog-window wizard-dismiss-dialog"
     >
-      <h2 id="wizard-dismiss-prompt-title" className="wizard-dismiss-title">
+      <h2
+        id="wizard-dismiss-prompt-title"
+        className="wizard-dismiss-title text-headline"
+      >
         {WIZARD_COPY.dismissTitle}
       </h2>
-      <p className="wizard-dismiss-body">{WIZARD_COPY.dismissBody}</p>
+      <p className="wizard-dismiss-body text-body">{WIZARD_COPY.dismissBody}</p>
       <div className="wizard-dismiss-actions">
         <Button
           id="btn-wizard-discard"

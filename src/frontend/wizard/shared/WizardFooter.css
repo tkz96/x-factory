@@ -21,7 +21,6 @@
 }
 
 .wizard-footer-status {
-  font-size: var(--text-footnote);
   color: var(--text-muted);
   max-width: var(--content-max-sm);
 }

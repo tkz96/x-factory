@@ -15,23 +15,28 @@ export function SuccessStep({ project }: { project: Project }) {
   return (
     <div id="onboard-success" className="wizard-step-pane success-step-pane">
       <div className="wizard-step-header">
-        <h2 className="wizard-step-title">{WIZARD_COPY.successTitle}</h2>
-        <p className="wizard-step-subtitle">
+        <h2 className="wizard-step-title text-headline">
+          {WIZARD_COPY.successTitle}
+        </h2>
+        <p className="wizard-step-subtitle text-callout">
           {WIZARD_COPY.successBody(project.name)}
         </p>
       </div>
 
       <dl className="success-step-summary" id="success-step-summary">
         <div className="success-step-row">
-          <dt className="success-step-label">Project</dt>
-          <dd className="success-step-value" id="success-step-project-name">
+          <dt className="success-step-label text-subhead">Project</dt>
+          <dd
+            className="success-step-value text-callout"
+            id="success-step-project-name"
+          >
             {project.name}
           </dd>
         </div>
         <div className="success-step-row">
-          <dt className="success-step-label">Identifier</dt>
+          <dt className="success-step-label text-subhead">Identifier</dt>
           <dd
-            className="success-step-value success-step-value--code"
+            className="success-step-value success-step-value--code text-callout"
             id="success-step-project-id"
           >
             {project.id}
