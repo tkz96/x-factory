@@ -238,7 +238,7 @@ function GeneralTabContent({
 
   return (
     <div className="settings-pane">
-      <h2 className="settings-pane-title text-title-2">General</h2>
+      <h2 className="settings-pane-title text-title-3">General</h2>
       <p className="settings-pane-subtitle text-subhead">
         Appearance, notifications and the data folder.
       </p>
@@ -379,7 +379,7 @@ function ConnectionsTabContent({
     <div className="settings-pane">
       <div className="settings-pane-head">
         <div>
-          <h2 className="settings-pane-title text-title-2">Connections</h2>
+          <h2 className="settings-pane-title text-title-3">Connections</h2>
           <p className="settings-pane-subtitle text-subhead">
             {CONNECTIONS_COPY.registrySubtitle}
           </p>
@@ -449,7 +449,7 @@ function ConnectionsTabContent({
 function ModelsTabContent() {
   return (
     <div className="settings-pane">
-      <h2 className="settings-pane-title text-title-2">Models</h2>
+      <h2 className="settings-pane-title text-title-3">Models</h2>
       <p className="settings-pane-subtitle text-subhead">
         The connections that serve models, and the model each role uses.
       </p>
@@ -463,7 +463,7 @@ function ModelsTabContent() {
 function HelpTabContent() {
   return (
     <div className="settings-pane">
-      <h2 className="settings-pane-title text-title-2">Help</h2>
+      <h2 className="settings-pane-title text-title-3">Help</h2>
       <p className="settings-pane-subtitle text-subhead">
         Guides for X-Factory and its API.
       </p>
@@ -490,7 +490,7 @@ function HelpTabContent() {
 function GitTabContent() {
   return (
     <div className="settings-pane">
-      <h2 className="settings-pane-title text-title-2">Git</h2>
+      <h2 className="settings-pane-title text-title-3">Git</h2>
       <p className="settings-pane-subtitle text-subhead">
         Where run worktrees are stored.
       </p>
@@ -581,7 +581,7 @@ export function SettingsView() {
 
           {activeTab === "accessibility" && (
             <div className="settings-pane">
-              <h2 className="settings-pane-title text-title-2">
+              <h2 className="settings-pane-title text-title-3">
                 Accessibility
               </h2>
               <p className="settings-pane-subtitle text-subhead">
@@ -605,7 +605,7 @@ export function SettingsView() {
 
           {activeTab === "diagnostics" && (
             <div className="settings-pane">
-              <h2 className="settings-pane-title text-title-2">Diagnostics</h2>
+              <h2 className="settings-pane-title text-title-3">Diagnostics</h2>
               <p className="settings-pane-subtitle text-subhead">
                 Real-time health status, database integrity, background worker
                 fleet, and job telemetry.

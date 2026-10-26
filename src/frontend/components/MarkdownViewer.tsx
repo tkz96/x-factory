@@ -28,9 +28,9 @@ export const MarkdownScaleContext = createContext<MarkdownScale>("page");
 const HEADING_TEXT: Record<MarkdownScale, Record<1 | 2 | 3 | 4, string>> = {
   page: {
     1: "text-title-1 font-bold",
-    2: "text-title-2 font-semibold",
-    3: "text-title-3 font-semibold",
-    4: "text-headline font-semibold",
+    2: "text-title-3 font-semibold",
+    3: "text-headline font-semibold",
+    4: "text-subhead font-semibold",
   },
   block: {
     1: "text-headline font-semibold",
@@ -41,7 +41,7 @@ const HEADING_TEXT: Record<MarkdownScale, Record<1 | 2 | 3 | 4, string>> = {
   compact: {
     1: "text-subhead font-semibold",
     2: "text-subhead font-semibold",
-    3: "text-title-3 font-semibold",
+    3: "text-headline font-semibold",
     4: "text-footnote font-semibold",
   },
 };
@@ -115,7 +115,7 @@ function CodeBlock({ language, code }: CodeBlockProps) {
           variant="quiet"
           size="sm"
           onPress={handleCopy}
-          className={`md-copy-btn text-caption-2 ${copied ? "copied" : ""}`}
+          className={`md-copy-btn ${copied ? "copied" : ""}`}
         >
           {copied ? "✓ Copied" : "Copy"}
         </Button>
