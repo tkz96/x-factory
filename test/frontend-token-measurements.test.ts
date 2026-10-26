@@ -9,6 +9,7 @@ const controlsCss = readFileSync(
   "src/frontend/styles/shared/controls.css",
   "utf8",
 );
+const utilitiesCss = readFileSync("src/frontend/styles/utilities.css", "utf8");
 
 describe("hard-coded values are tokens", () => {
   it("the diagram minimap mask uses the scrim token, not a literal rgba", () => {
@@ -89,6 +90,39 @@ const IOS_SCALE = {
   "--text-footnote": 13,
   "--text-caption-1": 12,
   "--text-caption-2": 11,
+} as const;
+
+/**
+ * The text-style classes (utilities.css) per scale: the computed size, weight
+ * and line-height in px. The size is the scale's value above. Weight and
+ * leading are Apple's published values (spec #292, "Text styles").
+ */
+const MACOS_TEXT_STYLES = {
+  "large-title": { weight: 400, lineHeight: 32 },
+  "title-1": { weight: 400, lineHeight: 26 },
+  "title-2": { weight: 400, lineHeight: 22 },
+  "title-3": { weight: 400, lineHeight: 20 },
+  headline: { weight: 700, lineHeight: 16 },
+  body: { weight: 400, lineHeight: 16 },
+  callout: { weight: 400, lineHeight: 15 },
+  subhead: { weight: 400, lineHeight: 14 },
+  footnote: { weight: 400, lineHeight: 13 },
+  "caption-1": { weight: 400, lineHeight: 13 },
+  "caption-2": { weight: 500, lineHeight: 13 },
+} as const;
+
+const IOS_TEXT_STYLES = {
+  "large-title": { weight: 400, lineHeight: 41 },
+  "title-1": { weight: 400, lineHeight: 34 },
+  "title-2": { weight: 400, lineHeight: 28 },
+  "title-3": { weight: 400, lineHeight: 25 },
+  headline: { weight: 600, lineHeight: 22 },
+  body: { weight: 400, lineHeight: 22 },
+  callout: { weight: 400, lineHeight: 21 },
+  subhead: { weight: 400, lineHeight: 20 },
+  footnote: { weight: 400, lineHeight: 18 },
+  "caption-1": { weight: 400, lineHeight: 16 },
+  "caption-2": { weight: 400, lineHeight: 13 },
 } as const;
 
 const MACOS_METRICS = {
@@ -198,10 +232,17 @@ describe("type scale and control metrics by media condition (spec #292)", () => 
             viewport: { width: condition.width, height: 800 },
           });
           const page = await context.newPage();
+          const textSamples = Object.keys(MACOS_TEXT_STYLES)
+            .map(
+              (style) =>
+                `<p class="text-${style}" data-style="${style}">Aa</p>`,
+            )
+            .join("");
           await page.setContent(
-            `<!doctype html><html><head><style>${tokenCss}</style><style>${controlsCss}</style></head><body>` +
+            `<!doctype html><html><head><style>${tokenCss}</style><style>${controlsCss}</style><style>${utilitiesCss}</style></head><body>` +
               `<button class="ui-button ui-button--primary" id="regular">Go</button>` +
               `<button class="ui-button ui-button--sm" id="small">Add</button>` +
+              textSamples +
               `</body></html>`,
           );
           const heights = await page.evaluate(() => ({
@@ -217,6 +258,35 @@ describe("type scale and control metrics by media condition (spec #292)", () => 
           const scale = condition.scale === "macos" ? MACOS_SCALE : IOS_SCALE;
           const sizes = await measureTokens(page, Object.keys(scale));
           expect(sizes).toEqual(scale);
+
+          // Each text-style class computes its own size, weight and line-height.
+          const textStyles =
+            condition.scale === "macos" ? MACOS_TEXT_STYLES : IOS_TEXT_STYLES;
+          const computed = await page.evaluate(() =>
+            Object.fromEntries(
+              Array.from(
+                document.querySelectorAll<HTMLElement>("[data-style]"),
+              ).map((el) => {
+                const style = getComputedStyle(el);
+                return [
+                  el.dataset.style,
+                  {
+                    fontSize: Number.parseFloat(style.fontSize),
+                    weight: Number.parseInt(style.fontWeight, 10),
+                    lineHeight: Number.parseFloat(style.lineHeight),
+                  },
+                ];
+              }),
+            ),
+          );
+          for (const [style, expected] of Object.entries(textStyles)) {
+            const sizeToken = `--text-${style}` as keyof typeof scale;
+            expect(computed[style]).toEqual({
+              fontSize: scale[sizeToken],
+              weight: expected.weight,
+              lineHeight: expected.lineHeight,
+            });
+          }
 
           const metrics = await measureTokens(page, [
             "--tap-min",

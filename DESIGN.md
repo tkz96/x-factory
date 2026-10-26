@@ -101,7 +101,7 @@ Both scales are written in `rem`, so the browser's font-size setting scales ever
 
 On macOS, Footnote and Caption (10px) are only for metadata: timestamps, counts, badges, keyboard hints. Descriptions and secondary text use Subheadline (11) or Callout (12). No running text is smaller than 11px.
 
-Use these styles exclusively. No arbitrary font sizes, and no token below 10px (gate G2). Badges and tags use Caption 1 or Footnote. Text styles set font-size, font-weight, line-height and letter-spacing together (`.text-body`, `.text-headline`, `.text-caption-1` and so on).
+Use these styles exclusively. No arbitrary font sizes, and no token below 10px (gate G2). Badges and tags use Caption 1 or Footnote. Text styles set font-size, font-weight, line-height and letter-spacing together. The classes are `.text-large-title`, `.text-title-1`, `.text-title-2`, `.text-title-3`, `.text-headline`, `.text-body`, `.text-callout`, `.text-subhead`, `.text-footnote`, `.text-caption-1` and `.text-caption-2`. Each reads its size, weight, leading and tracking tokens (`--text-<style>`, `--text-<style>-weight`, `--text-<style>-leading`, `--text-<style>-tracking`), so it follows the active scale with no media query of its own. Components must use these classes instead of setting `font-size` or `font-weight` directly. Gate G4 (M7) enforces this; until then the design reviewer checks it. Headline is Semibold on iOS and Bold on macOS; Caption 2 is Regular on iOS and Medium on macOS.
 
 **Control metrics** (computed px). The macOS metrics apply with the macOS scale: regular control 28px tall, small 22px, large 32px, toolbar 52px, sidebar row 28px. The iOS scale keeps the iOS header of 56px.
 

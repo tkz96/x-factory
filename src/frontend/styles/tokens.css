@@ -223,6 +223,44 @@
   --text-title-1: 1.75rem; /* 28px */
   --text-large-title: 2.125rem; /* 34px */
 
+  /* Text style weight, leading and tracking (spec #292, "Text styles"). The
+     .text-* classes in utilities.css read these with the size above. Leading is
+     rem (points / 16), tracking is em (points / size). iOS values follow Apple's
+     iOS table; the macOS overrides are in the fine-pointer block below. */
+  --text-large-title-weight: 400;
+  --text-large-title-leading: 2.5625rem; /* 41px */
+  --text-large-title-tracking: 0.0109em; /* 0.37pt */
+  --text-title-1-weight: 400;
+  --text-title-1-leading: 2.125rem; /* 34px */
+  --text-title-1-tracking: 0.0129em; /* 0.36pt */
+  --text-title-2-weight: 400;
+  --text-title-2-leading: 1.75rem; /* 28px */
+  --text-title-2-tracking: 0.0159em; /* 0.35pt */
+  --text-title-3-weight: 400;
+  --text-title-3-leading: 1.5625rem; /* 25px */
+  --text-title-3-tracking: 0.019em; /* 0.38pt */
+  --text-headline-weight: 600;
+  --text-headline-leading: 1.375rem; /* 22px */
+  --text-headline-tracking: -0.0241em; /* -0.41pt */
+  --text-body-weight: 400;
+  --text-body-leading: 1.375rem; /* 22px */
+  --text-body-tracking: -0.0241em; /* -0.41pt */
+  --text-callout-weight: 400;
+  --text-callout-leading: 1.3125rem; /* 21px */
+  --text-callout-tracking: -0.02em; /* -0.32pt */
+  --text-subhead-weight: 400;
+  --text-subhead-leading: 1.25rem; /* 20px */
+  --text-subhead-tracking: -0.016em; /* -0.24pt */
+  --text-footnote-weight: 400;
+  --text-footnote-leading: 1.125rem; /* 18px */
+  --text-footnote-tracking: -0.0062em; /* -0.08pt */
+  --text-caption-1-weight: 400;
+  --text-caption-1-leading: 1rem; /* 16px */
+  --text-caption-1-tracking: 0.012em; /* 10px: +0.12pt */
+  --text-caption-2-weight: 400;
+  --text-caption-2-leading: 0.8125rem; /* 13px */
+  --text-caption-2-tracking: 0.0064em; /* 0.07pt */
+
   /* Icon Sizes */
   --icon-xs: 12px;
   --icon-sm: 14px;
@@ -408,6 +446,33 @@
     --text-footnote: 0.625rem; /* 10px regular */
     --text-caption-1: 0.625rem; /* 10px regular */
     --text-caption-2: 0.625rem; /* 10px medium (weight set by the text style) */
+    /* macOS weight, leading and tracking (spec #292). Headline is Bold and
+       Caption 2 is Medium. Tracking is 0 until Apple's macOS tracking table is
+       checked against the live page (it was not retrievable when this was set). */
+    --text-large-title-leading: 2rem; /* 32px */
+    --text-large-title-tracking: 0.0142em; /* 26px: +0.37pt */
+    --text-title-1-leading: 1.625rem; /* 26px */
+    --text-title-1-tracking: 0.0159em; /* 22px: +0.35pt */
+    --text-title-2-leading: 1.375rem; /* 22px */
+    --text-title-2-tracking: -0.0241em; /* 17px: -0.41pt */
+    --text-title-3-leading: 1.25rem; /* 20px */
+    --text-title-3-tracking: -0.016em; /* 15px: -0.24pt */
+    --text-headline-weight: 700;
+    --text-headline-leading: 1rem; /* 16px */
+    --text-headline-tracking: -0.0062em; /* 13px: -0.08pt */
+    --text-body-leading: 1rem; /* 16px */
+    --text-body-tracking: -0.0062em; /* 13px: -0.08pt */
+    --text-callout-leading: 0.9375rem; /* 15px */
+    --text-callout-tracking: 0em; /* 12px: 0pt */
+    --text-subhead-leading: 0.875rem; /* 14px */
+    --text-subhead-tracking: 0.0064em; /* 11px: +0.07pt */
+    --text-footnote-leading: 0.8125rem; /* 13px */
+    --text-footnote-tracking: 0.012em; /* 10px: +0.12pt */
+    --text-caption-1-leading: 0.8125rem; /* 13px */
+    --text-caption-1-tracking: 0.012em; /* 10px: +0.12pt */
+    --text-caption-2-weight: 500;
+    --text-caption-2-leading: 0.8125rem; /* 13px */
+    --text-caption-2-tracking: 0.012em; /* 10px: +0.12pt */
     --control-height: 28px;
     --control-height-sm: 22px;
     --control-height-lg: 32px;
