@@ -18,7 +18,7 @@ import {
   type ParsedDiffFile,
   parseDiffToFiles,
 } from "../../lib/diff-parser.js";
-import { formatUsage, latestModelFor } from "../../lib/run-models.js";
+import { usageFor } from "../../lib/run-models.js";
 import {
   DialogBody,
   DialogCloseButton,
@@ -32,6 +32,7 @@ import { IconButton } from "../ui/IconButton.js";
 import { ChatThread } from "./ChatThread.js";
 import { DiffModal } from "./DiffModal.js";
 import { useDetailsSheet } from "./RunDetailsContext.js";
+import { TokenUsage } from "./TokenUsage.js";
 
 export interface RunInspectorProps {
   run: Run;
@@ -222,15 +223,19 @@ function RunDetailsPane({ run, events, connected }: RunInspectorProps) {
             </h3>
             <dl className="run-inspector-rows">
               {MODEL_ROLES.map(({ role, label }) => {
-                const use = latestModelFor(run.stageModels ?? [], role);
-                if (use) {
-                  const usage = formatUsage(use);
+                const usage = usageFor(run.stageModels ?? [], role);
+                if (usage) {
                   return (
                     <DetailRow
                       key={role}
                       label={label}
                       kind="wrap"
-                      value={usage ? `${use.modelId} · ${usage}` : use.modelId}
+                      value={
+                        <span className="run-inspector-model">
+                          <span>{usage.modelId}</span>
+                          <TokenUsage usage={usage} />
+                        </span>
+                      }
                     />
                   );
                 }

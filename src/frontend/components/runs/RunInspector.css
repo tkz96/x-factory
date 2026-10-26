@@ -325,3 +325,41 @@
 .run-inspector-log .chat-bubble-header {
   margin-bottom: var(--space-half);
 }
+
+/* A model row: the model's name, then its token use (TokenUsage). */
+.run-inspector-model {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1) var(--space-3);
+}
+
+.token-usage {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.token-usage-in,
+.token-usage-out {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-0-5);
+}
+
+/* In is what the model read, out is what it wrote: two colours, two glyphs. */
+.token-usage-in {
+  color: var(--accent);
+}
+
+.token-usage-out {
+  color: var(--green);
+}
+
+.token-usage-cost,
+.token-usage-note,
+.token-usage--none {
+  color: var(--text-secondary);
+}

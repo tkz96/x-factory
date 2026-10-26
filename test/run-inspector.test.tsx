@@ -381,11 +381,12 @@ describe("the Models section names each role's latest model with its usage (#279
     const pane = within(container).getByRole("complementary", {
       name: "Run details",
     });
-    expect(
-      within(pane).getByText(
-        "gemini-flash-lite-latest · 12.4K in · 2.1K out · $0.0062",
-      ),
-    ).toBeTruthy();
+    const builderRow = within(pane).getByText(
+      "gemini-flash-lite-latest",
+    ).parentElement;
+    expect(builderRow?.textContent).toBe(
+      "gemini-flash-lite-latest12.4K tokens in2.1K tokens out$0.0062",
+    );
     expect(within(pane).getByText("gemini-pro")).toBeTruthy();
   });
 });
@@ -410,7 +411,9 @@ describe("the value kinds keep long rows from pushing a verdict out of the pane"
       true,
     );
     const model = within(container).getByText("gemini-x");
-    expect(model.classList.contains("run-inspector-value--wrap")).toBe(true);
+    expect(
+      model.closest("dd")?.classList.contains("run-inspector-value--wrap"),
+    ).toBe(true);
     const branch = within(container).getByText("factory/t-1");
     expect(branch.classList.contains("run-inspector-value--status")).toBe(
       false,
