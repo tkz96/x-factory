@@ -35,7 +35,7 @@ So the first question is: **is this shipping as a native app on an Apple platfor
 
 - **Native Apple platform app** → use SF Symbols and SF Pro directly, no substitution. Skip to Section 4.
 - **Web app** (the default assumption for this project, given the stack) → you get the *system*, not the *shipped assets*:
-  - **Typography**: use the system font stack, `-apple-system, BlinkMacSystemFont, "Inter", sans-serif`. On an Apple device this legitimately resolves to real San Francisco, because it's the OS pointing at its own installed font, not you embedding one. Everywhere else it resolves to Inter, the bundled web-licensed fallback. Do not put `system-ui` first: on Windows and Linux it gives the platform font, not Inter (spec #292, "Fonts").
+  - **Typography**: on an Apple device use the system font (`-apple-system, BlinkMacSystemFont, system-ui`). That legitimately resolves to real San Francisco, because it is the OS pointing at its own installed font, not you embedding one. Everywhere else use Inter, the bundled web-licensed face. CSS cannot tell the platforms apart, and Chromium treats `BlinkMacSystemFont` as `system-ui` on every platform (Segoe UI on Windows, Cantarell on Linux). So the pre-paint script in `index.html` sets `data-platform="apple"` on macOS, iOS and iPadOS, and only `:root[data-platform="apple"]` names the system font (spec #292, "Fonts").
   - **Icons**: don't ship literal SF Symbols glyphs in a web bundle. Use an icon set built on the same grammar instead — optically balanced, consistent stroke width, aligns to a text baseline, multiple weights. **Lucide** or **Phosphor** at "regular" weight are the closest matches. Match the *system* (stroke width, corner radius, optical sizing, alignment to text), not the individual glyph shapes.
   - **The Figma kit is still your reference** for layout, spacing, component anatomy, and redlines. You're using it to learn the system, not exporting its font/icon assets verbatim into a shipped product.
 
@@ -73,8 +73,8 @@ HIG: `/design/human-interface-guidelines/typography`
 
 **Fonts** (spec #292, "Fonts"):
 
-- Sans and display: `--font-sans` and `--font-display` are `-apple-system, BlinkMacSystemFont, "Inter", sans-serif`. Mac shows SF Pro. Other platforms show Inter.
-- Monospace: `--font-mono` is `ui-monospace, "SF Mono", Menlo, "IBM Plex Mono", monospace`. Mac shows SF Mono.
+- Sans and display: `--font-sans` and `--font-display` are `"Inter", sans-serif`. On Apple platforms (`:root[data-platform="apple"]`) they are `-apple-system, BlinkMacSystemFont, system-ui, "Inter", sans-serif`, so a Mac shows SF Pro.
+- Monospace: `--font-mono` is `"IBM Plex Mono", ui-monospace, monospace`. On Apple platforms it is `ui-monospace, "SF Mono", Menlo, "IBM Plex Mono", monospace`, so a Mac shows SF Mono.
 - **Themes change colour only.** Graphite and Sandstone set no font. IBM Plex Sans is not shipped.
 - **Readable font** is a setting (Settings > Accessibility, off by default). When it is on, `data-font="readable"` is set on the root element and the sans and mono tokens use Atkinson Hyperlegible Next and Mono. Its font files download only when it is on.
 
@@ -285,7 +285,7 @@ Drop-in baseline for a web implementation — adjust values only against the HIG
   --sheet-width: 560px;
 
   /* Fonts — web path; see Section 3 for the licensing reasoning */
-  --font-system: -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
+  --font-sans: "Inter", sans-serif; /* Apple: -apple-system, BlinkMacSystemFont, system-ui, "Inter" */
 }
 
 [data-theme="dark"] {

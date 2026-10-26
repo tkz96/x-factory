@@ -43,15 +43,32 @@ describe("Theme choice before first paint (#249)", () => {
 });
 
 describe("theme fonts (#249, spec #292)", () => {
-  it("Default uses the system stack first, then the bundled Inter, with SF Mono before IBM Plex Mono", () => {
-    const root = ruleBody(":root");
+  it("off Apple platforms the stack is the bundled Inter and IBM Plex Mono, with no system font name", () => {
+    // Chromium treats BlinkMacSystemFont as system-ui on every platform, so a
+    // system name here would give Windows Segoe UI and Linux Cantarell.
+    const root = ruleBody(":root").replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(root).toMatch(/--font-sans:\s*"Inter",\s*sans-serif;/);
     expect(root).toMatch(
-      /--font-sans:\s*-apple-system,\s*BlinkMacSystemFont,\s*"Inter",\s*sans-serif;/,
+      /--font-mono:\s*"IBM Plex Mono",\s*ui-monospace,\s*monospace;/,
     );
-    expect(root).toMatch(
+    for (const name of ["-apple-system", "BlinkMacSystemFont", "system-ui"]) {
+      expect(root).not.toContain(name);
+    }
+  });
+
+  it("on Apple platforms the stack is the system font, then Inter, with SF Mono first", () => {
+    const apple = ruleBody(':root[data-platform="apple"]');
+    expect(apple).toMatch(
+      /--font-sans:\s*-apple-system,\s*BlinkMacSystemFont,\s*system-ui,\s*"Inter",\s*sans-serif;/,
+    );
+    expect(apple).toMatch(
       /--font-mono:\s*ui-monospace,\s*"SF Mono",\s*Menlo,\s*"IBM Plex Mono",\s*monospace;/,
     );
-    expect(root).not.toContain("system-ui");
+  });
+
+  it("the pre-paint script marks Apple platforms before the first paint", () => {
+    expect(indexHtml).toContain('setAttribute("data-platform","apple")');
+    expect(indexHtml).toMatch(/\/mac\|iphone\|ipad\|ipod\/i\.test\(pf\)/);
   });
 
   it("themes change colour only: no theme sets a font token", () => {

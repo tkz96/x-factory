@@ -135,13 +135,16 @@
      background (WCAG 1.4.11). Standard sets pin a solid value; the More sets
      reuse their solid --border. */
   --border-control: var(--border);
-  /* Fonts — system-first: on macOS/iOS this resolves to SF Pro / SF Mono.
-     Inter and IBM Plex Mono are the web-licensed fallbacks for every other
-     platform (spec #292 step 1). */
-  --font-display: -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
-  --font-sans: -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
-  --font-serif: ui-monospace, "SF Mono", Menlo, "IBM Plex Mono", monospace;
-  --font-mono: ui-monospace, "SF Mono", Menlo, "IBM Plex Mono", monospace;
+  /* Fonts — Inter and IBM Plex Mono, the web-licensed faces, everywhere but on
+     Apple platforms (spec #292 "Fonts"). Apple devices get the system font
+     from the :root[data-platform="apple"] rule below. The system names cannot
+     sit in this stack: Chromium treats BlinkMacSystemFont as system-ui on
+     every platform, so Windows and Linux would get Segoe UI or Cantarell
+     instead of Inter. */
+  --font-display: "Inter", sans-serif;
+  --font-sans: "Inter", sans-serif;
+  --font-serif: "IBM Plex Mono", ui-monospace, monospace;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
 
   /* A dimming scrim over content (modal backdrops, the diagram minimap mask). */
   --scrim: rgba(0, 0, 0, 0.4);
@@ -497,17 +500,27 @@
   }
 }
 
+/* ── Apple platforms (spec #292 "Fonts") ─────────────────────────────────
+   The boot script in index.html sets data-platform="apple" on macOS, iOS and
+   iPadOS before the first paint, so SF Pro and SF Mono render from the start. */
+
+:root[data-platform="apple"] {
+  --font-display:
+    -apple-system, BlinkMacSystemFont, system-ui, "Inter", sans-serif;
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, system-ui, "Inter", sans-serif;
+  --font-serif: ui-monospace, "SF Mono", Menlo, "IBM Plex Mono", monospace;
+  --font-mono: ui-monospace, "SF Mono", Menlo, "IBM Plex Mono", monospace;
+}
+
 /* ── Readable font (spec #292) ────────────────────────────────────────────
    Settings → Accessibility sets data-font="readable" on <html>. The Atkinson
    faces are declared above and download only when text uses them. */
 
-[data-font="readable"] {
-  --font-display:
-    "Atkinson Hyperlegible Next", -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-sans:
-    "Atkinson Hyperlegible Next", -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono:
-    "Atkinson Hyperlegible Mono", ui-monospace, "SF Mono", Menlo, monospace;
+:root[data-font="readable"] {
+  --font-display: "Atkinson Hyperlegible Next", "Inter", sans-serif;
+  --font-sans: "Atkinson Hyperlegible Next", "Inter", sans-serif;
+  --font-mono: "Atkinson Hyperlegible Mono", "IBM Plex Mono", monospace;
 }
 
 /* ── Glass material: sidebar and toolbar only (spec #292) ───────────────────
