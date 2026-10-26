@@ -7,6 +7,7 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { specimenRoute } from "../src/frontend/dev-routes.js";
 import { routeDefinitions } from "../src/frontend/routes.js";
 
 const ROOT_DIR = path.resolve(import.meta.dir, "..");
@@ -54,6 +55,10 @@ function readScripts(dir: string): string {
 const SPECIMEN_MARKERS = ["__specimen", "SpecimenView", "specimen-title"];
 
 describe("the specimen route", () => {
+  it("is addressed at /__specimen when it is built", () => {
+    expect(specimenRoute().path).toBe("__specimen");
+  });
+
   it("is not declared outside development", () => {
     // bun test runs without import.meta.env.DEV, which is the production shape.
     const paths = routeDefinitions.flatMap((route) =>

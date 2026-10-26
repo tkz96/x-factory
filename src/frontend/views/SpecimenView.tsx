@@ -24,8 +24,10 @@ function resolveSpecimenTransparency(
   setting: SpecimenSettings["transparency"],
 ): "reduced" | "full" | undefined {
   if (setting !== "automatic") return setting;
-  const osReduces = window.matchMedia("(prefers-reduced-transparency: reduce)");
-  return osReduces.matches ? "reduced" : undefined;
+  const query = globalThis.matchMedia?.(
+    "(prefers-reduced-transparency: reduce)",
+  );
+  return query?.matches ? "reduced" : undefined;
 }
 
 /** The app's own settings, read once when the specimen mounts. */
@@ -83,3 +85,5 @@ export function SpecimenView() {
     </main>
   );
 }
+
+export default SpecimenView;

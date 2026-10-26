@@ -1,6 +1,5 @@
 // src/frontend/routes.tsx — React Router route declarations (XFM-39, XFM-44).
 
-import { lazy, Suspense } from "react";
 import {
   createBrowserRouter,
   createMemoryRouter,
@@ -9,6 +8,7 @@ import {
 } from "react-router-dom";
 import { AppShell } from "./components/AppShell.js";
 import { HomeRoute } from "./components/welcome/HomeRoute.js";
+import { specimenRoute } from "./dev-routes.js";
 import { DocsView } from "./views/DocsView.js";
 import { NotFoundView } from "./views/NotFoundView.js";
 import { ProjectDetailView } from "./views/ProjectDetailView.js";
@@ -18,30 +18,6 @@ import { RunDetailView } from "./views/RunDetailView.js";
 import { RunsView } from "./views/RunsView.js";
 import { SettingsView } from "./views/SettingsView.js";
 import { WelcomeView } from "./views/WelcomeView.js";
-
-/**
- * The dev-only specimen route (spec #292, step 2). `import.meta.env.DEV` is
- * false in a production build, so the early return drops the lazy import and
- * the specimen module leaves the bundle entirely.
- */
-function devOnlyRoutes(): RouteObject[] {
-  if (!import.meta.env.DEV) return [];
-  const SpecimenView = lazy(() =>
-    import("./views/SpecimenView.js").then((m) => ({
-      default: m.SpecimenView,
-    })),
-  );
-  return [
-    {
-      path: "__specimen",
-      element: (
-        <Suspense fallback={null}>
-          <SpecimenView />
-        </Suspense>
-      ),
-    },
-  ];
-}
 
 export const routeDefinitions: RouteObject[] = [
   {
@@ -96,7 +72,9 @@ export const routeDefinitions: RouteObject[] = [
         path: "docs",
         element: <DocsView />,
       },
-      ...devOnlyRoutes(),
+      // The dev-only specimen route (spec #292, #294): import.meta.env.DEV is false
+      // in a production build, so the route and its module drop out of the bundle.
+      ...(import.meta.env.DEV ? [specimenRoute()] : []),
       {
         // An address no screen claims says so, in place, rather than
         // silently redirecting to Tickets.
