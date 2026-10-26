@@ -83,19 +83,14 @@
   /* A primary action is the one filled control on a screen, so it takes the
      system selection pair (spec #292, item 1): without it the primary button
      is an outlined pill like the secondary one beside it. */
-  :root .ui-button--primary,
-  :root .ui-button--primary[data-hovered] {
+  :root .ui-button--primary {
     /* Opted out of forced adjustment, as the selected segment is: the browser's Canvas
-       backplate behind the label would otherwise hide HighlightText. */
+       backplate behind the label would otherwise hide HighlightText. forced-color-adjust
+       is inherited, so the label takes the same opt-out. */
     forced-color-adjust: none;
     background: Highlight;
     color: HighlightText;
     border-color: Highlight;
-  }
-
-  :root .ui-button--primary * {
-    forced-color-adjust: none;
-    color: HighlightText;
   }
 
   :root .ui-button--primary[data-disabled] {

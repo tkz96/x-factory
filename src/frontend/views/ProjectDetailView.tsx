@@ -124,13 +124,13 @@ export function ProjectDetailView() {
                 </dd>
               </div>
             ))}
-            <div className="projects-detail-fact">
-              <dt className="text-subhead">{PROJECT_DETAIL_COPY.projectId}</dt>
-              <dd className="projects-detail-fact-value text-subhead projects-detail-fact-value--path">
-                {project.id}
-              </dd>
-            </div>
           </dl>
+          {/* The identifier is not one of the three plain-word facts: it sits under them
+              in the same card, as the one line of the card's own. */}
+          <p className="projects-detail-id text-subhead">
+            <span>{PROJECT_DETAIL_COPY.projectId}</span>
+            <code>{project.id}</code>
+          </p>
         </Card>
 
         <ConnectionComboLine
@@ -149,7 +149,9 @@ export function ProjectDetailView() {
 
         <div className="project-repos-section mt-6">
           <div className="section-header-flex mb-3">
-            <h3 className="text-headline">{PROJECT_DETAIL_COPY.repositories}</h3>
+            <h3 className="text-headline">
+              {PROJECT_DETAIL_COPY.repositories}
+            </h3>
             <Badge id="project-detail-repo-count">{repos.length}</Badge>
           </div>
 

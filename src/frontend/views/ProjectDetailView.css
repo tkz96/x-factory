@@ -134,3 +134,18 @@
   font-family: var(--font-mono);
   white-space: nowrap;
 }
+
+/* The identifier under the facts: a line of the card's own, in the facts' text style. */
+.projects-detail-id {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 0;
+  color: var(--text-muted);
+}
+
+.projects-detail-id code {
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}

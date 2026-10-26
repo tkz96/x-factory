@@ -92,9 +92,7 @@ describe("forced colours: the primary action stays distinct (spec #292, item 1)"
     .replace(/\/\*[\s\S]*?\*\//g, "");
 
   it("a primary button takes the system selection pair in forced colours", () => {
-    const rule = forced.match(
-      /:root \.ui-button--primary,\s*:root \.ui-button--primary\[data-hovered\]\s*\{([^}]*)\}/,
-    );
+    const rule = forced.match(/:root \.ui-button--primary\s*\{([^}]*)\}/);
     expect(rule).not.toBeNull();
     expect(rule?.[1]).toMatch(/background:\s*Highlight/);
     expect(rule?.[1]).toMatch(/color:\s*HighlightText/);
@@ -102,7 +100,7 @@ describe("forced colours: the primary action stays distinct (spec #292, item 1)"
 
   it("the primary rule comes after the shared button rule it overrides", () => {
     const shared = forced.indexOf(":root .ui-button,");
-    const primary = forced.indexOf(":root .ui-button--primary,");
+    const primary = forced.indexOf(":root .ui-button--primary {");
     expect(shared).toBeGreaterThan(-1);
     expect(primary).toBeGreaterThan(shared);
   });
