@@ -223,8 +223,12 @@
 }
 
 /* The empty note of a section: the EmptyState block, without its own air. */
-.run-inspector-none .ui-empty-state {
-  padding: var(--space-2) 0;
+/* A one-line "nothing here" inside a list of rows stays inline: the row text style,
+   left-aligned, no region around it (spec #292, item 6). EmptyState is for a region. */
+.run-inspector-none {
+  margin: 0;
+  color: var(--text-muted);
+  text-align: start;
 }
 
 /* The footer: a full-width "Raw log" button pinned under the scroll area. */

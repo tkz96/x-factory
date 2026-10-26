@@ -349,7 +349,9 @@ export const PROJECTS_COPY = {
   emptyArchivedTitle: "No archived projects",
   emptyArchived: "Archive a project to find it here.",
   addProject: "Add Project",
-  /** The detail pane on the list-only route: nothing is selected yet. */
+  /** The detail pane on the list-only route: nothing is selected yet. A region, so it
+   *  is an EmptyState with a title and an icon (spec #292, item 6). */
+  selectTitle: "No project selected",
   selectPrompt: "Select a project to see its repository, tracker and branch.",
   /** The way back to the list, at phone width where the detail pushes over it. */
   backToList: "Projects",
