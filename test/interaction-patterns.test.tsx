@@ -13,6 +13,9 @@ import path from "node:path";
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { AlertDialog } from "../src/frontend/components/overlays/AlertDialog.js";
+import { RunCheckpointBar } from "../src/frontend/components/runs/RunCheckpointBar.js";
+import { RUN_STATUS_UI } from "../src/frontend/lib/run-status-ui.js";
+import type { RunStatus } from "../src/shared/types.js";
 
 const ROOT_DIR = path.resolve(import.meta.dir, "..");
 const FRONTEND_DIR = path.join(ROOT_DIR, "src", "frontend");
@@ -57,6 +60,35 @@ function sitesOf(pattern: RegExp): string[] {
   }
   return sites;
 }
+
+describe("decision card: one primary action, secondary actions after it", () => {
+  const statuses = Object.keys(RUN_STATUS_UI) as RunStatus[];
+  for (const status of statuses) {
+    for (const reworkReady of [false, true]) {
+      it(`${status}${reworkReady ? " with rework written" : ""}: one primary, first in the card`, () => {
+        const { container } = render(
+          <RunCheckpointBar
+            status={status}
+            pending={null}
+            conflict={false}
+            reworkReady={reworkReady}
+            onAction={() => {}}
+          />,
+        );
+        const buttons = Array.from(container.querySelectorAll("button"));
+        if (buttons.length === 0) return;
+        const primaries = buttons.filter((b) =>
+          b.classList.contains("ui-button--primary"),
+        );
+        expect(primaries.length).toBe(1);
+        expect(buttons[0]).toBe(primaries[0]);
+        expect(
+          buttons.filter((b) => b.hasAttribute("data-primary-action")).length,
+        ).toBe(1);
+      });
+    }
+  }
+});
 
 describe("confirmation: every confirmation is the AlertDialog block", () => {
   it("no code calls window.confirm, confirm() or alert()", () => {
