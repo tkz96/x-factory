@@ -5,7 +5,13 @@
 .run-stage-list {
   --run-stage-rail: var(--space-6);
   --run-stage-node: calc(var(--space-5) + var(--space-0-5));
-  --run-stage-node-top: calc((var(--tap-min) - var(--run-stage-node)) / 2);
+  /* One row height for the header and its node, so the label and the node share a centre
+     on every pointer: a large control on desktop, a finger's target on touch. */
+  --run-stage-row: max(var(--tap-min), var(--control-height-lg));
+  --run-stage-node-top: calc(
+    (var(--run-stage-row) - var(--run-stage-node)) /
+    2
+  );
   list-style: none;
   margin: 0;
   padding: 0;
@@ -131,9 +137,12 @@
 /* The stage's header is the shared quiet button, drawn as a row: it takes the
    full column, keeps a finger's height, and states its hover and press as a
    row fill rather than a lift. */
-.ui-button.run-stage-header {
+/* Higher than the shared disclosure row, which it refines. */
+.ui-button.run-disclosure.run-stage-header {
   grid-column: 2;
   grid-row: 1;
+  min-height: var(--run-stage-row);
+  padding-block: 0;
 }
 
 /* The run page's disclosure row (RunDisclosure): a stage header or a folded group. */

@@ -153,3 +153,28 @@ describe("forced colours, emulated: the primary button in a browser (spec #292, 
     BROWSER_TIMEOUT,
   );
 });
+
+describe("run stage rows: the label and its node share a centre", () => {
+  const css = fs.readFileSync(
+    path.join(
+      import.meta.dir,
+      "..",
+      "src/frontend/components/runs/RunStageTimeline.css",
+    ),
+    "utf-8",
+  );
+
+  it("sizes the header and places the node from one row height", () => {
+    expect(css).toMatch(
+      /--run-stage-row:\s*max\(var\(--tap-min\),\s*var\(--control-height-lg\)\);/,
+    );
+    expect(css).toMatch(
+      /--run-stage-node-top:\s*calc\(\(var\(--run-stage-row\) - var\(--run-stage-node\)\) \/ 2\);/,
+    );
+    const header = css.match(
+      /\.ui-button\.run-disclosure\.run-stage-header \{([^}]*)\}/,
+    )?.[1];
+    expect(header).toContain("min-height: var(--run-stage-row);");
+    expect(header).toContain("padding-block: 0;");
+  });
+});
