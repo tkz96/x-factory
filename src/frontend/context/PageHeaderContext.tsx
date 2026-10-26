@@ -97,8 +97,9 @@ export function usePageHeader(content: PageHeaderContent): void {
     claims?.claim({ id, content });
   }, [claims, id, content]);
   // The claim is released only when the view unmounts, never between the
-  // re-claims above. A route change unmounts the old view after the new one
-  // claims, and release() ignores a claim it does not own.
+  // re-claims above. On a route change the old view's cleanup and the new
+  // view's claim can land in either order; release() ignores a claim it does
+  // not own, so only the heading's current owner can clear it.
   useLayoutEffect(() => {
     if (!claims) return;
     return () => claims.release(id);
