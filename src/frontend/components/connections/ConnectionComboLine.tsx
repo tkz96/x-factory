@@ -32,6 +32,9 @@ export interface ConnectionComboLineProps {
   tone: ConnectionComboTone;
   /** Restricts the rendered slots; defaults to every slot, tracker first. */
   roles?: readonly ProjectConnectionRole[];
+  /** The line's text size: metadata in a list (footnote), or a fact on a detail
+   *  page (subheadline), where the line sits beside the other facts. */
+  size?: "footnote" | "subhead";
   id?: string;
   className?: string;
 }
@@ -66,6 +69,7 @@ export function ConnectionComboLine({
   descriptors,
   tone,
   roles,
+  size = "footnote",
   id,
   className,
 }: ConnectionComboLineProps) {
@@ -78,16 +82,11 @@ export function ConnectionComboLine({
   return (
     <div
       id={id}
-      /* The line is metadata; its type comes from the .text-footnote style. */
-      className={`connection-combo-line connection-combo-line--${tone} text-footnote ${className ?? ""}`.trim()}
+      /* The line's type comes from the .text-footnote or .text-subhead style. */
+      className={`connection-combo-line connection-combo-line--${tone} text-${size} ${className ?? ""}`.trim()}
     >
-      {rendered.map((slot, index) => (
+      {rendered.map((slot) => (
         <Fragment key={slot.role}>
-          {index > 0 && (
-            <span className="connection-combo-separator" aria-hidden="true">
-              ·
-            </span>
-          )}
           <span
             id={`combo-${slot.role}`}
             className={`connection-combo-slot connection-combo-slot--${slot.role} connection-combo-slot--${slot.state}`}

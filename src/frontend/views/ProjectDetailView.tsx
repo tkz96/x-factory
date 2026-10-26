@@ -124,19 +124,21 @@ export function ProjectDetailView() {
                 </dd>
               </div>
             ))}
+            <div className="projects-detail-fact">
+              <dt className="text-subhead">{PROJECT_DETAIL_COPY.projectId}</dt>
+              <dd className="projects-detail-fact-value text-subhead projects-detail-fact-value--path">
+                {project.id}
+              </dd>
+            </div>
           </dl>
         </Card>
-
-        <p className="projects-detail-id text-footnote">
-          <span>{PROJECT_DETAIL_COPY.projectId}</span>
-          <code>{project.id}</code>
-        </p>
 
         <ConnectionComboLine
           id="project-connections-combo"
           slots={slots}
           tone={comboTone(slots, REQUIRED_POST_CREATION_ROLES)}
           descriptors={descriptors}
+          size="subhead"
         />
 
         <ReadinessBanner />
