@@ -7,7 +7,6 @@
   box-shadow: var(--shadow-sm);
   padding: var(--space-1) var(--space-2);
   font-family: var(--font-sans);
-  font-size: var(--text-caption-1);
   color: var(--text);
   z-index: var(--z-tooltip);
   pointer-events: none;

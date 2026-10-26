@@ -3,6 +3,7 @@
 // #132). Rendered inline in its region with `role="status"` semantics — the
 // consumer wires `id` to the input's `aria-describedby`.
 
+import { Icon } from "../ui/Icon.js";
 import type { FieldFeedbackState } from "./types.js";
 import "./FieldFeedback.css";
 
@@ -31,12 +32,10 @@ export function FieldFeedback({ state, message, id }: FieldFeedbackProps) {
   return (
     <div
       id={id}
-      className={`field-feedback field-feedback--${state}`}
+      className={`field-feedback field-feedback--${state} text-footnote`}
       role={state === "invalid" ? "alert" : "status"}
     >
-      <svg className="icon icon-sm" aria-hidden="true">
-        <use href={`/assets/icons/sprite.svg#${FIELD_FEEDBACK_ICONS[state]}`} />
-      </svg>
+      <Icon name={FIELD_FEEDBACK_ICONS[state]} size="sm" />
       {message !== undefined && (
         <span className="field-feedback-message">{message}</span>
       )}

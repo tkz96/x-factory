@@ -12,6 +12,7 @@
 import { type ReactNode, useRef } from "react";
 import { Badge } from "../ui/Badge.js";
 import { EmptyState } from "../ui/EmptyState.js";
+import { Icon } from "../ui/Icon.js";
 import { PlaceholderRows } from "../ui/ListRow.js";
 import { Spinner } from "../ui/Spinner.js";
 import {
@@ -119,7 +120,7 @@ export function AsyncRegion({
     return (
       <div key="loading" className="async-region async-region--loading">
         <Spinner label={STATE_COPY.loading} />
-        <p className="async-region-hint">{STATE_COPY.loading}</p>
+        <p className="async-region-hint text-footnote">{STATE_COPY.loading}</p>
       </div>
     );
   }
@@ -127,16 +128,14 @@ export function AsyncRegion({
   if (derived.state === "error") {
     return (
       <div className="async-region async-region--error" role="alert">
-        <svg className="icon icon-xl" aria-hidden="true">
-          <use href="/assets/icons/sprite.svg#icon-alert-circle" />
-        </svg>
-        <p className="async-region-hint">
+        <Icon name="icon-alert-circle" size="xl" />
+        <p className="async-region-hint text-footnote">
           {errorCopy ?? resolveErrorCopy(derived.error)}
         </p>
         {onRetry !== undefined && (
           <div className="async-region-actions">
             {remainingMs !== undefined && remainingMs > 0 && (
-              <span className="feedback-countdown">
+              <span className="feedback-countdown text-caption-1">
                 {formatRetryCountdown(remainingMs)}
               </span>
             )}

@@ -4,7 +4,6 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  font-size: var(--text-footnote);
 }
 
 /* The icon carries the state color; the message stays high-contrast text —

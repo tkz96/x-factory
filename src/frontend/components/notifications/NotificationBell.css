@@ -96,10 +96,9 @@
 
 .notification-popover-title {
   margin: 0;
-  font-size: var(--text-headline);
 }
 
-.notification-empty {
+.notification-status {
   margin: 0;
   padding: var(--space-4);
   color: var(--text-secondary);
@@ -144,15 +143,10 @@
   gap: var(--space-0-5);
 }
 
-.notification-item-title {
-  font-weight: 600;
-}
-
 .notification-item-ticket,
 .notification-item-detail,
 .notification-item-meta {
   color: var(--text-secondary);
-  font-size: var(--text-footnote);
   overflow-wrap: anywhere;
 }
 

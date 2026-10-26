@@ -63,7 +63,6 @@
 /* The empty state is the EmptyState block: its look lives in controls.css. */
 
 .async-region-hint {
-  font-size: var(--text-footnote);
   color: var(--text-muted);
   /* Readable measure; centred inside the flex column. */
   max-width: 48ch;

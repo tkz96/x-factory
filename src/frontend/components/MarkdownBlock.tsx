@@ -6,7 +6,7 @@ import "./MarkdownBlock.css";
 
 import { useState } from "react";
 import { looksLikeMarkdown } from "../lib/markdown-syntax.js";
-import { MarkdownViewer } from "./MarkdownViewer.js";
+import { MarkdownScaleContext, MarkdownViewer } from "./MarkdownViewer.js";
 import {
   SegmentedControl,
   type SegmentedControlOption,
@@ -48,7 +48,9 @@ export function MarkdownBlock({
       {(label !== undefined || markdown) && (
         <div className="md-block-header">
           {label !== undefined && (
-            <span className="md-block-label">{label}</span>
+            <span className="md-block-label text-footnote font-semibold">
+              {label}
+            </span>
           )}
           {markdown && (
             <SegmentedControl
@@ -56,7 +58,7 @@ export function MarkdownBlock({
               value={view}
               onChange={(id) => setView(id === "raw" ? "raw" : "preview")}
               options={VIEW_OPTIONS}
-              className="md-block-toggle"
+              className="md-block-toggle text-caption-1"
             />
           )}
         </div>
@@ -64,10 +66,12 @@ export function MarkdownBlock({
       {!markdown ? (
         <p className="md-block-plain">{content}</p>
       ) : view === "raw" ? (
-        <pre className="md-block-raw">{content}</pre>
+        <pre className="md-block-raw text-caption-1">{content}</pre>
       ) : (
         <div className="md-block-preview">
-          <MarkdownViewer content={content} />
+          <MarkdownScaleContext.Provider value={compact ? "compact" : "block"}>
+            <MarkdownViewer content={content} />
+          </MarkdownScaleContext.Provider>
         </div>
       )}
     </div>
