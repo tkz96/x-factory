@@ -8,6 +8,7 @@ import { NavLink, useSearchParams } from "react-router-dom";
 import type { DocCategory, DocSearchResult } from "../../../shared/types.js";
 import { scrollBehavior } from "../../hooks/scroll-behavior.js";
 import { api } from "../../lib/api-client.js";
+import { Tooltip, TooltipTrigger } from "../overlays/Tooltip.js";
 import { Button } from "../ui/Button.js";
 import { Card } from "../ui/Card.js";
 import { EmptyState } from "../ui/EmptyState.js";
@@ -227,12 +228,15 @@ export function DocsSidebarNav() {
                 />
               )}
               {rawQuery && (
-                <IconButton
-                  label="Clear search query"
-                  icon="icon-x"
-                  variant="plain"
-                  onPress={handleClearSearch}
-                />
+                <TooltipTrigger delay={300}>
+                  <IconButton
+                    label="Clear search query"
+                    icon="icon-x"
+                    variant="plain"
+                    onPress={handleClearSearch}
+                  />
+                  <Tooltip placement="bottom">Clear search (Esc)</Tooltip>
+                </TooltipTrigger>
               )}
             </div>
           </div>
