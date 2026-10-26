@@ -80,6 +80,22 @@
     border: var(--border-width) solid ButtonBorder;
   }
 
+  /* A primary action is the one filled control on a screen, so it takes the
+     system selection pair (spec #292, item 1): without it the primary button
+     is an outlined pill like the secondary one beside it. */
+  :root .ui-button--primary,
+  :root .ui-button--primary[data-hovered] {
+    background: Highlight;
+    color: HighlightText;
+    border-color: Highlight;
+  }
+
+  :root .ui-button--primary[data-disabled] {
+    background: ButtonFace;
+    color: GrayText;
+    border-color: GrayText;
+  }
+
   /* The browser paints a Canvas backplate behind text in forced colours, which
      hid HighlightText on a selected segment. Opt the segment out of forced
      adjustment and give it system colours itself, backplate and all. */
