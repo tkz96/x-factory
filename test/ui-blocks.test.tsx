@@ -15,6 +15,7 @@ import { MemoryRouter } from "react-router-dom";
 import { Badge } from "../src/frontend/components/ui/Badge.js";
 import { Button } from "../src/frontend/components/ui/Button.js";
 import { EmptyState } from "../src/frontend/components/ui/EmptyState.js";
+import { Icon } from "../src/frontend/components/ui/Icon.js";
 import { IconButton } from "../src/frontend/components/ui/IconButton.js";
 import {
   ListGroup,
@@ -673,5 +674,22 @@ describe("EmptyState — what is not here, once", () => {
     expect(container.querySelector("h2")).toBeNull();
     expect(container.querySelector(".ui-empty-state-action")).toBeNull();
     expect(container.textContent).toBe("Only a line of guidance.");
+  });
+});
+
+describe("Icon — the one way to draw a sprite glyph (spec #292)", () => {
+  it("is decorative by default and names its sprite symbol", () => {
+    const { container } = render(<Icon name="icon-check" size="sm" />);
+    const svg = container.querySelector("svg");
+    expect(svg?.getAttribute("aria-hidden")).toBe("true");
+    expect(svg?.getAttribute("class")).toBe("icon icon-sm");
+    expect(svg?.querySelector("use")?.getAttribute("href")).toBe(
+      "/assets/icons/sprite.svg#icon-check",
+    );
+  });
+
+  it("is announced as an image when it has a label", () => {
+    const { getByRole } = render(<Icon name="icon-alert" label="Warning" />);
+    expect(getByRole("img", { name: "Warning" })).toBeTruthy();
   });
 });

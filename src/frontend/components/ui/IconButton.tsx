@@ -9,6 +9,7 @@ import {
   type ButtonProps as AriaButtonProps,
 } from "react-aria-components";
 import { withoutUndefined } from "./aria-props.js";
+import { Icon } from "./Icon.js";
 
 export type IconButtonVariant = "filled" | "plain";
 
@@ -53,9 +54,7 @@ export function IconButton({
       aria-label={label}
       className={classes.join(" ")}
     >
-      <svg className="icon icon-md" aria-hidden="true">
-        <use href={`/assets/icons/sprite.svg#${icon}`} />
-      </svg>
+      <Icon name={icon} size="md" />
       {children}
     </AriaButton>
   );

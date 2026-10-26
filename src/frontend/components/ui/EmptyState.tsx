@@ -9,6 +9,7 @@
 // src/frontend/styles/shared/controls.css.
 
 import type { ReactNode } from "react";
+import { Icon } from "./Icon.js";
 
 export type EmptyStateHeadingLevel = 2 | 3 | 4;
 
@@ -40,9 +41,7 @@ export function EmptyState({
   return (
     <div className={classes.join(" ")}>
       {icon !== undefined && (
-        <svg className="icon icon-xl ui-empty-state-icon" aria-hidden="true">
-          <use href={`/assets/icons/sprite.svg#${icon}`} />
-        </svg>
+        <Icon name={icon} size="xl" className="ui-empty-state-icon" />
       )}
       {title !== undefined && (
         <Heading className="ui-empty-state-title">{title}</Heading>

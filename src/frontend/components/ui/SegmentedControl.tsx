@@ -15,6 +15,7 @@ import {
   RadioGroup as AriaRadioGroup,
 } from "react-aria-components";
 import { withoutUndefined } from "./aria-props.js";
+import { Icon } from "./Icon.js";
 import { SelectField } from "./SelectField.js";
 import { useMediaQuery } from "./useMediaQuery.js";
 
@@ -179,11 +180,7 @@ export function SegmentedControl({
           })}
           data-segment-value={option.id}
         >
-          {option.icon !== undefined && (
-            <svg className="icon icon-sm" aria-hidden="true">
-              <use href={`/assets/icons/sprite.svg#${option.icon}`} />
-            </svg>
-          )}
+          {option.icon !== undefined && <Icon name={option.icon} size="sm" />}
           <span>{option.label}</span>
           {option.count !== undefined && (
             <span className="ui-segment-count">{option.count}</span>

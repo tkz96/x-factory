@@ -11,6 +11,7 @@
 // phone never scrolls it sideways.
 
 import type { ReactNode } from "react";
+import { Icon } from "./Icon.js";
 
 export type TableAlign = "start" | "end";
 export type SortDirection = "ascending" | "descending";
@@ -90,18 +91,17 @@ export function Table({
                       onClick={() => onSortChange(nextSort(sort, column.id))}
                     >
                       {column.label}
-                      <svg
-                        className={`icon icon-xs ui-table-sort-icon${
+                      <Icon
+                        name="icon-chevron-right"
+                        size="xs"
+                        className={`ui-table-sort-icon${
                           sorted ? " is-active" : ""
                         }${
                           sorted && sort.direction === "descending"
                             ? " is-descending"
                             : ""
                         }`}
-                        aria-hidden="true"
-                      >
-                        <use href="/assets/icons/sprite.svg#icon-chevron-right" />
-                      </svg>
+                      />
                     </button>
                   ) : (
                     <span className={column.hideLabel ? "sr-only" : undefined}>

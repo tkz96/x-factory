@@ -183,6 +183,7 @@ SF Symbols ship in 3 scales (small/medium/large) and 9 weights matching SF Pro's
 
 5. **Draw icons through the blocks**:
    - A control that shows an icon takes the icon id as a prop: `icon` on `Button` and `IconButton`, `leadingIcon` on `ListRow` (`src/frontend/components/ui/`).
+   - An icon on its own (not inside a control) uses the `Icon` block: `<Icon name="icon-check" size="sm" />`. It is decorative by default; pass `label` when no text next to it says the same. `Icon` is the only code that writes the sprite path, and every other block draws through it (gate G6 lands in M7, spec #292).
    - The block draws `<svg class="icon icon-{size}"><use href="/assets/icons/sprite.svg#icon-{name}"></use></svg>`. There is no `renderIcon` or `createIconSvg` helper to call: a screen passes the id, and the block draws it.
    - To add an icon, add its symbol to `public/assets/icons/sprite.svg` and pass the new id. The smoke gate checks that every referenced id exists as an `icon-*` symbol.
 
@@ -312,7 +313,7 @@ For flows, check the Patterns section first: onboarding, search, feedback, data 
 
 A screen composes blocks; it never hand-rolls a control. The vocabulary lives in `src/frontend/components/ui/` and is built on React Aria's unstyled primitives — React Aria owns behaviour (keyboard, press, focus visibility, disabled and touch semantics) and the tokens own every visual value. The one stylesheet is `src/frontend/styles/shared/controls.css`; see [docs/agents/frontend-styling.md](./docs/agents/frontend-styling.md) for the rules and the gate that enforces them.
 
-- button, icon button, text field, text area, select, segmented control, switch, badge, grouped list, list row, table, spinner, empty state.
+- icon, button, icon button, text field, text area, select, segmented control, switch, badge, grouped list, list row, table, spinner, empty state.
 - **Tap targets.** Every block a finger can hit is at least `--tap-min` tall: 44px where a touch input is present or the viewport is 768px or less, otherwise a 24px hit area (spec #292).
 - **Focus.** One ring definition, drawn from `--border-width-indicator` and `--border-focus`, proved at 3:1 or better by the twelve-set contrast gate.
 - **Feedback.** The feedback family in `src/frontend/components/feedback/` renders through these blocks. Errors are announced as alerts; informational and partial states stay polite.
