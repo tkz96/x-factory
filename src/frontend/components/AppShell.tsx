@@ -48,8 +48,10 @@ import { CommandPalette } from "./palette/CommandPalette.js";
 import { ShortcutSheet } from "./palette/ShortcutSheet.js";
 import { ProjectScopePicker } from "./projects/ProjectScopePicker.js";
 import { Button } from "./ui/Button.js";
+import { Icon } from "./ui/Icon.js";
 import { PageHeader } from "./ui/PageHeader.js";
 import { SegmentedControl } from "./ui/SegmentedControl.js";
+import { useMediaQuery } from "./ui/useMediaQuery.js";
 
 /** Scrolling past this many pixels moves the page title into the toolbar. */
 const COMPACT_TITLE_SCROLL = 32;
@@ -183,7 +185,9 @@ function withShortcut(label: string, id: ShortcutId): string {
 /** The registry keys on the right of a menu row; nothing when the action has no chord. */
 function MenuShortcut({ id }: { id: ShortcutId }) {
   const keys = shortcutLabel(id);
-  return keys ? <kbd className="xf-menu-keys">{keys}</kbd> : null;
+  return keys ? (
+    <kbd className="xf-menu-keys text-caption-1">{keys}</kbd>
+  ) : null;
 }
 
 interface RunActionsMenuProps {
@@ -347,6 +351,9 @@ function AppShellHeader({
   // Only this component and PageHeaderSlot read the claim, so a claim change
   // re-renders the bar and the heading — never the view that made it.
   const providedHeader = usePageHeaderContent();
+  // The breadcrumb and the search label take the phone and compact sizes.
+  const phoneWidth = useMediaQuery("(max-width: 768px)");
+  const compactSearch = useMediaQuery("(max-width: 1320px)");
   const headingTitle = providedHeader?.title ?? title;
   const headingSubtitle = providedHeader?.subtitle ?? subtitle;
   return (
@@ -360,18 +367,23 @@ function AppShellHeader({
             className="toolbar-breadcrumb"
             aria-label="Documentation Breadcrumbs"
           >
-            <div className="docs-header-crumb-trail">
+            <div
+              className={`docs-header-crumb-trail font-bold ${phoneWidth ? "text-headline" : "text-title-2"}`}
+            >
               <span className="docs-header-crumb-root">Documentation</span>
-              <span className="docs-header-crumb-sep">›</span>
+              <span className="docs-header-crumb-sep font-regular">›</span>
               <span className="docs-header-crumb-cat">
                 {docBreadcrumb.category}
               </span>
-              <span className="docs-header-crumb-sep">›</span>
+              <span className="docs-header-crumb-sep font-regular">›</span>
               <span className="docs-header-crumb-current">
                 {docBreadcrumb.item}
               </span>
             </div>
-            <span id="toolbar-subtitle" className="toolbar-subtitle">
+            <span
+              id="toolbar-subtitle"
+              className="toolbar-subtitle text-caption-1"
+            >
               {headingSubtitle}
             </span>
           </nav>
@@ -380,10 +392,16 @@ function AppShellHeader({
           // lives here as the one h1: one line with an ellipsis, the project and
           // branch beneath it as a caption, only the title on a phone (#258, F3).
           <div className="toolbar-run-heading">
-            <h1 id="toolbar-title" className="toolbar-title is-visible">
+            <h1
+              id="toolbar-title"
+              className="toolbar-title is-visible text-headline font-semibold"
+            >
               {headingTitle}
             </h1>
-            <span id="toolbar-subtitle" className="toolbar-subtitle">
+            <span
+              id="toolbar-subtitle"
+              className="toolbar-subtitle text-caption-1"
+            >
               {headingSubtitle}
             </span>
           </div>
@@ -393,7 +411,10 @@ function AppShellHeader({
           // until then nothing is rendered, so the bar never holds an empty
           // title span (#258).
           compact && (
-            <span className="toolbar-title is-visible" aria-hidden="true">
+            <span
+              className="toolbar-title is-visible text-title-3 font-bold"
+              aria-hidden="true"
+            >
               {headingTitle}
             </span>
           )
@@ -447,15 +468,23 @@ function AppShellHeader({
           <Button
             id="btn-search"
             variant="quiet"
-            className="toolbar-search"
+            className="toolbar-search font-medium"
             icon="icon-search"
             aria-label="Search"
             title={withShortcut("Search", "palette")}
             aria-keyshortcuts="Control+K Meta+K"
             onPress={onOpenPalette}
           >
-            <span className="toolbar-search-label">Search</span>
-            <kbd className="toolbar-search-keys">
+            <span
+              className={
+                compactSearch
+                  ? "toolbar-search-label text-caption-2"
+                  : "toolbar-search-label"
+              }
+            >
+              Search
+            </span>
+            <kbd className="toolbar-search-keys text-caption-1">
               {shortcutLabel("palette")}
             </kbd>
           </Button>
@@ -466,11 +495,9 @@ function AppShellHeader({
         {!isDocs && isDegraded && (
           <Link
             to="/settings?tab=diagnostics"
-            className="toolbar-readiness desktop-only"
+            className="toolbar-readiness desktop-only text-footnote font-semibold"
           >
-            <svg className="icon icon-sm" aria-hidden="true">
-              <use href="/assets/icons/sprite.svg#icon-alert-circle" />
-            </svg>
+            <Icon name="icon-alert-circle" size="sm" />
             <span>Degraded</span>
           </Link>
         )}
@@ -481,9 +508,7 @@ function AppShellHeader({
             aria-label="Settings"
             title="Settings"
           >
-            <svg className="icon icon-md" aria-hidden="true">
-              <use href="/assets/icons/sprite.svg#icon-settings" />
-            </svg>
+            <Icon name="icon-settings" size="md" />
           </NavLink>
         )}
       </div>
@@ -502,14 +527,14 @@ function AppShellMobileTabBar({ needsYouCount }: { needsYouCount: number }) {
         <NavLink
           key={section.id}
           to={`/${section.id}`}
-          className={({ isActive }) => `tab-item ${isActive ? "active" : ""}`}
+          className={({ isActive }) =>
+            `tab-item text-caption-2 font-medium ${isActive ? "active" : ""}`
+          }
         >
-          <svg className="icon icon-lg" aria-hidden="true">
-            <use href={`/assets/icons/sprite.svg#${section.icon}`} />
-          </svg>
+          <Icon name={section.icon} size="lg" />
           <span>{section.label}</span>
           {section.id === "runs" && needsYouCount > 0 && (
-            <span className="tab-count">{needsYouCount}</span>
+            <span className="tab-count text-caption-2">{needsYouCount}</span>
           )}
         </NavLink>
       ))}

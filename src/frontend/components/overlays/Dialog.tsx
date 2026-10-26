@@ -192,7 +192,7 @@ export function DialogTitle({
     <RACHeading
       slot="title"
       id={id ?? context.titleId}
-      className={`xf-dialog-title ${className ?? ""}`.trim()}
+      className={`xf-dialog-title ${className ?? ""} text-title-3 font-semibold`.trim()}
     >
       {children}
     </RACHeading>

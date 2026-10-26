@@ -51,11 +51,14 @@ export function AlertDialog({
       className={`xf-alert-dialog-modal ${className ?? ""}`.trim()}
     >
       <div className="xf-alert-dialog-header">
-        <h2 id={`${alertId}-title`} className="xf-alert-dialog-title">
+        <h2
+          id={`${alertId}-title`}
+          className="xf-alert-dialog-title text-headline font-semibold"
+        >
           {title}
         </h2>
         {description && (
-          <p id={descId} className="xf-alert-dialog-description">
+          <p id={descId} className="xf-alert-dialog-description text-subhead">
             {description}
           </p>
         )}

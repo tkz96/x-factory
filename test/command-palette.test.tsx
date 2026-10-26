@@ -345,6 +345,9 @@ describe("command palette (#254)", () => {
     const input = dom().getByRole("combobox");
     typeInto(input, "zzz-no-such-thing");
     expect(dom().getByRole("status").textContent).toContain("No matches");
+    expect(
+      dom().getByRole("status").querySelector(".ui-empty-state"),
+    ).not.toBeNull();
     act(() => {
       fireEvent.keyDown(input, { key: "Enter" });
     });

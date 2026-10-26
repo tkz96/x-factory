@@ -2,8 +2,9 @@
 
 import "./MarkdownViewer.css";
 
-import { useState } from "react";
+import { createContext, type ReactNode, useContext, useState } from "react";
 import { FlowDiagramViewer } from "./diagrams/FlowDiagramViewer.js";
+import { Button } from "./ui/Button.js";
 
 interface MarkdownViewerProps {
   content: string;
@@ -15,8 +16,86 @@ interface CodeBlockProps {
   code: string;
 }
 
+/**
+ * The text scale of the Markdown on screen. `page` is the reading page; `block`
+ * and `compact` are the preview inside a MarkdownBlock, which inherits its
+ * container's size and shrinks its headings. Text styles are set in markup, so
+ * the scale reaches the elements through this context, not through CSS.
+ */
+export type MarkdownScale = "page" | "block" | "compact";
+export const MarkdownScaleContext = createContext<MarkdownScale>("page");
+
+const HEADING_TEXT: Record<MarkdownScale, Record<1 | 2 | 3 | 4, string>> = {
+  page: {
+    1: "text-title-1 font-bold",
+    2: "text-title-2 font-semibold",
+    3: "text-title-3 font-semibold",
+    4: "text-headline font-semibold",
+  },
+  block: {
+    1: "text-headline font-semibold",
+    2: "text-subhead font-semibold",
+    3: "text-title-3 font-semibold",
+    4: "text-footnote font-semibold",
+  },
+  compact: {
+    1: "text-subhead font-semibold",
+    2: "text-subhead font-semibold",
+    3: "text-title-3 font-semibold",
+    4: "text-footnote font-semibold",
+  },
+};
+
+function MarkdownHeading({
+  level,
+  id,
+  children,
+}: {
+  level: 1 | 2 | 3 | 4;
+  id: string;
+  children: ReactNode;
+}) {
+  const scale = useContext(MarkdownScaleContext);
+  const className = HEADING_TEXT[scale][level];
+  if (level === 1)
+    return (
+      <h1 id={id} className={className}>
+        {children}
+      </h1>
+    );
+  if (level === 2)
+    return (
+      <h2 id={id} className={className}>
+        {children}
+      </h2>
+    );
+  if (level === 3)
+    return (
+      <h3 id={id} className={className}>
+        {children}
+      </h3>
+    );
+  return (
+    <h4 id={id} className={className}>
+      {children}
+    </h4>
+  );
+}
+
+function MarkdownInlineCode({ children }: { children: ReactNode }) {
+  const scale = useContext(MarkdownScaleContext);
+  return (
+    <code
+      className={`md-inline-code ${scale === "page" ? "text-footnote" : "text-caption-1"}`}
+    >
+      {children}
+    </code>
+  );
+}
+
 function CodeBlock({ language, code }: CodeBlockProps) {
   const [copied, setCopied] = useState(false);
+  const scale = useContext(MarkdownScaleContext);
 
   const handleCopy = async () => {
     try {
@@ -30,17 +109,20 @@ function CodeBlock({ language, code }: CodeBlockProps) {
 
   return (
     <div className="md-code-container">
-      <div className="md-code-header">
+      <div className="md-code-header text-caption-1">
         <span>{language || "text"}</span>
-        <button
-          type="button"
-          onClick={handleCopy}
-          className={`md-copy-btn ${copied ? "copied" : ""}`}
+        <Button
+          variant="quiet"
+          size="sm"
+          onPress={handleCopy}
+          className={`md-copy-btn text-caption-2 ${copied ? "copied" : ""}`}
         >
           {copied ? "✓ Copied" : "Copy"}
-        </button>
+        </Button>
       </div>
-      <pre className="md-code-pre">
+      <pre
+        className={`md-code-pre ${scale === "page" ? "text-footnote" : "text-caption-1"}`}
+      >
         <code>{code}</code>
       </pre>
     </div>
@@ -65,9 +147,9 @@ function renderInlineText(
     // Inline code: `code`
     if (part.startsWith("`") && part.endsWith("`") && part.length >= 2) {
       elements.push(
-        <code key={`code-${idx}`} className="md-inline-code">
+        <MarkdownInlineCode key={`code-${idx}`}>
           {part.slice(1, -1)}
-        </code>,
+        </MarkdownInlineCode>,
       );
       continue;
     }
@@ -75,7 +157,7 @@ function renderInlineText(
     // Bold text: **text**
     if (part.startsWith("**") && part.endsWith("**") && part.length >= 4) {
       elements.push(
-        <strong key={`bold-${idx}`} className="md-bold">
+        <strong key={`bold-${idx}`} className="md-bold font-semibold">
           {part.slice(2, -2)}
         </strong>,
       );
@@ -230,33 +312,33 @@ function parseHeading(
   if (line.startsWith("# ")) {
     const raw = line.slice(2);
     return (
-      <h1 key={`h1-${index}`} id={headingSlug(raw)}>
+      <MarkdownHeading key={`h1-${index}`} level={1} id={headingSlug(raw)}>
         {renderInlineText(raw, onNavigateDoc)}
-      </h1>
+      </MarkdownHeading>
     );
   }
   if (line.startsWith("## ")) {
     const raw = line.slice(3);
     return (
-      <h2 key={`h2-${index}`} id={headingSlug(raw)}>
+      <MarkdownHeading key={`h2-${index}`} level={2} id={headingSlug(raw)}>
         {renderInlineText(raw, onNavigateDoc)}
-      </h2>
+      </MarkdownHeading>
     );
   }
   if (line.startsWith("### ")) {
     const raw = line.slice(4);
     return (
-      <h3 key={`h3-${index}`} id={headingSlug(raw)}>
+      <MarkdownHeading key={`h3-${index}`} level={3} id={headingSlug(raw)}>
         {renderInlineText(raw, onNavigateDoc)}
-      </h3>
+      </MarkdownHeading>
     );
   }
   if (line.startsWith("#### ")) {
     const raw = line.slice(5);
     return (
-      <h4 key={`h4-${index}`} id={headingSlug(raw)}>
+      <MarkdownHeading key={`h4-${index}`} level={4} id={headingSlug(raw)}>
         {renderInlineText(raw, onNavigateDoc)}
-      </h4>
+      </MarkdownHeading>
     );
   }
   return null;
@@ -310,8 +392,10 @@ function parseAlertBlock(
         key={`alert-${idx}`}
         className={`md-alert ${getAlertClass(alertType)}`}
       >
-        <div className="md-alert-title">{alertType}</div>
-        <div className="md-alert-body">{alertParagraphs}</div>
+        <div className="md-alert-title text-caption-1 font-bold">
+          {alertType}
+        </div>
+        <div className="md-alert-body text-subhead">{alertParagraphs}</div>
       </div>
     ),
     nextIndex: idx,
@@ -391,7 +475,9 @@ function parseTable(
   for (let hIdx = 0; hIdx < headers.length; hIdx++) {
     const h = headers[hIdx] ?? "";
     headerElements.push(
-      <th key={`th-${hIdx}`}>{renderInlineText(h, onNavigateDoc)}</th>,
+      <th key={`th-${hIdx}`} className="text-caption-1 font-semibold">
+        {renderInlineText(h, onNavigateDoc)}
+      </th>,
     );
   }
 
@@ -413,7 +499,7 @@ function parseTable(
   return {
     node: (
       <div key={`table-${idx}`} className="md-table-container">
-        <table className="table">
+        <table className="table text-footnote">
           <thead>
             <tr>{headerElements}</tr>
           </thead>
@@ -469,6 +555,7 @@ export function MarkdownViewer({
   content,
   onNavigateDoc,
 }: MarkdownViewerProps) {
+  const scale = useContext(MarkdownScaleContext);
   const lines = content.split("\n");
   const nodes: React.ReactNode[] = [];
 
@@ -545,5 +632,11 @@ export function MarkdownViewer({
     i++;
   }
 
-  return <div className="md-viewer markdown-content">{nodes}</div>;
+  return (
+    <div
+      className={`md-viewer markdown-content${scale === "page" ? " text-body" : ""}`}
+    >
+      {nodes}
+    </div>
+  );
 }

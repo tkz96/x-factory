@@ -10,8 +10,6 @@
    no uppercase, no letter-spacing. */
 .shortcut-group-title {
   margin: 0 0 var(--space-2);
-  font-size: var(--text-footnote);
-  font-weight: 600;
   color: var(--text-secondary);
 }
 
@@ -46,7 +44,6 @@
 /* A keycap: mono, quiet fill, hairline, --radius-xs. */
 .shortcut-keys {
   font-family: var(--font-mono);
-  font-size: var(--text-caption-1);
   padding: var(--space-0-5) var(--space-1-5);
   border: var(--hairline) solid var(--separator);
   border-radius: var(--radius-xs);
@@ -55,7 +52,6 @@
 }
 
 .shortcut-alternative {
-  font-size: var(--text-caption-1);
   color: var(--text-muted);
 }
 

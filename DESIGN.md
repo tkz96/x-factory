@@ -335,7 +335,9 @@ A screen composes blocks; it never hand-rolls a control. The vocabulary lives in
   `default`, `connection`, `ticket`, `model`, `review`, `chat`, `flow` — one per
   card family spec #292 replaces (`.card`, `.connection-card`, `.ticket-card`,
   `.model-connection-card`, `.review-summary-card`, `.run-chat-card`,
-  `.flow-fallback-card`). A raised card (`default`, `connection`, `ticket`,
+  `.flow-fallback-card`). Its `padding` prop (`none`, `compact`, `regular`) overrides
+  the variant's inner padding; without it the variant's padding applies, so a screen
+  never sets a card's padding in its own CSS. A raised card (`default`, `connection`, `ticket`,
   `review`) sits on `--bg-card` behind the `--hairline` in `--separator`, on
   the `--radius-card` rung (`review` steps to `--radius-md`); an inset card
   (`model`, `chat`, `flow`) is the quiet fill on `--bg-secondary` at

@@ -51,7 +51,7 @@
   padding: 0 var(--space-5);
   font-family: var(--font-sans);
   font-size: var(--text-callout);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   /* Buttons have a filled bezel and no border (spec #292). */
   border: 0;
   border-radius: var(--radius-md);
@@ -245,7 +245,7 @@
   display: block;
   font-family: var(--font-sans);
   font-size: var(--text-subhead);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--text);
   margin-bottom: var(--space-1);
 }
@@ -301,7 +301,10 @@
 
 .ui-field-description {
   display: block;
-  font-size: var(--text-footnote);
+  font-size: var(--text-subhead);
+  font-weight: var(--text-subhead-weight);
+  line-height: var(--text-subhead-leading);
+  letter-spacing: var(--text-subhead-tracking);
   color: var(--text-muted);
   margin-top: var(--space-1);
 }
@@ -390,7 +393,7 @@
 
 .ui-select-item[data-selected] {
   color: var(--accent);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 /* The invalid field's boundary. Last in the field section, so its higher
@@ -441,7 +444,7 @@
   padding: 0 var(--space-4);
   font-family: var(--font-sans);
   font-size: var(--text-callout);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   color: var(--text-muted);
   background: transparent;
   border: none;
@@ -475,7 +478,7 @@
 
 .ui-segment[data-selected] {
   color: var(--text);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 /* The label, the icon and the count stay above the thumb below. */
@@ -602,7 +605,10 @@
 
 .ui-switch-description {
   display: block;
-  font-size: var(--text-footnote);
+  font-size: var(--text-subhead);
+  font-weight: var(--text-subhead-weight);
+  line-height: var(--text-subhead-leading);
+  letter-spacing: var(--text-subhead-tracking);
   color: var(--text-muted);
 }
 
@@ -621,7 +627,7 @@
   padding: 0 var(--space-2);
   font-family: var(--font-sans);
   font-size: var(--text-caption-1);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   line-height: 1;
   white-space: nowrap;
   border: none;
@@ -739,12 +745,15 @@
 .ui-list-row-title {
   font-family: var(--font-display);
   font-size: var(--text-body);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--text);
 }
 
 .ui-list-row-subtitle {
-  font-size: var(--text-footnote);
+  font-size: var(--text-subhead);
+  font-weight: var(--text-subhead-weight);
+  line-height: var(--text-subhead-leading);
+  letter-spacing: var(--text-subhead-tracking);
   color: var(--text-muted);
 }
 
@@ -854,7 +863,7 @@
   margin: 0 0 var(--space-2);
   font-family: var(--font-sans);
   font-size: var(--text-footnote);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--text-secondary);
 }
 
@@ -997,7 +1006,7 @@
   margin: 0;
   font-family: var(--font-sans);
   font-size: var(--text-subhead);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   color: var(--text-muted);
   text-align: start;
   text-decoration: none;
@@ -1024,7 +1033,7 @@
 .ui-nav-item[aria-current] {
   background: var(--accent-subtle);
   color: var(--accent);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 /* Phone width: a compact row's accessory cannot shrink (the segmented
@@ -1059,7 +1068,7 @@
 .ui-table-head {
   padding: var(--space-2) var(--space-4);
   font-size: var(--text-footnote);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--text-secondary);
   text-align: start;
   white-space: nowrap;
@@ -1110,11 +1119,11 @@
   padding: var(--space-3) var(--space-4);
   text-align: start;
   vertical-align: middle;
-  font-weight: 400;
+  font-weight: var(--font-weight-regular);
 }
 
 .ui-table-cell--title {
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 .ui-table-cell--end,
@@ -1289,6 +1298,20 @@
   padding: var(--space-4);
 }
 
+/* The padding override (Card's padding prop). These come after the variant
+   rules, so they win over a variant's padding on source order. */
+.ui-card--padding-none {
+  padding: var(--space-0);
+}
+
+.ui-card--padding-compact {
+  padding: var(--space-3) var(--space-4);
+}
+
+.ui-card--padding-regular {
+  padding: var(--space-6);
+}
+
 /* ── Page header: the shell's page heading (#298) ───────────────────────── */
 /* AppShell renders this block once per screen (components/ui/PageHeader.tsx)
    from the content a view claims through usePageHeader. The large title
@@ -1326,7 +1349,7 @@
   margin: 0;
   font-family: var(--font-display);
   font-size: var(--text-large-title);
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   line-height: 1.1;
   letter-spacing: -0.03em;
   color: var(--text);

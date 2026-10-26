@@ -4,6 +4,7 @@
 // semantics (spec #133 user story 53). Rate-limited retries stay disabled
 // behind countdown guidance that ticks down once per second.
 
+import { Icon } from "../ui/Icon.js";
 import { formatRetryCountdown } from "./copy-map.js";
 import { RetryAction } from "./RetryAction.js";
 import { useRetryCountdown } from "./use-retry-countdown.js";
@@ -41,13 +42,11 @@ export function FeedbackBanner({
   const role = tone === "error" ? "alert" : "status";
   return (
     <div className={`feedback-banner feedback-banner--${tone}`} role={role}>
-      <svg className="icon icon-md" aria-hidden="true">
-        <use href={`/assets/icons/sprite.svg#${BANNER_ICONS[tone]}`} />
-      </svg>
+      <Icon name={BANNER_ICONS[tone]} size="md" />
       <div className="feedback-banner-content">
-        <p className="feedback-banner-message">{message}</p>
+        <p className="feedback-banner-message text-footnote">{message}</p>
         {items !== undefined && items.length > 0 && (
-          <ul className="feedback-banner-items">
+          <ul className="feedback-banner-items text-footnote">
             {items.map((item) => (
               <li key={item}>{item}</li>
             ))}
@@ -57,7 +56,7 @@ export function FeedbackBanner({
       {onRetry !== undefined && (
         <div className="feedback-banner-actions">
           {remainingMs !== undefined && remainingMs > 0 && (
-            <span className="feedback-countdown">
+            <span className="feedback-countdown text-caption-1">
               {formatRetryCountdown(remainingMs)}
             </span>
           )}

@@ -2,6 +2,7 @@
 // activity area: what is in progress right now (#264, spec #241). It is a link to the
 // run, or to Runs when several are going. Nothing here is stored or announced.
 
+import { Icon } from "../ui/Icon.js";
 import "./NotificationActivity.css";
 
 import { Link } from "react-router-dom";
@@ -18,12 +19,10 @@ export function NotificationActivity() {
     return (
       <Link
         to={`/runs/${encodeURIComponent(only.runId)}`}
-        className="toolbar-activity"
+        className="toolbar-activity text-footnote"
         aria-label={`${only.ticketId}: ${status}`}
       >
-        <svg className="icon icon-sm icon-spin" aria-hidden="true">
-          <use href="/assets/icons/sprite.svg#icon-loader-2" />
-        </svg>
+        <Icon name="icon-loader-2" size="sm" className="icon-spin" />
         <span className="toolbar-activity-text">
           {only.ticketId} · {status}
         </span>
@@ -35,12 +34,10 @@ export function NotificationActivity() {
   return (
     <Link
       to="/runs"
-      className="toolbar-activity"
+      className="toolbar-activity text-footnote"
       aria-label={`${count} runs in progress`}
     >
-      <svg className="icon icon-sm icon-spin" aria-hidden="true">
-        <use href="/assets/icons/sprite.svg#icon-loader-2" />
-      </svg>
+      <Icon name="icon-loader-2" size="sm" className="icon-spin" />
       <span className="toolbar-activity-text">{count} runs in progress</span>
     </Link>
   );

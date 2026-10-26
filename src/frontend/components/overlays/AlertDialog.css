@@ -27,8 +27,6 @@
 
 .xf-alert-dialog-title {
   font-family: var(--font-display);
-  font-size: var(--text-headline);
-  font-weight: 600;
   color: var(--text);
   margin: 0;
   letter-spacing: -0.015em;
@@ -36,7 +34,6 @@
 
 .xf-alert-dialog-description {
   font-family: var(--font-sans);
-  font-size: var(--text-subhead);
   color: var(--text-muted);
   line-height: 1.45;
   margin: 0;
