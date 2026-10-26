@@ -111,13 +111,3 @@
   max-width: 60ch;
   color: var(--text-muted);
 }
-
-/* ── Unsandboxed Execution Opt-In & Confirmation Modal (#275, #266) ─── */
-
-.unsandboxed-modal-content {
-  line-height: 1.5;
-}
-
-.unsandboxed-modal-warning {
-  color: var(--text);
-}
