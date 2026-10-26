@@ -141,7 +141,7 @@ The design system is being migrated to the blocks. Until M8 lands, the code has 
 | G7 | No page `<header>` or page-heading class in `views/*.tsx`; PageHeader only | inactive | M7 files clean; gate lands with the activation step (part 2) |
 | G8 | No empty-state markup outside `AsyncRegion` or EmptyState | inactive | M7 files clean; gate lands with the activation step (part 2) |
 | G9 | No card class outside the Card block, except diagram node cards | inactive | M7 files clean; gate lands with the activation step (part 2) |
-| G10 | Button and menu-item labels use Title Case | inactive | step 5 |
+| G10 | Button and menu-item labels use Title Case | active | step 5 |
 | G11 | `buttons.css`, `cards.css` and `badges.css` do not exist; no bare `button` style | inactive | M8 |
 
 **Migration matrix** (spec #292, "Migration matrix"). Order M1 to M8. Each row removes every finding of the gates in its column from the files it owns:
