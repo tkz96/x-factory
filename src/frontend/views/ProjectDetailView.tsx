@@ -147,7 +147,7 @@ export function ProjectDetailView() {
 
         <div className="project-repos-section mt-6">
           <div className="section-header-flex mb-3">
-            <h3>{PROJECT_DETAIL_COPY.repositories}</h3>
+            <h3 className="text-headline">{PROJECT_DETAIL_COPY.repositories}</h3>
             <Badge id="project-detail-repo-count">{repos.length}</Badge>
           </div>
 

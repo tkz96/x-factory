@@ -5,7 +5,7 @@
 
 import "./RunDetailView.css";
 
-import { type CSSProperties, useRef } from "react";
+import { type CSSProperties, useMemo, useRef } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { AsyncRegion } from "../components/feedback/AsyncRegion.js";
 import { deriveAsyncState } from "../components/feedback/derive-async-state.js";
@@ -43,11 +43,22 @@ const LOADING = deriveAsyncState({
   error: undefined,
 });
 
-/** The page heading the shell draws for the run page: the same words the shell uses. */
+/** The page heading before the run loads: the same words the shell uses. */
 const PAGE_HEADER = {
   title: "Run",
   subtitle: "What the run is doing and what it needs from you",
 };
+
+/** A loaded run is named by its ticket, the way the shell names it. */
+function runPageHeader(
+  run: ReturnType<typeof useRunDetail>["run"],
+): typeof PAGE_HEADER {
+  if (!run) return PAGE_HEADER;
+  return {
+    title: `${run.ticket?.id || run.id} — ${run.ticket?.title || "Task"}`,
+    subtitle: `${run.project?.name} · ${run.branch}`,
+  };
+}
 
 function RunLoadingState() {
   return (
@@ -194,9 +205,10 @@ function RunDetailLayout({
 
 export function RunDetailView() {
   // The run page's heading is the shell's toolbar title: the view claims it, and draws none of its own.
-  usePageHeader(PAGE_HEADER);
   const { runId } = useParams<{ runId: string }>();
   const { run, isLoading, error, events, connected } = useRunDetail(runId);
+  const header = useMemo(() => runPageHeader(run), [run]);
+  usePageHeader(header);
   const location = useLocation();
   const notice = (location.state as RunPageState | null)?.notice;
 
