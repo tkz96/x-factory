@@ -70,41 +70,6 @@
   font-size: var(--text-caption-1);
 }
 
-.specimen-type--large-title {
-  font-size: var(--text-large-title);
-}
-.specimen-type--title-1 {
-  font-size: var(--text-title-1);
-}
-.specimen-type--title-2 {
-  font-size: var(--text-title-2);
-}
-.specimen-type--title-3 {
-  font-size: var(--text-title-3);
-}
-.specimen-type--headline {
-  font-size: var(--text-headline);
-  font-weight: 600;
-}
-.specimen-type--body {
-  font-size: var(--text-body);
-}
-.specimen-type--callout {
-  font-size: var(--text-callout);
-}
-.specimen-type--subhead {
-  font-size: var(--text-subhead);
-}
-.specimen-type--footnote {
-  font-size: var(--text-footnote);
-}
-.specimen-type--caption-1 {
-  font-size: var(--text-caption-1);
-}
-.specimen-type--caption-2 {
-  font-size: var(--text-caption-2);
-}
-
 .specimen-corners {
   display: flex;
   flex-wrap: wrap;

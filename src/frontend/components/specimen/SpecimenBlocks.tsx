@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { Badge } from "../ui/Badge.js";
 import { Button } from "../ui/Button.js";
+import { EmptyState } from "../ui/EmptyState.js";
+import { Icon } from "../ui/Icon.js";
 import { IconButton } from "../ui/IconButton.js";
 import { ListGroup, ListGroupRow } from "../ui/ListGroup.js";
 import { ListRow, PlaceholderRows } from "../ui/ListRow.js";
@@ -143,6 +145,23 @@ export function SpecimenBlocks() {
       <div className="specimen-row">
         <Spinner />
       </div>
+
+      <h3 className="specimen-subheading">Icon</h3>
+      <div className="specimen-row">
+        {(["xs", "sm", "md", "lg", "xl"] as const).map((size) => (
+          <Icon key={size} name="icon-check" size={size} />
+        ))}
+        <Icon name="icon-alert-circle" label="Warning" />
+      </div>
+
+      <h3 className="specimen-subheading">EmptyState</h3>
+      <EmptyState
+        icon="icon-search"
+        headingLevel={4}
+        title="No Matching Runs"
+        message="Try a different search, or clear the filters."
+        action={<Button variant="secondary">Clear Filters</Button>}
+      />
     </section>
   );
 }

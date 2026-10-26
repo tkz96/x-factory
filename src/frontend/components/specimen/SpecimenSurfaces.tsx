@@ -25,7 +25,7 @@ export function SpecimenTypeScale() {
         Type scale
       </h2>
       {TYPE_SCALE.map(([name, key]) => (
-        <p key={key} className={`specimen-type specimen-type--${key}`}>
+        <p key={key} className={`specimen-type text-${key}`}>
           <span className="specimen-type-name">{name}</span> The quick brown fox
         </p>
       ))}
