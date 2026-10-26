@@ -9,7 +9,7 @@
   width: min(var(--modal-max-width), 100%);
   max-height: min(var(--modal-max-height), 100%);
   background: var(--bg-modal);
-  border: var(--border-width) solid var(--border);
+  border: var(--hairline) solid var(--separator);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   overflow: hidden;
@@ -31,7 +31,7 @@
   gap: var(--space-3);
   min-height: var(--tap-min);
   padding: 0 var(--space-4);
-  border-bottom: var(--border-width) solid var(--border-subtle);
+  border-bottom: var(--hairline) solid var(--separator);
   color: var(--text-muted);
   flex-shrink: 0;
 }
@@ -129,7 +129,7 @@
   font-size: var(--text-caption-1);
   color: var(--text-muted);
   background: var(--bg-surface-2);
-  border: var(--border-width) solid var(--border);
+  border: var(--hairline) solid var(--separator);
   border-radius: var(--radius-xs);
   white-space: nowrap;
 }

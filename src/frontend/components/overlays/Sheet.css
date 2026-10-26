@@ -2,7 +2,7 @@
 
 .xf-sheet-modal {
   background: var(--bg-modal);
-  border: var(--border-width) solid var(--border);
+  border: var(--hairline) solid var(--separator);
   box-shadow: var(--shadow-lg);
   display: flex;
   flex-direction: column;

@@ -47,12 +47,13 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  min-height: var(--tap-min);
-  padding: var(--space-2) var(--space-5);
+  min-height: var(--control-height);
+  padding: 0 var(--space-5);
   font-family: var(--font-sans);
   font-size: var(--text-callout);
   font-weight: 600;
-  border: var(--border-width) solid transparent;
+  /* Buttons have a filled bezel and no border (spec #292). */
+  border: 0;
   border-radius: var(--radius-md);
   cursor: pointer;
   transition:
@@ -90,24 +91,17 @@
 }
 
 .ui-button--secondary {
-  background: var(--bg-card);
+  background: var(--fill-control);
   color: var(--text);
-  border-color: var(--border-control);
 }
 
 .ui-button--secondary[data-hovered] {
-  background: var(--bg-card-hover);
-  border-color: var(--border-hover);
+  background: var(--fill-control-hover);
 }
 
 .ui-button--danger {
   background: var(--red-dim);
   color: var(--red);
-  border-color: transparent;
-}
-
-.ui-button--danger[data-hovered] {
-  border-color: var(--red);
 }
 
 .ui-button--quiet {
@@ -129,12 +123,29 @@
   border-radius: var(--radius-sm);
 }
 
-/* A finger's target, whatever the pointer claims to be: a coarse pointer, or a
-   viewport narrow enough that the pointer is a finger in practice. A phone
-   reports `pointer: coarse` until something in the page disturbs the emulation,
-   and the target must not depend on that (DESIGN.md §8: 44×44pt). */
-@media (pointer: coarse), (max-width: 768px) {
-  .ui-button--sm {
+.ui-button--lg {
+  min-height: var(--control-height-lg);
+}
+
+/* A finger's target, whatever the pointer claims to be: any touch input
+   (any-pointer, so a touch laptop with a trackpad counts), or a viewport narrow
+   enough that the pointer is a finger in practice. Every control is then at
+   least --tap-min (DESIGN.md §5 Accessibility, spec #292). */
+@media (any-pointer: coarse), (max-width: 768px) {
+  .ui-button,
+  .ui-button--sm,
+  .ui-button--lg,
+  .ui-select-trigger,
+  .ui-segmented,
+  .ui-segment,
+  .ui-nav-item {
+    min-height: var(--tap-min);
+  }
+
+  .ui-icon-button {
+    width: var(--tap-min);
+    height: var(--tap-min);
+    min-width: var(--tap-min);
     min-height: var(--tap-min);
   }
 }
@@ -150,11 +161,12 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: var(--tap-min);
-  height: var(--tap-min);
-  min-width: var(--tap-min);
-  min-height: var(--tap-min);
-  border: var(--border-width) solid var(--border-subtle);
+  width: var(--control-height);
+  height: var(--control-height);
+  min-width: var(--control-height);
+  min-height: var(--control-height);
+  /* Icon-only buttons have a filled bezel and no border (spec #292). */
+  border: 0;
   border-radius: var(--radius-full);
   corner-shape: round;
   background: var(--bg-circle-btn);
@@ -171,7 +183,6 @@
 
 .ui-icon-button[data-hovered] {
   background: var(--bg-circle-btn-hover);
-  border-color: var(--border-hover);
   color: var(--text);
 }
 
@@ -301,7 +312,7 @@
   justify-content: space-between;
   gap: var(--space-2);
   width: 100%;
-  min-height: var(--tap-min);
+  min-height: var(--control-height);
   padding: var(--space-2) var(--space-3);
   font-family: var(--font-sans);
   font-size: var(--text-body);
@@ -399,11 +410,11 @@
   display: inline-flex;
   gap: 0;
   padding: 0;
-  min-height: var(--tap-min);
+  min-height: var(--control-height);
   max-width: 100%;
   background: var(--bg-tertiary);
   border: none;
-  box-shadow: inset 0 0 0 var(--border-width) var(--border-control);
+  box-shadow: var(--shadow-ring-control);
   border-radius: var(--radius-md);
 }
 
@@ -423,7 +434,7 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  min-height: var(--tap-min);
+  min-height: var(--control-height);
   /* The track never overflows its container: a segment may shrink and its
      label truncate (#290). */
   min-width: 0;
@@ -675,7 +686,7 @@
   text-align: left;
   color: var(--text);
   background: var(--bg-card);
-  border: var(--border-width) solid var(--border-control);
+  border: var(--hairline) solid var(--separator);
   border-radius: var(--radius-card);
 }
 
@@ -821,7 +832,7 @@
   flex-direction: column;
   gap: 0;
   background: var(--bg-card);
-  border: var(--border-width) solid var(--border-subtle);
+  border: var(--hairline) solid var(--separator);
   border-radius: var(--radius-card);
   overflow: hidden;
   /* A size container: the rows respond to how wide the LIST is, not to the
@@ -889,14 +900,14 @@
   position: absolute;
   inset-inline: var(--space-4) 0;
   top: 0;
-  border-top: var(--border-width) solid var(--border-subtle);
+  border-top: var(--hairline) solid var(--separator);
 }
 
 /* Inside a group the row draws no box of its own: the group is the box. */
 .ui-list-group .ui-list-row {
   background: transparent;
   border: none;
-  border-radius: 0;
+  border-radius: var(--radius-none);
 }
 
 /* The row the URL names reads as chosen: one filled row, no border. */
@@ -938,7 +949,7 @@
   align-items: center;
   gap: var(--space-2);
   width: 100%;
-  min-height: var(--button-height);
+  min-height: var(--control-height);
   padding: 0 var(--space-3);
   margin: 0;
   font-family: var(--font-sans);
@@ -973,12 +984,6 @@
   font-weight: 600;
 }
 
-@media (pointer: coarse) {
-  .ui-nav-item {
-    min-height: var(--tap-min);
-  }
-}
-
 /* Phone width: a compact row's accessory cannot shrink (the segmented
    appearance picker, a select), so it takes its own line under the title
    instead of squeezing the label. This now lives on the list's own container
@@ -996,7 +1001,7 @@
   container-type: inline-size;
   container-name: ui-table;
   background: var(--bg-card);
-  border: var(--border-width) solid var(--border-subtle);
+  border: var(--hairline) solid var(--separator);
   border-radius: var(--radius-card);
   overflow: hidden;
 }
@@ -1016,7 +1021,7 @@
   text-align: start;
   white-space: nowrap;
   background: var(--bg-secondary);
-  border-bottom: var(--border-width) solid var(--border-subtle);
+  border-bottom: var(--hairline) solid var(--separator);
 }
 
 .ui-table-sort {
@@ -1083,7 +1088,7 @@
 /* Hairlines between rows, not around them. */
 .ui-table-row + .ui-table-row > *,
 .ui-table-detail + .ui-table-row > * {
-  border-top: var(--border-width) solid var(--border-subtle);
+  border-top: var(--hairline) solid var(--separator);
 }
 
 .ui-table-row--highlighted {
@@ -1122,7 +1127,7 @@
 
   .ui-table-row + .ui-table-row,
   .ui-table-detail + .ui-table-row {
-    border-top: var(--border-width) solid var(--border-subtle);
+    border-top: var(--hairline) solid var(--separator);
   }
 
   .ui-table-row + .ui-table-row > *,

@@ -34,7 +34,7 @@
   justify-content: center;
   width: var(--space-6);
   height: var(--space-6);
-  border: var(--border-width) solid var(--border);
+  border: var(--hairline) solid var(--separator);
   border-radius: var(--radius-full);
   corner-shape: round;
   color: var(--text-on-accent);

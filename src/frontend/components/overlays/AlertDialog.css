@@ -2,7 +2,7 @@
 
 .xf-alert-dialog-modal {
   background: var(--bg-modal);
-  border: var(--border-width) solid var(--border);
+  border: var(--hairline) solid var(--separator);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   width: 100%;

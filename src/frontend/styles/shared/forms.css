@@ -38,7 +38,7 @@ label:first-of-type {
   textarea:focus
 ) {
   border-color: var(--border-focus);
-  box-shadow: 0 0 0 var(--border-width-indicator) var(--accent-dim);
+  box-shadow: var(--shadow-focus);
 }
 
 textarea {
@@ -63,10 +63,10 @@ select {
 .form-input,
 .form-select {
   width: 100%;
-  /* A regular control is a finger's target (DESIGN.md §8, 44×44pt). The
-     padding alone lands just under it, so the height is stated here, once, for
-     every screen that wears these classes. */
-  min-height: var(--tap-min);
+  /* A regular control's height is its metric (macOS 28px, iOS 44px). A touch
+     input or a narrow viewport raises it to --tap-min at the end of this file.
+     Stated once, for every screen that wears these classes. */
+  min-height: var(--control-height);
   padding: 0.6rem 0.8rem;
   background: var(--bg-input);
   border: var(--border-width) solid var(--border-control);
@@ -84,7 +84,7 @@ select {
 .form-select:focus {
   outline: none;
   border-color: var(--border-focus);
-  box-shadow: 0 0 0 var(--border-width-indicator) var(--accent-dim);
+  box-shadow: var(--shadow-focus);
 }
 
 .form-select {
@@ -115,4 +115,13 @@ select {
 
 .required {
   color: var(--red);
+}
+
+/* A touch input or a narrow viewport: a field is a finger's target (spec #292). */
+@media (any-pointer: coarse), (max-width: 768px) {
+  .code-input,
+  .form-input,
+  .form-select {
+    min-height: var(--tap-min);
+  }
 }

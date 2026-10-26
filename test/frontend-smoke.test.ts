@@ -695,6 +695,132 @@ describe("Frontend Smoke — CSS variable resolution", () => {
   });
 });
 
+// ─── Foundations gates (spec #292, step 1) ─────────────────────────────────
+
+/** The values of one property in a stylesheet, comments removed and whitespace collapsed. */
+function declarationValues(css: string, property: string): string[] {
+  const stripped = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  const pattern = new RegExp(`(?:^|[;{\\s])${property}\\s*:\\s*([^;{}]*)`, "g");
+  return [...stripped.matchAll(pattern)].map((m) =>
+    (m[1] ?? "").replace(/\s+/g, " ").trim(),
+  );
+}
+
+/**
+ * G1: a box-shadow or border-radius value is built only from tokens: var(--x),
+ * calc() of tokens (an inner radius is the outer one minus the inset), or none.
+ * Once the tokens are removed, nothing may be left but operators and brackets.
+ */
+function isTokenShapeValue(value: string): boolean {
+  if (value === "none") return true;
+  const rest = value
+    .replace(/calc\(/g, "(")
+    .replace(/var\(\s*--[a-zA-Z0-9_-]+\s*\)/g, "")
+    .replace(/\s+/g, "");
+  return /^[(),+\-*/]*$/.test(rest) && /var\(/.test(value);
+}
+
+function rawShapeDeclarations(css: string): string[] {
+  return ["box-shadow", "border-radius"].flatMap((property) =>
+    declarationValues(css, property)
+      .filter((value) => !isTokenShapeValue(value))
+      .map((value) => `${property}: ${value}`),
+  );
+}
+
+/** G2: no text token is smaller than 10px (the root is 16px, so rem * 16). */
+const MIN_TEXT_TOKEN_PX = 10;
+const REMOVED_TEXT_TOKENS = ["--text-micro", "--text-badge", "--text-tag"];
+
+function undersizedTextTokens(css: string): string[] {
+  const stripped = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  const out: string[] = [];
+  for (const m of stripped.matchAll(
+    /(--text-[a-zA-Z0-9-]+)\s*:\s*([0-9.]+)(px|rem)\s*;/g,
+  )) {
+    const px = Number(m[2]) * (m[3] === "rem" ? 16 : 1);
+    if (px < MIN_TEXT_TOKEN_PX) out.push(`${m[1]}: ${m[2]}${m[3]}`);
+  }
+  return out;
+}
+
+describe("Frontend Smoke — Foundations gates G1 and G2 (spec #292)", () => {
+  function frontendStylesheets(): { file: string; text: string }[] {
+    const out: { file: string; text: string }[] = [];
+    const walk = (dir: string) => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) walk(full);
+        else if (entry.name.endsWith(".css")) {
+          out.push({
+            file: path.relative(ROOT_DIR, full),
+            text: fs.readFileSync(full, "utf-8"),
+          });
+        }
+      }
+    };
+    walk(path.join(ROOT_DIR, "src/frontend"));
+    return out;
+  }
+
+  const stylesheets = frontendStylesheets();
+  const outsideTokens = stylesheets.filter(
+    ({ file }) => !file.endsWith("tokens.css"),
+  );
+
+  it("G1: no raw box-shadow or border-radius value outside tokens.css", () => {
+    const violations = outsideTokens.flatMap(({ file, text }) =>
+      rawShapeDeclarations(text).map((value) => `${file}: ${value}`),
+    );
+    expect(violations).toEqual([]);
+  });
+
+  it("G1 fails on a raw shadow or radius, and passes tokens and none (fixture)", () => {
+    expect(
+      rawShapeDeclarations(
+        ".card { box-shadow: 0 1px 2px red; border-radius: 4px; }",
+      ),
+    ).toEqual(["box-shadow: 0 1px 2px red", "border-radius: 4px"]);
+    expect(
+      rawShapeDeclarations(
+        ".ok {\n  box-shadow:\n    var(--shadow-sm);\n  border-radius: var(--radius-card);\n  border-radius: calc(var(--radius-md) - var(--space-1));\n}\n.none { box-shadow: none; }",
+      ),
+    ).toEqual([]);
+    expect(
+      rawShapeDeclarations(
+        ".edge { border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }",
+      ),
+    ).toEqual(["border-radius: 0 var(--radius-sm) var(--radius-sm) 0"]);
+  });
+
+  it("G2: no text token is smaller than 10px, and the off-scale tokens are gone", () => {
+    const tokens = stylesheets.find(({ file }) =>
+      file.endsWith("tokens.css"),
+    )?.text;
+    expect(tokens).toBeDefined();
+    expect(undersizedTextTokens(tokens ?? "")).toEqual([]);
+    const uses = stylesheets.flatMap(({ file, text }) =>
+      REMOVED_TEXT_TOKENS.filter((name) => text.includes(name)).map(
+        (name) => `${file}: ${name}`,
+      ),
+    );
+    expect(uses).toEqual([]);
+  });
+
+  it("G2 fails on a token below 10px and on a removed token (fixture)", () => {
+    expect(
+      undersizedTextTokens(
+        ":root { --text-micro: 9px; --text-caption-1: 0.625rem; --text-footnote: 0.5rem; }",
+      ),
+    ).toEqual(["--text-micro: 9px", "--text-footnote: 0.5rem"]);
+    expect(
+      REMOVED_TEXT_TOKENS.filter((name) =>
+        ".x { font-size: var(--text-tag); }".includes(name),
+      ),
+    ).toEqual(["--text-tag"]);
+  });
+});
+
 // ─── Motion system (spec #241, ticket #252) ────────────────────────────────
 
 describe("Frontend Smoke — Motion (#252)", () => {

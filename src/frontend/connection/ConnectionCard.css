@@ -1,7 +1,7 @@
 /* src/frontend/connection/ConnectionCard.css — Role-based connection card styling */
 
 .connection-card {
-  border: var(--border-width) solid var(--border);
+  border: var(--hairline) solid var(--separator);
   border-radius: var(--radius-card);
   background: var(--bg-card);
   padding: var(--space-5);

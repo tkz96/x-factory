@@ -215,7 +215,7 @@
 .run-inspector-footer {
   flex: none;
   padding: var(--space-2) var(--space-4);
-  border-top: var(--border-width) solid var(--border-subtle);
+  border-top: var(--hairline) solid var(--separator);
 }
 
 .ui-button.run-inspector-raw-log {
@@ -296,7 +296,7 @@
   margin-bottom: 0;
   padding: 0;
   border: none;
-  border-radius: 0;
+  border-radius: var(--radius-none);
   background: transparent;
 }
 

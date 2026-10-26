@@ -20,6 +20,7 @@ import {
   REQUIRED_POST_CREATION_ROLES,
   recordedConnectionIdentityTargets,
 } from "../components/projects/connection-integrity.js";
+import { AccessibilitySettings } from "../components/settings/AccessibilitySettings.js";
 import { DesktopNotificationsSetting } from "../components/settings/DesktopNotificationsSetting.js";
 import { ModelConnectionsPanel } from "../components/settings/ModelConnectionsPanel.js";
 import { RolesPanel } from "../components/settings/RolesPanel.js";
@@ -52,6 +53,7 @@ import {
 
 type SettingsTab =
   | "general"
+  | "accessibility"
   | "trackers"
   | "models"
   | "git"
@@ -65,6 +67,7 @@ const SETTINGS_CATEGORIES: readonly {
   icon: string;
 }[] = [
   { id: "general", label: "General", icon: "icon-settings" },
+  { id: "accessibility", label: "Accessibility", icon: "icon-eye" },
   { id: "trackers", label: "Connections", icon: "icon-layers" },
   { id: "models", label: "Models", icon: "icon-code" },
   { id: "git", label: "Git", icon: "icon-git-branch" },
@@ -598,6 +601,16 @@ export function SettingsView() {
               onUpdateUnsandboxed={handleUpdateUnsandboxed}
               isSavingUnsandboxed={saveSettingsMutation.isPending}
             />
+          )}
+
+          {activeTab === "accessibility" && (
+            <div className="settings-pane">
+              <h2 className="settings-pane-title">Accessibility</h2>
+              <p className="settings-pane-subtitle">
+                Text and transparency. Both apply to every screen.
+              </p>
+              <AccessibilitySettings />
+            </div>
           )}
 
           {activeTab === "trackers" && (

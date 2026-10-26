@@ -71,7 +71,7 @@
   align-items: center;
   gap: 0.3rem;
   padding: 0.25rem 0.55rem;
-  font-size: var(--text-tag);
+  font-size: var(--text-caption-1);
   font-weight: 500;
   color: var(--text-muted);
   background: var(--bg-card);
@@ -142,19 +142,16 @@
 /* ── Sleek Floating Glass MiniMap ──────────────────────────────────── */
 .flow-canvas-wrapper .react-flow__minimap,
 .flow-modal-canvas .react-flow__minimap {
-  background: var(--bg-glass);
-  border: var(--border-width) solid var(--border-subtle);
+  /* The glass background and blur live in tokens.css, keyed on data-transparency. */
+  border: var(--hairline) solid var(--separator);
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-md);
-  backdrop-filter: var(--blur-md);
-  -webkit-backdrop-filter: var(--blur-md);
   overflow: hidden;
   margin: var(--space-3);
 }
 
 [data-theme="dark"] .flow-canvas-wrapper .react-flow__minimap,
 [data-theme="dark"] .flow-modal-canvas .react-flow__minimap {
-  background: var(--bg-glass);
   box-shadow: var(--shadow-md);
 }
 

@@ -46,7 +46,7 @@
   }
 
   .projects-detail-pane {
-    border-left: var(--border-width) solid var(--border);
+    border-left: var(--hairline) solid var(--separator);
     padding-left: var(--space-8);
   }
 }

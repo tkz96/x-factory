@@ -35,7 +35,7 @@ So the first question is: **is this shipping as a native app on an Apple platfor
 
 - **Native Apple platform app** → use SF Symbols and SF Pro directly, no substitution. Skip to Section 4.
 - **Web app** (the default assumption for this project, given the stack) → you get the *system*, not the *shipped assets*:
-  - **Typography**: use the system font stack — `-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui`. On an Apple device this legitimately resolves to real San Francisco, because it's the OS pointing at its own installed font, not you embedding one. Pair it with a web-licensed fallback for everyone else — **Inter** is the closest optical match to SF Pro (similar x-height, similar spacing rhythm).
+  - **Typography**: use the system font stack, `-apple-system, BlinkMacSystemFont, "Inter", sans-serif`. On an Apple device this legitimately resolves to real San Francisco, because it's the OS pointing at its own installed font, not you embedding one. Everywhere else it resolves to Inter, the bundled web-licensed fallback. Do not put `system-ui` first: on Windows and Linux it gives the platform font, not Inter (spec #292, "Fonts").
   - **Icons**: don't ship literal SF Symbols glyphs in a web bundle. Use an icon set built on the same grammar instead — optically balanced, consistent stroke width, aligns to a text baseline, multiple weights. **Lucide** or **Phosphor** at "regular" weight are the closest matches. Match the *system* (stroke width, corner radius, optical sizing, alignment to text), not the individual glyph shapes.
   - **The Figma kit is still your reference** for layout, spacing, component anatomy, and redlines. You're using it to learn the system, not exporting its font/icon assets verbatim into a shipped product.
 
@@ -70,27 +70,52 @@ Never hardcode a hex value for a semantic role. Use `label` / `secondaryLabel` /
 
 ### Typography
 HIG: `/design/human-interface-guidelines/typography`
-Apple's default type scale (SF Pro, Dynamic Type "Large" size):
 
-| Style | Size | Weight |
+**Fonts** (spec #292, "Fonts"):
+
+- Sans and display: `--font-sans` and `--font-display` are `-apple-system, BlinkMacSystemFont, "Inter", sans-serif`. Mac shows SF Pro. Other platforms show Inter.
+- Monospace: `--font-mono` is `ui-monospace, "SF Mono", Menlo, "IBM Plex Mono", monospace`. Mac shows SF Mono.
+- **Themes change colour only.** Graphite and Sandstone set no font. IBM Plex Sans is not shipped.
+- **Readable font** is a setting (Settings > Accessibility, off by default). When it is on, `data-font="readable"` is set on the root element and the sans and mono tokens use Atkinson Hyperlegible Next and Mono. Its font files download only when it is on.
+
+**Two type scales** (spec #292, "Type scale and density"). Pick the scale by the primary pointer and the width:
+
+- **macOS scale** when `(pointer: fine)` and the viewport is wider than 768px. A mouse or trackpad gets the macOS sizes.
+- **iOS scale** otherwise: a coarse primary pointer, or a viewport of 768px or less.
+
+Both scales are written in `rem`, so the browser's font-size setting scales every text style (computed px at the default 16px root).
+
+| Style | macOS (fine pointer, wide) | iOS (coarse pointer or narrow) |
 |---|---|---|
-| Large Title | 34px | Regular |
-| Title 1 | 28px | Regular |
-| Title 2 | 22px | Regular |
-| Title 3 | 20px | Regular |
-| Headline | 17px | Semibold |
-| Body | 17px | Regular |
-| Callout | 16px | Regular |
-| Subheadline | 15px | Regular |
-| Footnote | 13px | Regular |
-| Caption 1 | 12px | Regular |
-| Caption 2 | 11px | Regular |
+| Large Title | 26px Regular | 34px Regular |
+| Title 1 | 22px Regular | 28px Regular |
+| Title 2 | 17px Regular | 22px Regular |
+| Title 3 | 15px Regular | 20px Regular |
+| Headline | 13px Bold | 17px Semibold |
+| Body | 13px Regular | 17px Regular |
+| Callout | 12px Regular | 16px Regular |
+| Subheadline | 11px Regular | 15px Regular |
+| Footnote | 10px Regular | 13px Regular |
+| Caption 1 | 10px Regular | 12px Regular |
+| Caption 2 | 10px Medium | 11px Regular |
 
-Use this scale exclusively — no arbitrary font sizes. On the web, implement it with `rem` so it scales with the user's browser text-size setting (the closest equivalent to Dynamic Type).
+On macOS, Footnote and Caption (10px) are only for metadata: timestamps, counts, badges, keyboard hints. Descriptions and secondary text use Subheadline (11) or Callout (12). No running text is smaller than 11px.
+
+Use these styles exclusively. No arbitrary font sizes, and no token below 10px (gate G2). Badges and tags use Caption 1 or Footnote. Text styles set font-size, font-weight, line-height and letter-spacing together (`.text-body`, `.text-headline`, `.text-caption-1` and so on).
+
+**Control metrics** (computed px). The macOS metrics apply with the macOS scale: regular control 28px tall, small 22px, large 32px, toolbar 52px, sidebar row 28px. The iOS scale keeps the iOS header of 56px.
 
 ### Layout & spacing
 HIG: `/design/human-interface-guidelines/layout`
 Apple lays out on an **8pt grid with a 4pt sub-grid**. Standard content margins are 16–20pt. Use this instead of arbitrary pixel values — it's most of what makes an interface feel "considered" rather than assembled ad hoc.
+
+### Lines and borders
+Lines follow the macOS model (spec #292, "Lines and borders"):
+
+- **Hairline.** `--hairline` is 1px, and 0.5px on screens of 2 device pixels per CSS pixel or more. Containers, lists, section dividers and card edges draw the hairline in `--separator`, a low-alpha colour for each appearance.
+- **Buttons have a filled bezel and no border.** A secondary button fills with `--fill-control`. An icon-only button keeps its own fill.
+- **Fields, checkboxes, radios and switches keep a boundary** in `--border-control`, which holds 3:1 contrast against the background in every theme, appearance and contrast setting (`test/theme-contrast.test.ts`).
+- **Increase Contrast** (`data-contrast="more"`) sets `--hairline` to the solid strong border and `--separator` to `--border` everywhere.
 
 ### Materials (Liquid Glass)
 HIG: `/design/human-interface-guidelines/materials`
@@ -105,6 +130,13 @@ Liquid Glass is translucent, reacts to the content behind it, and adapts between
 └─────────────────────────────────────┘
 ```
 Glass/blur is for chrome, never for primary content surfaces (cards, list rows, body text backgrounds). If you're tempted to blur something people are trying to read, don't.
+
+**What the glass covers in this app** (spec #292, "Materials and Reduce Transparency"):
+
+- The glass material is a token. It applies to the **sidebar and the toolbar only**. Content stays opaque.
+- The material is keyed on the `data-transparency` attribute on the root element, never on the media query in a component stylesheet. `data-transparency="full"` is glass. `data-transparency="reduced"` is opaque chrome: the sidebar and toolbar take `--bg-sidebar` and drop the blur.
+- **Reduce Transparency** is a setting in Settings > Accessibility with three values. **Automatic** (the default) follows `(prefers-reduced-transparency: reduce)` where the browser reports it. **On** always uses opaque chrome. **Off** always uses glass.
+- Safari does not report the system setting, and in Firefox the query is off by default. In those browsers Automatic gives glass. The setting's help text tells people to choose On when the system setting is on.
 
 ### Motion
 HIG: `/design/human-interface-guidelines/motion`
@@ -133,7 +165,7 @@ SF Symbols ship in 3 scales (small/medium/large) and 9 weights matching SF Pro's
 
 2. **Strict Geometry & Geometry Spec**:
    - ViewBox: `0 0 24 24`.
-   - Stroke width: `2px` (`stroke-width="2"`), `fill="none"`, `stroke="currentColor"`.
+   - Stroke width: `1.5px` (`stroke-width="1.5"`), matching SF Symbols Regular, `fill="none"`, `stroke="currentColor"`. The sprite symbols and `styles/shared/icons.css` both use 1.5 (spec #292, "Icons").
    - Line cap and join: `stroke-linecap="round"` and `stroke-linejoin="round"`.
    - Brand icons (GitHub, Azure DevOps, GitLab, Jira, Bitbucket) strictly conform to the same 24×24 bounding box, line aesthetics, and `currentColor` responsiveness.
 
@@ -160,10 +192,10 @@ SF Symbols ship in 3 scales (small/medium/large) and 9 weights matching SF Pro's
 
 ### Accessibility
 HIG: `/design/human-interface-guidelines/accessibility`
-- Minimum tap/click target: **44×44pt**, even if the visible icon is smaller.
+- Minimum target: **44px** wherever a touch input is present (`(any-pointer: coarse)`) or the viewport is 768px or less, from `--tap-min`. With a mouse or trackpad alone the target is a hit area of at least **24×24px** (WCAG 2.5.8), even if the visible control is smaller (spec #292).
 - Text contrast: minimum 4.5:1 for body text against its background (Apple's guidance and WCAG AA agree here).
 - Every icon-only control needs an accessible label — `aria-label` on the web, not just a `title` attribute.
-- Respect reduced-motion and (where relevant) reduced-transparency preferences.
+- Respect reduced-motion and reduced-transparency preferences: the media query, and the app's Reduce Transparency setting (see Materials).
 
 ## 6. Starter tokens (illustrative)
 
@@ -190,11 +222,17 @@ Drop-in baseline for a web implementation — adjust values only against the HIG
   --space-1: 4px; --space-2: 8px; --space-3: 12px;
   --space-4: 16px; --space-5: 20px; --space-6: 24px; --space-8: 32px;
 
-  /* Type scale */
+  /* Type scale. The iOS values are the default: a touch input or a viewport of
+     768px or less. On a fine primary pointer wider than 768px, the macOS values
+     below replace them (spec #292, "Type scale and density"). Written in rem in
+     tokens.css, so the browser's text-size setting scales them. */
   --text-large-title: 34px; --text-title-1: 28px; --text-title-2: 22px;
   --text-title-3: 20px; --text-headline: 17px; --text-body: 17px;
   --text-callout: 16px; --text-subhead: 15px; --text-footnote: 13px;
   --text-caption-1: 12px; --text-caption-2: 11px;
+
+  /* macOS values (fine primary pointer, wider than 768px), in Section 5:
+     26 22 17 15 13 13 12 11 10 10 10 */
 
   /* Radius — one ladder, six rungs. A control's radius comes from its size, not
      from the screen it sits on; an inner shape's radius is the outer radius
@@ -234,7 +272,7 @@ Drop-in baseline for a web implementation — adjust values only against the HIG
   --sheet-width: 560px;
 
   /* Fonts — web path; see Section 3 for the licensing reasoning */
-  --font-system: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", system-ui, sans-serif;
+  --font-system: -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
 }
 
 [data-theme="dark"] {
@@ -275,7 +313,7 @@ For flows, check the Patterns section first: onboarding, search, feedback, data 
 A screen composes blocks; it never hand-rolls a control. The vocabulary lives in `src/frontend/components/ui/` and is built on React Aria's unstyled primitives — React Aria owns behaviour (keyboard, press, focus visibility, disabled and touch semantics) and the tokens own every visual value. The one stylesheet is `src/frontend/styles/shared/controls.css`; see [docs/agents/frontend-styling.md](./docs/agents/frontend-styling.md) for the rules and the gate that enforces them.
 
 - button, icon button, text field, text area, select, segmented control, switch, badge, grouped list, list row, table, spinner.
-- **Tap targets.** Every block a finger can hit is at least 44pt tall, taken from `--tap-min`.
+- **Tap targets.** Every block a finger can hit is at least `--tap-min` tall: 44px where a touch input is present or the viewport is 768px or less, otherwise a 24px hit area (spec #292).
 - **Focus.** One ring definition, drawn from `--border-width-indicator` and `--border-focus`, proved at 3:1 or better by the twelve-set contrast gate.
 - **Feedback.** The feedback family in `src/frontend/components/feedback/` renders through these blocks. Errors are announced as alerts; informational and partial states stay polite.
 - **Loading.** A list reserves static placeholder rows at the height the loaded rows will have (`--list-row-height`) — no layout shift and no shimmer, ever. Every other wait is the one standard spinner, for small inline waits only.
@@ -285,7 +323,7 @@ A screen composes blocks; it never hand-rolls a control. The vocabulary lives in
 
 - **Grouped inset lists.** Settings panes, the Welcome checklist, the Runs list,
   the Projects list and the Connections registry are one shape: a `--radius-card`
-  group on `--bg-card`, rows at least 44pt tall with the title on the leading
+  group on `--bg-card`, rows at least `--tap-min` tall with the title on the leading
   edge and the accessory trailing, and an inset hairline between rows that
   starts where the row's content starts — never a bordered box per row. The
   block is `ListGroup` (`components/ui/ListGroup.tsx`); a screen composes it and
@@ -298,10 +336,15 @@ A screen composes blocks; it never hand-rolls a control. The vocabulary lives in
   Settings › Models (one table per connection, sortable) and a project's
   Repositories — it builds on `Table` (`components/ui/Table.tsx`), drawn as the
   same inset group as a list.
-- **Control sizes.** A regular control is `--tap-min` (44pt) tall. `size="sm"`
-  is 32pt — a row accessory (Add, Copy, Mark all as read) — and grows back to
-  `--tap-min` under a coarse pointer or at phone width. An icon-only control is
-  a 44×44 circle that never stretches; `plain` draws no circle of its own.
+- **Control sizes.** Each control takes its height from a metric token, so the
+  heights follow the scale. On the macOS scale (fine primary pointer, wider than
+  768px) a regular control is `--control-height` (28px), `size="sm"` is
+  `--control-height-sm` (22px): a row accessory (Add, Copy, Mark all as read) and
+  `size="lg"` is `--control-height-lg` (32px). On the iOS scale the metrics are
+  44px, 32px and 50px. Wherever a touch input is present (`any-pointer: coarse`)
+  or the viewport is 768px or less, every control is at least `--tap-min` (44px).
+  An icon-only control is a circle as tall as the control, and it never stretches;
+  `plain` draws no circle of its own.
 - **Badges.** A status or tag badge is a capsule (`--radius-full`), sans,
   caption 1, weight 600, sentence case (the copy is written that way — never
   `text-transform`), a tint fill and no border, about a line of caption tall. A
@@ -331,7 +374,7 @@ A screen composes blocks; it never hand-rolls a control. The vocabulary lives in
 - MUST NOT invent a custom control (custom dropdown, custom modal, custom date picker) when Apple has a documented equivalent.
 - MUST implement light and dark appearance together, from the first pass — using semantic tokens, never hardcoded hex values.
 - MUST use the 8pt/4pt spacing grid. No arbitrary pixel values in layout code.
-- MUST meet 44×44pt minimum tap targets on every interactive element.
+- MUST meet the tap target for the input in use: `--tap-min` (44px) where a touch input is present or the viewport is 768px or less, and a 24×24px hit area otherwise (Section 5, Accessibility).
 - MUST respect `prefers-reduced-motion`. Motion must explain a state change, not just decorate one.
 - MUST NOT apply blur/glass materials to content surfaces — chrome only (Section 5, Materials).
 - MUST use the defined type scale (Section 5, Typography) — no arbitrary font sizes.
@@ -357,7 +400,7 @@ Before calling any UI work finished, confirm:
 - [ ] Type scale, spacing grid, and color tokens used — no magic numbers
 - [ ] Zero inline styles (`style={{...}}`) in any TSX file
 - [ ] Co-located `.css` file imported for any component/view with custom styles
-- [ ] Tap targets ≥ 44×44pt
+- [ ] Tap targets: `--tap-min` where a touch input is present or the viewport is 768px or less, otherwise a 24×24px hit area
 - [ ] Motion respects `prefers-reduced-motion`
 - [ ] Icons are one consistent weight/style, baseline-aligned with text
 - [ ] Icons use `/assets/icons/sprite.svg` through a block in `src/frontend/components/ui/` (zero inline SVGs)

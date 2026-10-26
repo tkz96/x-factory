@@ -10,7 +10,7 @@
 
 .settings-categories {
   min-width: 0;
-  border-right: var(--border-width) solid var(--border-subtle);
+  border-right: var(--hairline) solid var(--separator);
   padding-right: var(--space-3);
 }
 

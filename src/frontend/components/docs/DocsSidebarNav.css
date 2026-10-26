@@ -47,7 +47,7 @@
 }
 
 .docs-search-field:focus-within {
-  box-shadow: 0 0 0 var(--border-width-indicator) var(--border-focus);
+  box-shadow: var(--shadow-ring-focus);
 }
 
 .docs-search-icon {
@@ -68,7 +68,7 @@
   font-family: var(--font-sans);
   background: transparent;
   border: none;
-  border-radius: 0;
+  border-radius: var(--radius-none);
   box-shadow: none;
   color: var(--text);
   outline: none;
@@ -154,7 +154,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 0.25rem 0.4rem 0.5rem;
-  border-bottom: var(--border-width) solid var(--border-subtle);
+  border-bottom: var(--hairline) solid var(--separator);
 }
 
 .docs-search-summary-text {
@@ -189,7 +189,7 @@
   display: flex;
   flex-direction: column;
   background: var(--bg-card);
-  border: var(--border-width) solid var(--border-subtle);
+  border: var(--hairline) solid var(--separator);
   border-radius: var(--radius-sm);
   overflow: hidden;
   box-shadow: var(--shadow-sm);
@@ -245,7 +245,7 @@
 }
 
 .docs-search-hit-badge {
-  font-size: var(--text-badge);
+  font-size: var(--text-caption-1);
   font-weight: 500;
   color: var(--text-dim);
   letter-spacing: 0.02em;
@@ -265,7 +265,7 @@
 .docs-search-sections {
   display: flex;
   flex-direction: column;
-  border-top: var(--border-width) solid var(--border-subtle);
+  border-top: var(--hairline) solid var(--separator);
   background: transparent;
 }
 
@@ -277,7 +277,7 @@
   padding: 0.45rem 0.75rem 0.5rem;
   background: transparent;
   border: none;
-  border-bottom: var(--border-width) solid var(--border-subtle);
+  border-bottom: var(--hairline) solid var(--separator);
   cursor: pointer;
   text-align: left;
   transition: background var(--transition-fast);

@@ -38,7 +38,7 @@
   margin: var(--space-5) 0 0;
   padding: var(--space-5) var(--space-6);
   background: var(--bg-card);
-  border: var(--border-width) solid var(--border-subtle);
+  border: var(--hairline) solid var(--separator);
   border-radius: var(--radius-card);
 }
 
@@ -101,7 +101,7 @@
   gap: var(--space-3) var(--space-6);
   margin: var(--space-4) 0 0;
   padding-top: var(--space-3);
-  border-top: var(--border-width) solid var(--border-subtle);
+  border-top: var(--hairline) solid var(--separator);
 }
 
 .project-meta-item {
