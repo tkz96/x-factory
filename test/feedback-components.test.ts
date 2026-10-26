@@ -133,7 +133,7 @@ describe("AsyncRegion — five-state taxonomy", () => {
         ),
       }),
     );
-    expect(html).toContain("async-region-actions");
+    expect(html).toContain("ui-empty-state-action");
     expect(html).toContain("Onboard Project");
   });
 
