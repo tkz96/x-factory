@@ -10,22 +10,18 @@
 
 .run-now-title {
   margin: 0;
-  font-size: var(--text-title-3);
-  font-weight: 600;
   overflow-wrap: anywhere;
 }
 
 .run-now-sentence {
   margin: 0;
   color: var(--text-muted);
-  font-size: var(--text-body);
 }
 
 .run-now-plan {
   padding: var(--space-3);
   border-radius: var(--radius-sm);
   background: var(--bg-surface-2);
-  font-size: var(--text-footnote);
   max-height: 14rem;
   overflow-y: auto;
   overflow-wrap: anywhere;
@@ -33,7 +29,6 @@
 
 .run-now-diff {
   margin: 0;
-  font-size: var(--text-footnote);
   font-variant-numeric: tabular-nums;
 }
 
@@ -51,7 +46,6 @@
 
 .run-now-pr-time {
   color: var(--text-muted);
-  font-size: var(--text-footnote);
 }
 
 /* What the run has just produced arrives rather than appearing: the plan,
@@ -99,11 +93,9 @@
 
 .run-now-failure-message {
   margin: 0;
-  font-weight: 600;
 }
 
 .run-now-failure-recovery {
   margin: 0;
   color: var(--text-muted);
-  font-size: var(--text-footnote);
 }
