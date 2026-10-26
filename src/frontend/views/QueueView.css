@@ -27,10 +27,9 @@
 }
 
 /* A list's group header: footnote, 600, --text-secondary, sentence case
-   (DESIGN.md §7). */
+   (DESIGN.md §7). Size and weight come from the text-style classes on the
+   element (`text-footnote font-semibold`). */
 .ticket-group-title {
   margin: 0 0 var(--space-3);
-  font-size: var(--text-footnote);
-  font-weight: 600;
   color: var(--text-muted);
 }

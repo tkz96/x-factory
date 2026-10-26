@@ -30,6 +30,7 @@ import { TicketSearchToolbar } from "../components/queue/TicketSearchToolbar.js"
 import { Button } from "../components/ui/Button.js";
 import type { ProviderDescriptor } from "../connection/types.js";
 import { useModal } from "../context/ModalContext.js";
+import { usePageHeader } from "../context/PageHeaderContext.js";
 import { useCurrentProject } from "../context/ProjectContext.js";
 import { useProviderDescriptors } from "../hooks/useProviderDescriptors.js";
 import { useRuns, useTickets } from "../hooks/useQueries.js";
@@ -210,7 +211,10 @@ function ProjectTickets({
   if (!heading) return list;
   return (
     <section className="ticket-group" aria-labelledby={headingId}>
-      <h2 id={headingId} className="ticket-group-title">
+      <h2
+        id={headingId}
+        className="ticket-group-title text-footnote font-semibold"
+      >
         {project.name}
       </h2>
       {list}
@@ -222,6 +226,10 @@ export function QueueView() {
   const { projects, isProjectsLoading, isAllProjects, selectedProject } =
     useCurrentProject();
   const { openOnboardingModal } = useModal();
+  // The page heading belongs to the screen (#298): Tickets claims the shell's
+  // title through the slot and renders no heading of its own. The subtitle and
+  // the Start Run action stay the shell's own for this address.
+  usePageHeader({ title: "Tickets" });
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
   const descriptorsQuery = useProviderDescriptors();
