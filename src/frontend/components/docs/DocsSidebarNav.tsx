@@ -9,6 +9,18 @@ import type { DocCategory, DocSearchResult } from "../../../shared/types.js";
 import { scrollBehavior } from "../../hooks/scroll-behavior.js";
 import { api } from "../../lib/api-client.js";
 import { Button } from "../ui/Button.js";
+import { Card } from "../ui/Card.js";
+import { EmptyState } from "../ui/EmptyState.js";
+import { Icon } from "../ui/Icon.js";
+import { IconButton } from "../ui/IconButton.js";
+
+/** The sprite glyph of each Diátaxis category in the document list. */
+const CATEGORY_ICONS: Record<string, string> = {
+  tutorials: "icon-play",
+  "how-to": "icon-refresh-cw",
+  reference: "icon-code",
+  explanation: "icon-info",
+};
 
 const SECURITY_ITEMS = [
   { id: "least-privilege", label: "Least Privilege" },
@@ -102,11 +114,12 @@ export function DocsSidebarNav() {
   }, []);
 
   // 1. Fetch documentation catalog (for tree view)
-  const { data: catalogData, isLoading: isCatalogLoading } = useQuery({
+  const catalogQuery = useQuery({
     queryKey: ["docs-catalog"],
     queryFn: () => api.getDocsCatalog(),
     staleTime: 60_000,
   });
+  const { data: catalogData, isLoading: isCatalogLoading } = catalogQuery;
 
   const categories: DocCategory[] = catalogData?.categories || [];
 
@@ -181,17 +194,18 @@ export function DocsSidebarNav() {
     <>
       <div className="sidebar-header">
         <div className="docs-sidebar-brand">
-          <span className="brand-title">X-Factory Docs</span>
+          <span className="brand-title text-headline">X-Factory Docs</span>
         </div>
 
         <div className="docs-search-wrapper">
-          <label htmlFor="docs-search-input" className="docs-search-label">
+          <label
+            htmlFor="docs-search-input"
+            className="docs-search-label text-subhead"
+          >
             Search Documentation (press /)
           </label>
           <div className="docs-search-field">
-            <svg className="icon icon-sm docs-search-icon" aria-hidden="true">
-              <use href="/assets/icons/sprite.svg#icon-search" />
-            </svg>
+            <Icon name="icon-search" size="sm" className="docs-search-icon" />
             <input
               id="docs-search-input"
               ref={searchInputRef}
@@ -200,7 +214,7 @@ export function DocsSidebarNav() {
               value={rawQuery}
               onChange={(e) => setRawQuery(e.target.value)}
               onKeyDown={handleInputKeyDown}
-              className="docs-search-input"
+              className="docs-search-input text-callout"
               aria-label="Search documentation"
             />
             <div className="docs-search-controls">
@@ -213,17 +227,12 @@ export function DocsSidebarNav() {
                 />
               )}
               {rawQuery && (
-                <button
-                  type="button"
-                  className="docs-search-clear-btn"
-                  onClick={handleClearSearch}
-                  title="Clear search (Esc)"
-                  aria-label="Clear search query"
-                >
-                  <svg className="icon icon-sm" aria-hidden="true">
-                    <use href="/assets/icons/sprite.svg#icon-x" />
-                  </svg>
-                </button>
+                <IconButton
+                  label="Clear search query"
+                  icon="icon-x"
+                  variant="plain"
+                  onPress={handleClearSearch}
+                />
               )}
             </div>
           </div>
@@ -235,45 +244,38 @@ export function DocsSidebarNav() {
           /* ── Search Results View ───────────────────────────────────────── */
           <div className="docs-search-results-container">
             <div className="docs-search-summary-bar">
-              <span className="docs-search-summary-text">
+              <span className="docs-search-summary-text text-caption-1">
                 {isSearching
                   ? "Searching index…"
                   : `${searchData?.totalMatches ?? 0} ${(searchData?.totalMatches ?? 0) === 1 ? "match" : "matches"} found`}
               </span>
-              <button
-                type="button"
-                className="docs-search-summary-clear"
-                onClick={handleClearSearch}
+              <Button
+                variant="quiet"
+                size="sm"
+                onPress={handleClearSearch}
                 title="Clear search"
               >
                 Clear
-              </button>
+              </Button>
             </div>
 
             {!isSearching && searchData?.results.length === 0 ? (
-              <div className="docs-search-empty">
-                <svg
-                  className="icon icon-md docs-search-empty-icon"
-                  aria-hidden="true"
-                >
-                  <use href="/assets/icons/sprite.svg#icon-search" />
-                </svg>
-                <span className="docs-search-empty-title">
-                  No matches for &ldquo;{trimmedSearchQuery}&rdquo;
-                </span>
-                <p className="docs-search-empty-desc">
-                  Try searching for keywords like &ldquo;PRAGMA&rdquo;,
-                  &ldquo;lease&rdquo;, &ldquo;implementing&rdquo;, or
-                  &ldquo;azure&rdquo;.
-                </p>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onPress={handleClearSearch}
-                >
-                  Reset search
-                </Button>
-              </div>
+              <EmptyState
+                icon="icon-search"
+                title={`No matches for \u201c${trimmedSearchQuery}\u201d`}
+                message={
+                  "Try searching for keywords like \u201cPRAGMA\u201d, \u201clease\u201d, \u201cimplementing\u201d, or \u201cazure\u201d."
+                }
+                action={
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onPress={handleClearSearch}
+                  >
+                    Reset search
+                  </Button>
+                }
+              />
             ) : (
               <div className="docs-search-results-list">
                 {searchData?.results.map((result: DocSearchResult) => {
@@ -281,40 +283,41 @@ export function DocsSidebarNav() {
                     activeCategory === result.category &&
                     activeSlug === result.slug;
                   return (
-                    <div
+                    <Card
                       key={`${result.category}-${result.slug}`}
+                      padding="none"
                       className="docs-search-group"
                     >
-                      <button
-                        type="button"
+                      <Button
+                        variant="quiet"
                         className={`docs-search-group-header ${isCurrentDoc ? "active" : ""}`}
-                        onClick={() =>
+                        onPress={() =>
                           handleSelectDoc(result.category, result.slug)
                         }
                         title={result.title}
                       >
                         <div className="docs-search-group-meta">
-                          <span className="docs-search-group-cat">
+                          <span className="docs-search-group-cat text-footnote">
                             {result.categoryName}
                           </span>
-                          <span className="docs-search-hit-badge">
+                          <span className="docs-search-hit-badge text-caption-1">
                             {result.totalMatches}{" "}
                             {result.totalMatches === 1 ? "match" : "matches"}
                           </span>
                         </div>
-                        <span className="docs-search-doc-title">
+                        <span className="docs-search-doc-title text-headline">
                           {result.title}
                         </span>
-                      </button>
+                      </Button>
 
                       {result.sections.length > 0 && (
                         <div className="docs-search-sections">
                           {result.sections.map((sec) => (
-                            <button
+                            <Button
                               key={`${result.slug}-${sec.headingId || sec.heading}`}
-                              type="button"
+                              variant="quiet"
                               className="docs-search-section-item"
-                              onClick={() =>
+                              onPress={() =>
                                 handleSelectSection(
                                   result.category,
                                   result.slug,
@@ -324,100 +327,95 @@ export function DocsSidebarNav() {
                               title={`Jump to: ${sec.heading}`}
                             >
                               <div className="docs-search-section-header">
-                                <svg
-                                  className="icon icon-xs docs-search-section-bullet"
-                                  aria-hidden="true"
-                                >
-                                  <use href="/assets/icons/sprite.svg#icon-arrow-right" />
-                                </svg>
-                                <span className="docs-search-section-title">
+                                <Icon
+                                  name="icon-arrow-right"
+                                  size="xs"
+                                  className="docs-search-section-bullet"
+                                />
+                                <span className="docs-search-section-title text-footnote">
                                   {sec.heading}
                                 </span>
                               </div>
                               {sec.snippet && (
-                                <p className="docs-search-section-snippet">
+                                <p className="docs-search-section-snippet text-subhead">
                                   {renderSnippetWithHighlight(
                                     sec.snippet,
                                     trimmedSearchQuery,
                                   )}
                                 </p>
                               )}
-                            </button>
+                            </Button>
                           ))}
                         </div>
                       )}
-                    </div>
+                    </Card>
                   );
                 })}
               </div>
             )}
           </div>
         ) : isCatalogLoading ? (
-          <div className="docs-search-empty">
-            <span>Loading documentation index…</span>
-          </div>
+          <p className="docs-nav-status text-subhead">
+            Loading documentation index…
+          </p>
         ) : (
           <>
-            {categories.map((cat) => (
-              <div key={cat.id} className="docs-nav-group">
-                <div className="docs-category-title">
-                  <svg className="icon icon-sm" aria-hidden="true">
-                    {cat.id === "tutorials" && (
-                      <use href="/assets/icons/sprite.svg#icon-play" />
-                    )}
-                    {cat.id === "how-to" && (
-                      <use href="/assets/icons/sprite.svg#icon-refresh-cw" />
-                    )}
-                    {cat.id === "reference" && (
-                      <use href="/assets/icons/sprite.svg#icon-code" />
-                    )}
-                    {cat.id === "explanation" && (
-                      <use href="/assets/icons/sprite.svg#icon-info" />
-                    )}
-                  </svg>
-                  <span>{cat.name}</span>
+            {categories.map((cat) => {
+              const categoryIcon = CATEGORY_ICONS[cat.id];
+              return (
+                <div key={cat.id} className="docs-nav-group">
+                  <div className="docs-category-title text-subhead">
+                    {categoryIcon && <Icon name={categoryIcon} size="sm" />}
+                    <span>{cat.name}</span>
+                  </div>
+                  {cat.docs.map((doc) => {
+                    const isSelected =
+                      !isSecurity &&
+                      activeCategory === cat.id &&
+                      activeSlug === doc.slug;
+                    return (
+                      <Button
+                        key={doc.slug}
+                        variant="quiet"
+                        size="sm"
+                        onPress={() => handleSelectDoc(cat.id, doc.slug)}
+                        className="docs-nav-item"
+                        {...(isSelected
+                          ? { "aria-current": "page" as const }
+                          : {})}
+                        title={doc.title}
+                      >
+                        <span className="docs-nav-label text-subhead">
+                          {doc.title}
+                        </span>
+                      </Button>
+                    );
+                  })}
                 </div>
-                {cat.docs.map((doc) => {
-                  const isSelected =
-                    !isSecurity &&
-                    activeCategory === cat.id &&
-                    activeSlug === doc.slug;
-                  return (
-                    <button
-                      key={doc.slug}
-                      type="button"
-                      onClick={() => handleSelectDoc(cat.id, doc.slug)}
-                      className="ui-nav-item"
-                      aria-current={isSelected ? "page" : undefined}
-                      title={doc.title}
-                    >
-                      <span className="docs-nav-label">{doc.title}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            ))}
+              );
+            })}
 
             <div className="docs-nav-group">
-              <div className="docs-category-title">
-                <svg className="icon icon-sm" aria-hidden="true">
-                  <use href="/assets/icons/sprite.svg#icon-lock" />
-                </svg>
+              <div className="docs-category-title text-subhead">
+                <Icon name="icon-lock" size="sm" />
                 <span>Credentials &amp; Scopes</span>
               </div>
               {SECURITY_ITEMS.map((sec) => {
                 const isSelected = isSecurity && activeSlug === sec.id;
                 return (
-                  <button
+                  <Button
                     key={sec.id}
-                    type="button"
-                    onClick={() => handleSelectSecurity(sec.id)}
-                    className="ui-nav-item"
-                    aria-current={isSelected ? "page" : undefined}
+                    variant="quiet"
+                    size="sm"
+                    onPress={() => handleSelectSecurity(sec.id)}
+                    className="docs-nav-item"
+                    {...(isSelected ? { "aria-current": "page" as const } : {})}
                     title={sec.label}
                   >
-                    <span className="docs-nav-label">{sec.label}</span>
-                  </button>
+                    <span className="docs-nav-label text-subhead">
+                      {sec.label}
+                    </span>
+                  </Button>
                 );
               })}
             </div>
@@ -425,11 +423,9 @@ export function DocsSidebarNav() {
         )}
       </nav>
 
-      <div className="sidebar-footer">
+      <div className="sidebar-footer text-subhead">
         <NavLink to="/tickets" className="docs-back-link" title="Go to Tickets">
-          <svg className="icon icon-sm" aria-hidden="true">
-            <use href="/assets/icons/sprite.svg#icon-arrow-left" />
-          </svg>
+          <Icon name="icon-arrow-left" size="sm" />
           <span>Back to Tickets</span>
         </NavLink>
       </div>
