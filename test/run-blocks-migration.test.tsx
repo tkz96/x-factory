@@ -37,7 +37,9 @@ describe("the stage timeline's glyphs", () => {
     expect(read("src/frontend/styles/shared/icons.css")).toContain(
       "stroke-width: var(--icon-stroke)",
     );
-    expect(read("src/frontend/styles/tokens.css")).toMatch(/--icon-stroke:\s*1\.5;/);
+    expect(read("src/frontend/styles/tokens.css")).toMatch(
+      /--icon-stroke:\s*1\.5;/,
+    );
     const timeline = read("src/frontend/components/runs/RunStageTimeline.tsx");
     expect(timeline).not.toContain("<path");
     expect(timeline).not.toContain("<circle");
