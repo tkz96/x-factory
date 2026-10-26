@@ -191,6 +191,26 @@
     border: var(--border-width) solid CanvasText;
   }
 
+  /* The Card block (#296): one surface family in system colours — raised and
+     inset alike — and the pressable family's hover kept visible, exactly as
+     the pressable list row above. */
+  :root .ui-card,
+  :root .ui-card--connection,
+  :root .ui-card--ticket,
+  :root .ui-card--model,
+  :root .ui-card--review,
+  :root .ui-card--chat,
+  :root .ui-card--flow {
+    background: Canvas;
+    color: CanvasText;
+    border: var(--border-width) solid CanvasText;
+  }
+
+  :root .ui-card--ticket:hover {
+    background: Highlight;
+    color: HighlightText;
+  }
+
   /* Component-local controls (#249): buttons, links and menu items keep a system
      button face and border; fields take the system field colours; badges, pills,
      tooltips and table frames take canvas text colours. */

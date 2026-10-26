@@ -331,6 +331,21 @@ A screen composes blocks; it never hand-rolls a control. The vocabulary lives in
 - **Feedback.** The feedback family in `src/frontend/components/feedback/` renders through these blocks. Errors are announced as alerts; informational and partial states stay polite.
 - **Loading.** A list reserves static placeholder rows at the height the loaded rows will have (`--list-row-height`) — no layout shift and no shimmer, ever. Every other wait is the one standard spinner, for small inline waits only.
 - **Icon-only controls** always carry an accessible name, and no status is ever an emoji.
+- **Cards.** One `Card` block (`components/ui/Card.tsx`) with seven variants —
+  `default`, `connection`, `ticket`, `model`, `review`, `chat`, `flow` — one per
+  card family spec #292 replaces (`.card`, `.connection-card`, `.ticket-card`,
+  `.model-connection-card`, `.review-summary-card`, `.run-chat-card`,
+  `.flow-fallback-card`). A raised card (`default`, `connection`, `ticket`,
+  `review`) sits on `--bg-card` behind the `--hairline` in `--separator`, on
+  the `--radius-card` rung (`review` steps to `--radius-md`); an inset card
+  (`model`, `chat`, `flow`) is the quiet fill on `--bg-secondary` at
+  `--radius-sm`, `flow` keeping the `--border-subtle` frame. `ticket` is the
+  pressable family: under a real pointer it hovers to `--border-hover` on
+  `--bg-card-hover`, and the screen wires the behaviour. A card has no shadow
+  at rest and never scales, draws no type of its own (the content inside uses
+  the text styles), never uses the glass material — content stays opaque —
+  and owns no margins: a screen composes `Card` and never names its classes.
+  A diagram node card is graph content and keeps its own token-bound style.
 
 ### Loading, empty and error
 
