@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Badge } from "../ui/Badge.js";
 import { Button } from "../ui/Button.js";
+import { Card, type CardVariant } from "../ui/Card.js";
 import { EmptyState } from "../ui/EmptyState.js";
 import { Icon } from "../ui/Icon.js";
 import { IconButton } from "../ui/IconButton.js";
@@ -18,6 +19,15 @@ import { TextAreaField, TextField } from "../ui/TextField.js";
 const VARIANTS = ["primary", "secondary", "danger", "quiet"] as const;
 const SIZES = ["sm", "md", "lg"] as const;
 const TONES = ["neutral", "accent", "success", "warning", "error"] as const;
+const CARDS: readonly CardVariant[] = [
+  "default",
+  "connection",
+  "ticket",
+  "model",
+  "review",
+  "chat",
+  "flow",
+];
 
 export function SpecimenBlocks() {
   const [segment, setSegment] = useState("all");
@@ -152,6 +162,16 @@ export function SpecimenBlocks() {
           <Icon key={size} name="icon-check" size={size} />
         ))}
         <Icon name="icon-alert-circle" label="Warning" />
+      </div>
+
+      <h3 className="specimen-subheading">Card</h3>
+      <div className="specimen-row">
+        {CARDS.map((variant) => (
+          <Card key={variant} variant={variant}>
+            <p className="text-headline">{variant}</p>
+            <p className="text-subhead">One card block, {variant} variant.</p>
+          </Card>
+        ))}
       </div>
 
       <h3 className="specimen-subheading">EmptyState</h3>
