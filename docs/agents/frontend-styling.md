@@ -26,7 +26,7 @@ Global styles are imported once in `src/frontend/main.tsx` via `src/frontend/sty
    - Modern CSS resets, root font configuration (the system stack, Inter as the fallback), custom scrollbars.
 3. **Shared Components (`src/frontend/styles/shared/*.css`)**:
    - `controls.css` (the shared layer for the blocks in `components/ui/`), `forms.css`, `icons.css`, `scrollbar.css`.
-   - `buttons.css`, `cards.css` and `badges.css` are **transitional legacy styles**. New code must not use them. See section 9.
+   - The blocks are the only shared components. The earlier `buttons.css`, `cards.css` and `badges.css` are deleted (spec #292, M8); a button, card or badge comes from `components/ui/`.
 4. **Utilities (`src/frontend/styles/utilities.css`)**:
    - Spacing (`.mb-1` to `.mb-8`, `.mt-*`, `.p-*`, `.gap-*`).
    - Typography (`.text-headline`, `.text-footnote`, etc.).
@@ -119,50 +119,20 @@ Both must exit with code 0.
 
 ---
 
-## 9. Transition state (spec #292)
+## 9. Gates (spec #292)
 
-The design system is being migrated to the blocks. Until M8 lands, the code has two layers, and this section says which is which.
+Every gate lives in `test/frontend-smoke.test.ts`, and each one has a fixture that shows it fails on a bad example. No gate has an allowlist or a baseline (`CLAUDE.md` rule 10).
 
-**For new code:**
-
-- Use the blocks in `src/frontend/components/ui/` and the shared layer `styles/shared/controls.css`. Once a block exists for a need (Card, EmptyState and PageHeader are the next ones, see spec #292 "Blocks"), use it.
-- Do not use `buttons.css`, `cards.css` or `badges.css`. They are transitional legacy styles that an old screen still needs. `buttons.css` sets the default style for a bare `button` (`font-size: 0.88rem`), so a new bare `<button>` is a finding.
-
-**Gates.** Active gates are in `test/frontend-smoke.test.ts`. A gate lands in the PR that clears its last finding.
-
-| Gate | Rule | Status | Lands in |
-|---|---|---|---|
-| G1 | No raw `box-shadow` or `border-radius` value outside `tokens.css` | active | step 1 |
-| G2 | No text token below 10px; `--text-micro`, `--text-badge`, `--text-tag` do not exist | active | step 1 |
-| G3 | No raw rem/em spacing (`margin`, `padding`, `gap`, `inset`, offsets) outside `tokens.css` | inactive | M7 files clean; gate lands with the activation step (part 2) |
-| G4 | No `font-size` or `font-weight` in a component stylesheet; text styles only | inactive | M7 files clean; gate lands with the activation step (part 2). The shared layer keeps text-style tokens, see below |
-| G5 | No raw `<button>` outside `components/ui/` | inactive | M7 files clean; gate lands with the activation step (part 2) |
-| G6 | No `sprite.svg#` reference outside `components/ui/` | inactive | M7 files clean; gate lands with the activation step (part 2) |
-| G7 | No page `<header>` or page-heading class in `views/*.tsx`; PageHeader only | inactive | M7 files clean; gate lands with the activation step (part 2) |
-| G8 | No empty-state markup outside `AsyncRegion` or EmptyState | inactive | M7 files clean; gate lands with the activation step (part 2) |
-| G9 | No card class outside the Card block, except diagram node cards | inactive | M7 files clean; gate lands with the activation step (part 2) |
-| G10 | Button and menu-item labels use Title Case | inactive | step 5 |
-| G11 | `buttons.css`, `cards.css` and `badges.css` do not exist; no bare `button` style | inactive | M8 |
-
-**Migration matrix** (spec #292, "Migration matrix"). Order M1 to M8. Each row removes every finding of the gates in its column from the files it owns:
-
-- M1 Shell and shared layer (AppShell, notifications, palette, overlays, feedback, Markdown, Modal, forms, controls, utilities, NotFound, Welcome, SetupChecklist)
-- M2 Tickets (QueueView, queue, NewRunModal). Cleared: every G3 to G9 finding in its files; the gates still land in M7 with the rest of the matrix.
-- M3 Projects (ProjectsView, ProjectDetailView, projects). Cleared: every G3 to G9 finding in its files; the gates still land in M7 with the rest of the matrix.
-- M4 Settings and connections. Cleared: every G3 to G9 finding in its files; the gates still land in M7 with the rest of the matrix.
-- M5 Wizard
-- M6 Runs (RunsView, RunDetailView, runs). Its files have no G3 to G9 findings. G3 to G9 stay inactive until M7 clears the other areas.
-- M7 Docs and diagrams (DocsView, DocsSidebarNav, diagrams, specimen). Its files print clean for G3 to G9. The gates still wait for the activation step.
-- M8 Legacy CSS removal (`buttons.css`, `cards.css`, `badges.css`). G11 lands here.
-
-Migration progress: M7 (Docs and diagrams) is done. Its files (`views/DocsView`, `components/docs/`, `components/diagrams/`, and the specimen page with `components/specimen/`) print clean for G3 to G9, and the diagram node cards use tokens and text styles. M5 (Wizard) is done. `src/frontend/wizard/` has no G3 to G9 finding. Its G3 to G9 gates still wait for M7 because other areas have findings.
-
-Between step 3 and M7, drift in migrated areas is caught by the design-reviewer check, not by a gate. M7 closes that gap.
-
-**M1 (shell and shared layer) is done.** Its files print clean for G3, G5, G6 and G8, and their component stylesheets have no `font-size` or `font-weight`. Three kinds of declaration remain on purpose, and M7 must treat them as allowed before G4 lands:
-
-- `styles/utilities.css` defines the `.text-*` text styles and the `.font-*` weight utilities, so it holds the only `font-size` that is a text style itself.
-- `styles/shared/controls.css` keeps `font-size: var(--text-*)` with its weight token where a block sets its own text style.
-- `styles/shared/forms.css` sets the bare `label`, input and `.form-*` text with text-style tokens, because its classes are used by every screen.
-
-Each migration PR updates the gate table. M8 deletes this section.
+| Gate | Rule | Status |
+|---|---|---|
+| G1 | No raw `box-shadow` or `border-radius` value outside `tokens.css` | active |
+| G2 | No text token below 10px; `--text-micro`, `--text-badge`, `--text-tag` do not exist | active |
+| G3 | No raw rem/em spacing (`margin`, `padding`, `gap`, `inset`, offsets) outside `tokens.css` | active |
+| G4 | No `font-size` or `font-weight` in a component stylesheet. The text files (`utilities.css`, `controls.css`, `forms.css`, and the `html` root rule in `base.css`) may set them, with a text or weight token only | active |
+| G5 | No raw `<button>` outside `components/ui/` | active |
+| G6 | No `sprite.svg#` reference outside `components/ui/` | active |
+| G7 | No page `<header>` or page-heading class in `views/*.tsx`; PageHeader only | active |
+| G8 | No empty-state markup outside `AsyncRegion` or EmptyState | active |
+| G9 | No card class outside the Card block, except diagram node cards (`flow-node-card`) | active |
+| G10 | Button and menu-item labels use Title Case | inactive (step 5) |
+| G11 | `buttons.css`, `cards.css` and `badges.css` do not exist; no bare `button` element style | active |

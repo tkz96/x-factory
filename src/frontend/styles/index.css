@@ -12,11 +12,8 @@
 @import "./base.css";
 
 /* Layer 3: Shared Components */
-@import "./shared/buttons.css";
 @import "./shared/controls.css";
-@import "./shared/badges.css";
 @import "./shared/forms.css";
-@import "./shared/cards.css";
 @import "./shared/scrollbar.css";
 @import "./shared/icons.css";
 

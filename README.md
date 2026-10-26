@@ -290,11 +290,8 @@ src/frontend/
 │   ├── tokens.css            # Spacing grid, type scale, radius ladder, motion, and theme colors
 │   ├── base.css              # HTML resets, font faces, and the reduced-motion rules
 │   ├── shared/               # Reusable UI component patterns
-│   │   ├── buttons.css       # Button and icon-button blocks
-│   │   ├── controls.css      # Fields, selects, segmented controls, and switches
-│   │   ├── badges.css        # State pills and workflow stage badges
+│   │   ├── controls.css      # The building blocks: buttons, cards, badges, fields, lists and more
 │   │   ├── forms.css         # Form layout, hints, and focus rings
-│   │   ├── cards.css         # Card materials, borders, and hover elevations
 │   │   ├── scrollbar.css     # Consistent slim scrollbars
 │   │   └── icons.css         # Optical sizing and SVG sprite alignment
 │   ├── utilities.css         # Spacing, typography, color, and layout modifiers

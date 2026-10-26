@@ -31,10 +31,7 @@ const SYSTEM_COLORS = [
 
 /** Shared components and the Settings theme control, whose custom colours must be overridden. */
 const CUSTOM_COLOURED_SOURCES = [
-  "shared/buttons.css",
-  "shared/badges.css",
   "shared/forms.css",
-  "shared/cards.css",
   // The control vocabulary (#251): every block the screens are built from.
   "shared/controls.css",
   "../views/SettingsView.css",
@@ -66,7 +63,7 @@ describe("forced colours: static (#249)", () => {
       ":focus-visible",
       "::selection",
       "a {",
-      "button,",
+      ".ui-table-sort",
       ".ui-icon-button",
       ".ui-button--danger",
       ".form-input",
@@ -81,8 +78,6 @@ describe("forced colours: static (#249)", () => {
       "input,",
       "textarea,",
       "select,",
-      ".filter-pill",
-      ".card,",
     ]) {
       expect(forcedColors).toContain(selector);
     }
