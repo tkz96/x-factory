@@ -14,7 +14,7 @@
 // glass material: content stays opaque, chrome alone is glass (spec #292,
 // "Materials and Reduce Transparency").
 //
-// <Card variant="ticket" onClick={select}> … </Card>
+// <Card variant="ticket"> … </Card>
 //
 // The pressable family (`variant="ticket"`) carries the hover affordance only;
 // the screen wires the behaviour (role, press), exactly as TicketCard does
