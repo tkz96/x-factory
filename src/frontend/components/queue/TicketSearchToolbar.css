@@ -37,7 +37,7 @@
   background: transparent;
   border: none;
   color: var(--text);
-  font-size: var(--text-subhead);
+  /* The size comes from the `text-subhead` class on the input. */
   font-family: var(--font-sans);
   width: 100%;
   /* The input is the tap target, not just the field around it. */

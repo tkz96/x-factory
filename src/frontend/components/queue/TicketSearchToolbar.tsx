@@ -5,6 +5,7 @@
 // toggle that is not one.
 
 import { Button } from "../ui/Button.js";
+import { Icon } from "../ui/Icon.js";
 import "./TicketSearchToolbar.css";
 
 interface TicketSearchToolbarProps {
@@ -26,12 +27,11 @@ export function TicketSearchToolbar({
   return (
     <div className="queue-toolbar">
       <div className="search-box">
-        <svg className="icon icon-sm" aria-hidden="true">
-          <use href="/assets/icons/sprite.svg#icon-search" />
-        </svg>
+        <Icon name="icon-search" size="sm" />
         <input
           type="text"
           id="queue-search"
+          className="text-subhead"
           data-search-input
           aria-label="Filter tickets"
           placeholder={`Filter tickets (label: ${workflowLabel})…`}
@@ -47,12 +47,11 @@ export function TicketSearchToolbar({
         isDisabled={isRefreshing}
         onPress={onRefresh}
       >
-        <svg
-          className={`icon icon-sm ${isRefreshing ? "icon-spin" : ""}`}
-          aria-hidden="true"
-        >
-          <use href="/assets/icons/sprite.svg#icon-refresh-cw" />
-        </svg>
+        <Icon
+          name="icon-refresh-cw"
+          size="sm"
+          className={isRefreshing ? "icon-spin" : undefined}
+        />
         <span>{isRefreshing ? "Refreshing…" : "Refresh"}</span>
       </Button>
     </div>
