@@ -30,6 +30,8 @@ import { FeedbackBanner } from "../feedback/FeedbackBanner.js";
 import { AlertDialog } from "../overlays/index.js";
 import { Badge } from "../ui/Badge.js";
 import { Button } from "../ui/Button.js";
+import { Card } from "../ui/Card.js";
+import { EmptyState } from "../ui/EmptyState.js";
 import { SegmentedControl } from "../ui/SegmentedControl.js";
 import {
   Table,
@@ -102,7 +104,9 @@ function ConnectionForm({
     <form className="model-connection-form" onSubmit={submit} noValidate>
       <div className="model-connection-grid">
         <label className="model-field" htmlFor="model-connection-name">
-          <span className="model-field-label">{COPY.name}</span>
+          <span className="model-field-label text-subhead font-semibold">
+            {COPY.name}
+          </span>
           <input
             id="model-connection-name"
             className="form-input"
@@ -111,7 +115,9 @@ function ConnectionForm({
           />
         </label>
         <label className="model-field" htmlFor="model-connection-type">
-          <span className="model-field-label">{COPY.apiType}</span>
+          <span className="model-field-label text-subhead font-semibold">
+            {COPY.apiType}
+          </span>
           <select
             id="model-connection-type"
             className="form-input"
@@ -127,7 +133,9 @@ function ConnectionForm({
           </select>
         </label>
         <label className="model-field" htmlFor="model-connection-url">
-          <span className="model-field-label">{COPY.baseUrl}</span>
+          <span className="model-field-label text-subhead font-semibold">
+            {COPY.baseUrl}
+          </span>
           <input
             id="model-connection-url"
             className="form-input"
@@ -137,7 +145,9 @@ function ConnectionForm({
           />
         </label>
         <label className="model-field" htmlFor="model-connection-key">
-          <span className="model-field-label">{COPY.apiKey}</span>
+          <span className="model-field-label text-subhead font-semibold">
+            {COPY.apiKey}
+          </span>
           <input
             id="model-connection-key"
             className="form-input"
@@ -284,7 +294,10 @@ function ModelDetailsForm({
     <form className="model-details" onSubmit={save} noValidate>
       {FIELD_GROUPS.map((group) => (
         <fieldset key={group.title} className="model-details-group">
-          <legend className="model-details-legend">{group.title}</legend>
+          {/* The group label's type comes from the .text-footnote style. */}
+          <legend className="model-details-legend text-footnote font-semibold">
+            {group.title}
+          </legend>
           <div className="model-details-grid">
             {group.keys.map((key) => (
               <TextField
@@ -485,7 +498,9 @@ function ModelsTable({
   return (
     <div className="model-table">
       <div className="model-table-tools">
-        <p className="model-found-count">{COPY.modelsFound(total)}</p>
+        <p className="model-found-count text-footnote">
+          {COPY.modelsFound(total)}
+        </p>
         <TextField
           label={COPY.searchModels}
           className="model-table-search"
@@ -509,7 +524,9 @@ function ModelsTable({
         />
       </div>
       {rows.length === 0 ? (
-        <p className="model-table-empty">{COPY.noMatches}</p>
+        /* No models match the search or filter: the EmptyState block, used
+           where no data load happens (spec #292 "Blocks"). */
+        <EmptyState title={COPY.noMatches} headingLevel={4} />
       ) : (
         <Table
           label={COPY.modelsTable(connection.name)}
@@ -526,7 +543,9 @@ function ModelsTable({
                 <TableCell isRowHeader>
                   <span className="model-table-name">{row.name}</span>
                   {row.name !== row.id && (
-                    <code className="model-table-id">{row.id}</code>
+                    <code className="model-table-id text-footnote">
+                      {row.id}
+                    </code>
                   )}
                 </TableCell>
                 <TableCell numeric label={COPY.columnContext}>
@@ -636,87 +655,100 @@ function ConnectionCard({
 
   if (editing) {
     return (
-      <li className="model-connection-card">
-        <ConnectionForm
-          initial={connection}
-          mutations={mutations}
-          onDone={() => setEditing(false)}
-        />
+      <li>
+        <Card variant="model">
+          <ConnectionForm
+            initial={connection}
+            mutations={mutations}
+            onDone={() => setEditing(false)}
+          />
+        </Card>
       </li>
     );
   }
 
   return (
-    <li className="model-connection-card">
-      <div className="model-connection-head">
-        <div>
-          <strong className="model-connection-name">{connection.name}</strong>
-          <span className="model-connection-meta">
-            {COPY.apiTypes[connection.apiType]} · {connection.baseUrl}
-          </span>
-          <span className="model-connection-meta">
-            {connection.keyLast4
-              ? COPY.keyMasked(connection.keyLast4)
-              : COPY.noKey}
-            {connection.keySource === "environment" &&
-              ` (${COPY.fromEnvironment})`}
-          </span>
+    <li>
+      {/* The model family of the Card block (#296): the quiet inset fill. */}
+      <Card variant="model">
+        <div className="model-connection-head">
+          <div>
+            {/* The name takes the .text-headline style; the meta lines, the
+                .text-subhead style (spec #292 "Text styles"). */}
+            <strong className="model-connection-name text-headline">
+              {connection.name}
+            </strong>
+            <span className="model-connection-meta text-subhead">
+              {COPY.apiTypes[connection.apiType]} · {connection.baseUrl}
+            </span>
+            <span className="model-connection-meta text-subhead">
+              {connection.keyLast4
+                ? COPY.keyMasked(connection.keyLast4)
+                : COPY.noKey}
+              {connection.keySource === "environment" &&
+                ` (${COPY.fromEnvironment})`}
+            </span>
+          </div>
+          <Badge tone={connection.verifiedAt ? "success" : "neutral"}>
+            {connection.verifiedAt ? COPY.verified : COPY.notChecked}
+          </Badge>
         </div>
-        <Badge tone={connection.verifiedAt ? "success" : "neutral"}>
-          {connection.verifiedAt ? COPY.verified : COPY.notChecked}
-        </Badge>
-      </div>
 
-      <div className="model-actions model-actions--start">
-        <Button
-          id={`btn-check-model-connection-${id}`}
-          variant="primary"
-          size="sm"
-          isDisabled={checking}
-          onPress={check}
-        >
-          {checking ? COPY.checking : COPY.check}
-        </Button>
-        <Button variant="secondary" size="sm" onPress={() => setEditing(true)}>
-          {COPY.edit}
-        </Button>
-        <Button
-          id={`btn-delete-model-connection-${id}`}
-          variant="secondary"
-          size="sm"
-          onPress={() => setConfirmingDelete(true)}
-        >
-          {COPY.delete}
-        </Button>
-      </div>
+        <div className="model-actions model-actions--start">
+          <Button
+            id={`btn-check-model-connection-${id}`}
+            variant="primary"
+            size="sm"
+            isDisabled={checking}
+            onPress={check}
+          >
+            {checking ? COPY.checking : COPY.check}
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onPress={() => setEditing(true)}
+          >
+            {COPY.edit}
+          </Button>
+          <Button
+            id={`btn-delete-model-connection-${id}`}
+            variant="secondary"
+            size="sm"
+            onPress={() => setConfirmingDelete(true)}
+          >
+            {COPY.delete}
+          </Button>
+        </div>
 
-      {/* Destructive confirmation (#250): the alert dialog owns the focus trap,
-          the overlay stack's Escape and the closing motion, so the card keeps
-          no hand-built dialog of its own. */}
-      <AlertDialog
-        id={`model-confirm-${id}`}
-        isOpen={confirmingDelete}
-        onClose={() => setConfirmingDelete(false)}
-        title={COPY.confirmDelete}
-        description={COPY.confirmDeleteQuestion(connection.name)}
-        confirmText={COPY.confirmDelete}
-        cancelText={COPY.cancel}
-        variant="danger"
-        onConfirm={() => mutations.remove.mutate(id)}
-      />
-
-      {checkResult && !checkResult.ok && (
-        <FeedbackBanner tone="error" message={checkResult.error.message} />
-      )}
-      {checkError && <FeedbackBanner tone="error" message={checkError} />}
-
-      {(found.length > 0 || connection.models.length > 0) && (
-        <ModelsTable
-          connection={connection}
-          found={found}
-          mutations={mutations}
+        {/* Destructive confirmation (#250): the alert dialog owns the focus trap,
+            the overlay stack's Escape and the closing motion, so the card keeps
+            no hand-built dialog of its own. */}
+        <AlertDialog
+          id={`model-confirm-${id}`}
+          isOpen={confirmingDelete}
+          onClose={() => setConfirmingDelete(false)}
+          title={COPY.confirmDelete}
+          description={COPY.confirmDeleteQuestion(connection.name)}
+          confirmText={COPY.confirmDelete}
+          cancelText={COPY.cancel}
+          variant="danger"
+          onConfirm={() => mutations.remove.mutate(id)}
         />
-      )}
+
+        {checkResult && !checkResult.ok && (
+          <FeedbackBanner tone="error" message={checkResult.error.message} />
+        )}
+        {checkError && <FeedbackBanner tone="error" message={checkError} />}
+
+        {(found.length > 0 || connection.models.length > 0) && (
+          <ModelsTable
+            connection={connection}
+            found={found}
+            mutations={mutations}
+          />
+        )}
+      </Card>
     </li>
   );
 }

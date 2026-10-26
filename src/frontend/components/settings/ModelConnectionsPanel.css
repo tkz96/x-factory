@@ -29,8 +29,8 @@
 
 /* A connection is a section of the pane, not a box inside a box: a quiet
    --bg-secondary fill with no border, and the rows inside it separated by
-   hairlines (DESIGN.md §7). */
-.model-connection-card,
+   hairlines (DESIGN.md §7). A list item gets that fill from the Card block
+   (variant "model"); the standalone add/edit form keeps it here. */
 .model-connection-form {
   display: flex;
   flex-direction: column;
@@ -48,14 +48,14 @@
   gap: var(--space-3);
 }
 
+/* The name's type comes from the .text-headline style. */
 .model-connection-name {
   display: block;
-  font-size: var(--text-headline);
 }
 
+/* The meta lines' type comes from the .text-subhead style. */
 .model-connection-meta {
   display: block;
-  font-size: var(--text-footnote);
   color: var(--text-muted);
   overflow-wrap: anywhere;
 }
@@ -75,9 +75,8 @@
   gap: var(--space-1);
 }
 
+/* The label's type comes from the .text-subhead style. */
 .model-field-label {
-  font-size: var(--text-footnote);
-  font-weight: 600;
   color: var(--text-muted);
 }
 
@@ -107,10 +106,10 @@
   gap: var(--space-3);
 }
 
+/* The count is metadata; its type comes from the .text-footnote style. */
 .model-found-count {
   flex-basis: 100%;
   margin: 0;
-  font-size: var(--text-footnote);
   color: var(--text-muted);
 }
 
@@ -124,19 +123,11 @@
   overflow-wrap: anywhere;
 }
 
+/* The id's type comes from the .text-footnote style. */
 .model-table-id {
   display: block;
-  font-size: var(--text-footnote);
-  font-weight: 400;
   color: var(--text-muted);
   overflow-wrap: anywhere;
-}
-
-.model-table-empty {
-  margin: 0;
-  padding: var(--space-4);
-  font-size: var(--text-footnote);
-  color: var(--text-muted);
 }
 
 /* A chosen model's limits open under its row: three labelled groups. */
@@ -154,10 +145,9 @@
   min-width: 0;
 }
 
+/* The group label's type comes from the .text-footnote style. */
 .model-details-legend {
   margin: 0 0 var(--space-2);
   padding: 0;
-  font-size: var(--text-footnote);
-  font-weight: 600;
   color: var(--text-secondary);
 }

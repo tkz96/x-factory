@@ -7,13 +7,13 @@
    styles anywhere. */
 
 /* A line inside a card, not a box of its own: the card owns the border.
-   A degraded or missing connection still reads as a state, in its own tint. */
+   A degraded or missing connection still reads as a state, in its own tint.
+   The line's type comes from the .text-footnote style in the markup. */
 .connection-combo-line {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
-  font-size: var(--text-footnote);
 }
 
 .connection-combo-line--warning {
@@ -45,14 +45,14 @@
   max-width: 100%;
 }
 
+/* The role leads at medium weight and the value at semibold: the weights
+   come from the .font-medium and .font-semibold utilities in the markup. */
 .connection-combo-role {
   color: var(--text-muted);
-  font-weight: 500;
 }
 
 .connection-combo-value {
   color: var(--text);
-  font-weight: 600;
   /* The value may shrink inside its slot and truncate, so a long identity
      ("GitHub (tkz96/some-long-repo)") never runs off a 290px screen (#290). */
   min-width: 0;
@@ -61,9 +61,9 @@
   white-space: nowrap;
 }
 
+/* The state label's type comes from the .text-caption-1 style. */
 .connection-combo-state {
   color: var(--text-secondary);
-  font-size: var(--text-caption-1);
 }
 
 .connection-combo-state--connected {
