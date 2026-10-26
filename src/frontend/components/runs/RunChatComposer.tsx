@@ -60,7 +60,7 @@ export function RunChatComposer({
       />
       <TooltipTrigger delay={300}>
         <IconButton
-          label="Message tips"
+          label="Message Tips"
           icon="icon-info"
           variant="plain"
           className="run-chat-tips"

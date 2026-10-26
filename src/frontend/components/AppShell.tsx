@@ -153,7 +153,7 @@ function DocsSidebar({ docsNavOpen, onCloseDocsNav }: DocsSidebarProps) {
         className="docs-nav-close mobile-only"
         onPress={onCloseDocsNav}
       >
-        Close document list
+        Close Document List
       </Button>
       <DocsSidebarNav />
     </aside>
@@ -454,7 +454,7 @@ function AppShellHeader({
             aria-controls="app-sidebar"
             onPress={onToggleDocsNav}
           >
-            Browse documents
+            Browse Documents
           </Button>
         )}
         {!isDocs && isRunDetail && (

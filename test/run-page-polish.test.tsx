@@ -123,7 +123,7 @@ describe("the raw log count sits on the footer button", () => {
         connected={false}
       />,
     );
-    const button = within(container).getByRole("button", { name: /Raw log/ });
+    const button = within(container).getByRole("button", { name: /Raw Log/ });
     expect(button.querySelector(".run-inspector-count")?.textContent).toBe(
       "2 events",
     );
@@ -145,7 +145,7 @@ describe("the raw log count sits on the footer button", () => {
         connected={false}
       />,
     );
-    const button = within(container).getByRole("button", { name: /Raw log/ });
+    const button = within(container).getByRole("button", { name: /Raw Log/ });
     expect(button.textContent).toContain("1 event");
     expect(button.textContent).not.toContain("1 events");
   });

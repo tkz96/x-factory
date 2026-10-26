@@ -49,7 +49,7 @@ export function SpecimenBlocks() {
           )),
         )}
         <Button variant="primary" icon="icon-plus">
-          With icon
+          With Icon
         </Button>
         <Button variant="primary" isDisabled>
           Disabled

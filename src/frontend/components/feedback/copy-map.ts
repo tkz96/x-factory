@@ -49,7 +49,7 @@ export const STATE_COPY = {
   /** Stale: the visible out-of-date badge (#132). */
   stale: "Out of date",
   /** The uniform retry affordance label. */
-  retry: "Try again",
+  retry: "Try Again",
   /** The stale-region refresh label. */
   refresh: "Refresh",
   /** Fallback for any error that is not a normalized envelope. */
@@ -97,7 +97,7 @@ export const REPOSITORIES_COPY = {
   staleResults:
     "These repositories were listed for the previous connection, so they cannot be selected. Refresh to load the current list.",
   /** Stale: the action that clears the out-of-date selection. */
-  staleSelectionAction: "Start the selection again",
+  staleSelectionAction: "Start the Selection Again",
   /** Row label for a repository listed under the git-host role. */
   applicationRoleLabel: "Application repository",
   /** Row label for a repository listed only in another role. */
@@ -427,7 +427,7 @@ export const INSPECTION_COPY = {
   configureButton: "Configure Git Identity",
   configuringButton: "Configuring…",
   /** The explicit re-inspection affordance (never an automatic retry loop). */
-  inspectAction: "Inspect again",
+  inspectAction: "Inspect Again",
   previous: "Back",
   next: "Continue to Review",
 } as const;
@@ -789,7 +789,7 @@ export const WELCOME_COPY = {
   title: "Welcome",
   subtitle: "Three steps to your first run",
   /** Leaves the welcome for Tickets; the landing remembers it (lib/setup-later). */
-  setUpLater: "I'll set up later",
+  setUpLater: "I'll Set Up Later",
   /** One line above the steps, counted from the ticks that are really there. */
   progress: (done: number, total: number) => `${done} of ${total} steps done`,
   /** The step's state word, announced with the drawn tick. */

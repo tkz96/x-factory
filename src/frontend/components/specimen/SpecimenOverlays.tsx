@@ -27,16 +27,16 @@ export function SpecimenOverlays() {
       </h2>
       <div className="specimen-row">
         <Button variant="secondary" onPress={() => setDialog(true)}>
-          Open dialog…
+          Open Dialog…
         </Button>
         <Button variant="danger" onPress={() => setAlert(true)}>
           Delete Run…
         </Button>
         <Button variant="secondary" onPress={() => setSheet("right")}>
-          Open sheet…
+          Open Sheet…
         </Button>
         <Button variant="secondary" onPress={() => setSheet("bottom")}>
-          Open bottom sheet…
+          Open Bottom Sheet…
         </Button>
         <MenuTrigger>
           <Button variant="quiet" aria-label="Run actions">
@@ -52,7 +52,7 @@ export function SpecimenOverlays() {
           </Popover>
         </MenuTrigger>
         <TooltipTrigger delay={0}>
-          <Button variant="secondary">Hover for tooltip</Button>
+          <Button variant="secondary">Hover for Tooltip</Button>
           <Tooltip placement="bottom">Tooltip text</Tooltip>
         </TooltipTrigger>
       </div>

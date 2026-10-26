@@ -241,7 +241,7 @@ describe("one event shows one time across the run page", () => {
     expect(chatTime?.textContent).toBe(expected);
     // The raw log lives in its sheet, opened from the pane's footer.
     fireEvent.click(
-      within(log.container).getByRole("button", { name: /Raw log/ }),
+      within(log.container).getByRole("button", { name: /Raw Log/ }),
     );
     const sheet = within(document.body).getByRole("dialog", {
       name: "Raw log",

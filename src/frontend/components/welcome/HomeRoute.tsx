@@ -28,7 +28,7 @@ export function HomeRoute() {
     );
   }
 
-  // "I'll set up later" on the welcome sends later visits to Tickets too.
+  // "I'll Set Up Later" on the welcome sends later visits to Tickets too.
   const toTickets = checklist.complete || isSetupDeferred();
   return <Navigate to={toTickets ? "/tickets" : "/welcome"} replace />;
 }

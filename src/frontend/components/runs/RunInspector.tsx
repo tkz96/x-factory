@@ -325,7 +325,7 @@ function RunDetailsPane({ run, events, connected }: RunInspectorProps) {
                 <span className="sr-only">Live stream connected. </span>
               </>
             )}
-            <span>Raw log</span>
+            <span>Raw Log</span>
             <span className="run-inspector-count text-caption-1">
               {logCount}
             </span>

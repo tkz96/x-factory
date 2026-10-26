@@ -1,6 +1,6 @@
 // src/frontend/components/runs/RunChatLog.tsx — The run chat's log: the six stage groups with their rows,
 // the decision card in the decision stage, a failed send with Retry, the resolved line, the typing
-// indicator, and Jump to latest. The log keeps its place while the reader is up the chat.
+// indicator, and Jump to Latest. The log keeps its place while the reader is up the chat.
 
 import "./RunChat.css";
 
@@ -32,7 +32,7 @@ function withSettingsLink(message: string): ReactNode {
   );
 }
 
-/** Keeps the scroll position while the reader is up the chat, and offers Jump to latest. */
+/** Keeps the scroll position while the reader is up the chat, and offers Jump to Latest. */
 function useScrollFollow(itemCount: number) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const atBottomRef = useRef(true);
@@ -157,7 +157,7 @@ export function RunChatLog({
       {scroll.unseen && (
         <div className="run-chat-jump">
           <Button variant="secondary" size="sm" onPress={scroll.jumpToLatest}>
-            Jump to latest
+            Jump to Latest
           </Button>
         </div>
       )}
