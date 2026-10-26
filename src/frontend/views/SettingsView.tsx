@@ -11,7 +11,10 @@ import { Link, useSearchParams } from "react-router-dom";
 import type { Project } from "../../shared/types.js";
 import { ConnectionComboLine } from "../components/connections/ConnectionComboLine.js";
 import { comboTone } from "../components/connections/connection-state.js";
-import { CONNECTIONS_COPY } from "../components/feedback/copy-map.js";
+import {
+  CONNECTIONS_COPY,
+  STATUS_COPY,
+} from "../components/feedback/copy-map.js";
 import { RetryAction } from "../components/feedback/RetryAction.js";
 import { AlertDialog } from "../components/overlays/AlertDialog.js";
 import {
@@ -100,7 +103,7 @@ interface DiagnosticStatusProps {
 function DiagnosticStatus({ status }: DiagnosticStatusProps) {
   return (
     <Badge tone={status === "healthy" ? "success" : "error"}>
-      {status === "healthy" ? "Healthy" : "Unavailable"}
+      {status === "healthy" ? STATUS_COPY.healthy : STATUS_COPY.unavailable}
     </Badge>
   );
 }

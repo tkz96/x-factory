@@ -39,6 +39,26 @@ export const ERROR_COPY: Readonly<
 > = PROVIDER_ERROR_COPY;
 
 /** Canonical copy for the five-state taxonomy and the uniform actions. */
+/**
+ * The one wording for a status that renders as a badge outside the run map
+ * (`lib/run-status-ui.ts` owns the run statuses): a connection, a diagnostic
+ * service, the readiness line, a run stage or a pull request. Sentence case,
+ * no emoji (DESIGN.md §7, "Interaction patterns").
+ */
+export const STATUS_COPY = {
+  verified: "Verified",
+  degraded: "Degraded",
+  verifying: "Verifying…",
+  error: "Error",
+  healthy: "Healthy",
+  unavailable: "Unavailable",
+  stageFailed: "Failed",
+  stageStopped: "Stopped",
+  waitingForYou: "Waiting for you",
+  prMerged: "Merged",
+  prClosedUnmerged: "Closed without merging",
+} as const;
+
 export const STATE_COPY = {
   /** Loading: rendered beside the indeterminate spinner in its reserved region. */
   loading: "Loading…",

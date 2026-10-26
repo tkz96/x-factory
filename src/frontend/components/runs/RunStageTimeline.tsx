@@ -15,6 +15,8 @@ import {
   type StageGroup,
   type StageState,
 } from "../../lib/run-stages.js";
+import { STATUS_COPY } from "../feedback/copy-map.js";
+import { Badge, type BadgeTone } from "../ui/Badge.js";
 import { Button } from "../ui/Button.js";
 import { EmptyState } from "../ui/EmptyState.js";
 import { Icon } from "../ui/Icon.js";
@@ -77,9 +79,11 @@ export function defaultDecisionStage(
   return focusStage(groups) ?? groups.at(-1)?.stage ?? null;
 }
 
-const STATE_STATUS: Partial<Record<StageState, string>> = {
-  failed: "Failed",
-  stopped: "Stopped",
+const STATE_STATUS: Partial<
+  Record<StageState, { text: string; tone: BadgeTone }>
+> = {
+  failed: { text: STATUS_COPY.stageFailed, tone: "error" },
+  stopped: { text: STATUS_COPY.stageStopped, tone: "neutral" },
 };
 
 function StageRows({
@@ -173,15 +177,13 @@ export function RunStageTimeline({
                 </span>
               )}
               {statusText && (
-                <span className="run-stage-status text-footnote">
-                  {statusText}
-                </span>
+                <Badge tone={statusText.tone}>{statusText.text}</Badge>
               )}
               {isCurrent && waiting && (
-                <span className="run-stage-waiting text-caption-1">
+                <Badge tone="warning">
                   <span className="run-stage-waiting-dot" aria-hidden="true" />
-                  Waiting for you
-                </span>
+                  {STATUS_COPY.waitingForYou}
+                </Badge>
               )}
               <Icon
                 name="icon-stage-chevron"

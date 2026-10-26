@@ -195,3 +195,19 @@ describe("loading and error: AsyncRegion, Spinner or the feedback family, never 
     expect(sites).toEqual([]);
   });
 });
+
+describe("status: one status block, one wording map", () => {
+  it("no hand-built pill: a status renders through the Badge block", () => {
+    expect(sitesOf(/className=["'`][^"'`]*(^|\s)[\w-]*pill\b/)).toEqual([]);
+  });
+
+  it("status words are written once, in copy-map.ts or run-status-ui.ts", () => {
+    const words =
+      /["'>]\s*(Verified|Degraded|Verifying…|Healthy|Unavailable|Waiting for you|Merged|Closed without merging|Failed|Stopped)\s*["'<]/;
+    const sites = sitesOf(words).filter(
+      (site) =>
+        !/(feedback\/copy-map\.ts|lib\/run-status-ui\.ts):\d+$/.test(site),
+    );
+    expect(sites).toEqual([]);
+  });
+});
