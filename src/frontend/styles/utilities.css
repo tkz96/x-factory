@@ -84,39 +84,74 @@
 }
 
 /* ── Typography Utilities (HIG Type Scale from DESIGN.md §5) ────────── */
+/* Text styles (spec #292, "Text styles"). Each class sets font-size, font-weight,
+   line-height and letter-spacing together, from the style's tokens. The tokens
+   switch with the scale (macOS or iOS), so no class needs a media query. */
 .text-large-title {
   font-size: var(--text-large-title);
+  font-weight: var(--text-large-title-weight);
+  line-height: var(--text-large-title-leading);
+  letter-spacing: var(--text-large-title-tracking);
 }
 .text-title-1 {
   font-size: var(--text-title-1);
+  font-weight: var(--text-title-1-weight);
+  line-height: var(--text-title-1-leading);
+  letter-spacing: var(--text-title-1-tracking);
 }
 .text-title-2 {
   font-size: var(--text-title-2);
+  font-weight: var(--text-title-2-weight);
+  line-height: var(--text-title-2-leading);
+  letter-spacing: var(--text-title-2-tracking);
 }
 .text-title-3 {
   font-size: var(--text-title-3);
+  font-weight: var(--text-title-3-weight);
+  line-height: var(--text-title-3-leading);
+  letter-spacing: var(--text-title-3-tracking);
 }
 .text-headline {
   font-size: var(--text-headline);
-  font-weight: 600;
+  font-weight: var(--text-headline-weight);
+  line-height: var(--text-headline-leading);
+  letter-spacing: var(--text-headline-tracking);
 }
 .text-body {
   font-size: var(--text-body);
+  font-weight: var(--text-body-weight);
+  line-height: var(--text-body-leading);
+  letter-spacing: var(--text-body-tracking);
 }
 .text-callout {
   font-size: var(--text-callout);
+  font-weight: var(--text-callout-weight);
+  line-height: var(--text-callout-leading);
+  letter-spacing: var(--text-callout-tracking);
 }
 .text-subhead {
   font-size: var(--text-subhead);
+  font-weight: var(--text-subhead-weight);
+  line-height: var(--text-subhead-leading);
+  letter-spacing: var(--text-subhead-tracking);
 }
 .text-footnote {
   font-size: var(--text-footnote);
+  font-weight: var(--text-footnote-weight);
+  line-height: var(--text-footnote-leading);
+  letter-spacing: var(--text-footnote-tracking);
 }
 .text-caption-1 {
   font-size: var(--text-caption-1);
+  font-weight: var(--text-caption-1-weight);
+  line-height: var(--text-caption-1-leading);
+  letter-spacing: var(--text-caption-1-tracking);
 }
 .text-caption-2 {
   font-size: var(--text-caption-2);
+  font-weight: var(--text-caption-2-weight);
+  line-height: var(--text-caption-2-leading);
+  letter-spacing: var(--text-caption-2-tracking);
 }
 .font-semibold {
   font-weight: 600;
