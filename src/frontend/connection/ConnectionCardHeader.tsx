@@ -19,16 +19,17 @@ export function ConnectionCardHeader({
   verificationStatus,
 }: ConnectionCardHeaderProps) {
   return (
-    <div className="connection-card-header">
-      <div className="connection-card-title-group">
+    <div className="connection-header">
+      <div className="connection-title-group">
         <ProviderMark
           providerId={providerId}
           iconRef={selectedProvider?.iconRef}
           displayName={selectedProvider?.displayName}
         />
-        <h3 className="connection-card-role-title">{title}</h3>
+        {/* The title's type comes from the .text-headline style. */}
+        <h3 className="connection-role-title text-headline">{title}</h3>
       </div>
-      <div className="connection-card-header-status">
+      <div className="connection-header-status">
         <ConnectionStatusPill status={verificationStatus} />
       </div>
     </div>

@@ -2,6 +2,7 @@
 
 import type { ProjectConnectionRole } from "../../shared/types.js";
 import { CONNECTIONS_COPY } from "../components/feedback/copy-map.js";
+import { Icon } from "../components/ui/Icon.js";
 import { ConnectionCardFeedback } from "./ConnectionCardFeedback.js";
 import { ConnectionField } from "./ConnectionField.js";
 import { ConnectionVerifyButton } from "./ConnectionVerifyButton.js";
@@ -40,7 +41,7 @@ export function ConnectionFieldsList({
 }: ConnectionFieldsListProps) {
   if (!selectedProvider) {
     return (
-      <p className="connection-card-empty-prompt">
+      <p className="connection-provider-prompt text-subhead">
         Select a provider to configure connection details.
       </p>
     );
@@ -58,20 +59,19 @@ export function ConnectionFieldsList({
   const secretField = roleFields.find((f) => f.secret || f.type === "secret");
 
   return (
-    <div className="connection-card-fields">
+    <div className="connection-fields">
       <div
         className="connection-required-scopes"
         id={`connection-required-scopes-${connectionRole}`}
       >
         <div className="connection-required-scopes-header">
-          <svg className="icon icon-sm" aria-hidden="true">
-            <use href="/assets/icons/sprite.svg#icon-shield-check" />
-          </svg>
-          <span className="connection-required-scopes-title">
+          <Icon name="icon-shield-check" size="sm" />
+          {/* The title's type comes from the .text-footnote style. */}
+          <span className="text-footnote font-semibold">
             {CONNECTIONS_COPY.requiredScopesTitle}
           </span>
         </div>
-        <p className="connection-required-scopes-text">
+        <p className="connection-required-scopes-text text-footnote">
           {secretField?.help ?? CONNECTIONS_COPY.requiredScopesFallbackHelp}
         </p>
       </div>

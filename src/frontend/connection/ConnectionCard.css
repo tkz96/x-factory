@@ -1,54 +1,53 @@
-/* src/frontend/connection/ConnectionCard.css — Role-based connection card styling */
+/* src/frontend/connection/ConnectionCard.css — Role-based connection card styling.
+   The card's frame, radius and padding come from the Card block (variant
+   "connection"); this file keeps only what belongs beside it (spec #292). */
 
-.connection-card {
-  border: var(--hairline) solid var(--separator);
-  border-radius: var(--radius-card);
-  background: var(--bg-card);
-  padding: var(--space-5);
+/* A Card owns no margins (DESIGN.md §7 "Cards"), so the card's own bottom
+   offset between stacked cards lives here. */
+.connection-slot {
   margin-bottom: var(--space-4);
 }
 
-.connection-card-header {
+.connection-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: var(--space-4);
 }
 
-.connection-card-title-group {
+.connection-title-group {
   display: flex;
   align-items: center;
   gap: var(--space-2);
 }
 
-.connection-card-role-title {
-  font-size: var(--text-callout);
-  font-weight: 600;
-  color: var(--text);
+/* The title's type comes from the .text-headline style. */
+.connection-role-title {
   margin: 0;
+  color: var(--text);
 }
 
-.connection-card-header-status {
+.connection-header-status {
   display: flex;
   align-items: center;
 }
 
-.connection-card-body {
-  font-size: var(--text-subhead);
+.connection-body {
   color: var(--text);
 }
 
-.connection-card-empty-prompt {
+/* The prompt a card with no provider shows; its type comes from the
+   .text-subhead style. */
+.connection-provider-prompt {
   margin: var(--space-3) 0 0;
   color: var(--text-muted);
-  font-size: var(--text-subhead);
 }
 
-.connection-card-fields {
+.connection-fields {
   margin-top: var(--space-4);
 }
 
-.connection-card-actions {
+.connection-actions {
   margin-top: var(--space-4);
   display: flex;
   align-items: center;
@@ -73,13 +72,8 @@
   color: var(--text);
 }
 
-.connection-required-scopes-title {
-  font-size: var(--text-footnote);
-  font-weight: 600;
-}
-
+/* The scopes note's type comes from the .text-footnote style. */
 .connection-required-scopes-text {
-  font-size: var(--text-footnote);
   color: var(--text-muted);
   margin: 0;
   line-height: 1.4;
@@ -97,8 +91,8 @@
   gap: var(--space-2);
 }
 
+/* The remediation lines' type comes from the .text-footnote style. */
 .connection-degraded-remediation {
-  font-size: var(--text-footnote);
   color: var(--text-muted);
   margin: var(--space-1) 0 0;
   line-height: 1.4;
