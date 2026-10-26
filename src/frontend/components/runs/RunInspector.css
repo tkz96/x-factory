@@ -32,8 +32,6 @@
 /* The small muted caption that heads each section. */
 .run-inspector-caption {
   margin: 0;
-  font-size: var(--text-caption-1);
-  font-weight: 600;
   color: var(--text-muted);
 }
 
@@ -50,7 +48,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: var(--text-caption-1);
   font-variant-numeric: tabular-nums;
   color: var(--text-muted);
 }
@@ -63,15 +60,13 @@
 }
 
 /* One row: the label on the left in the sans font, the value on the right in the mono font. */
-.run-inspector-row,
-.run-inspector-file {
+.run-inspector-row {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
   gap: var(--space-3);
   min-width: 0;
   margin: 0;
-  font-size: var(--text-footnote);
 }
 
 /* A label never truncates: it keeps its full width and the value beside it gives way instead. */
@@ -81,7 +76,6 @@
   min-width: 0;
   margin: 0;
   overflow-wrap: anywhere;
-  font-weight: 400;
   color: var(--text);
 }
 
@@ -146,21 +140,44 @@
   padding: 0;
 }
 
-/* A file row is a real button drawn at the same height as the other rows: no padding, no margin, the full
-   column width, so its counts end flush right like every other value. The hit area and the hover fill
-   are a pseudo-element that reaches past the row without changing its layout. */
-.run-inspector-file {
+/* A file row is the quiet button drawn at the same height as the other rows: no padding, no margin, the
+   full column width, so its counts end flush right like every other value. The hover fill is a
+   pseudo-element that reaches past the row without changing its layout. */
+.ui-button.run-inspector-file {
   position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
   width: 100%;
+  min-width: 0;
+  min-height: 0;
   margin: 0;
   padding: 0;
   border: 0;
+  border-radius: var(--radius-none);
   background: transparent;
   color: var(--text);
   font-family: inherit;
   line-height: inherit;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
+}
+
+.ui-button.run-inspector-file[data-hovered] {
+  background: transparent;
+  color: var(--text);
+}
+
+.ui-button.run-inspector-file[data-pressed] {
+  transform: none;
+}
+
+/* A finger's target: the row keeps --tap-min under a touch pointer or a phone width. */
+@media (any-pointer: coarse), (max-width: 768px) {
+  .ui-button.run-inspector-file {
+    min-height: var(--tap-min);
+  }
 }
 
 .run-inspector-file::before {
@@ -172,11 +189,11 @@
   transition: background-color var(--transition-fast);
 }
 
-.run-inspector-file:hover::before {
+.run-inspector-file[data-hovered]::before {
   background: var(--bg-hover);
 }
 
-.run-inspector-file:focus-visible {
+.run-inspector-file[data-focus-visible] {
   outline: var(--border-width-indicator) solid var(--border-focus);
   outline-offset: calc(var(--border-width-indicator) * -1);
 }
@@ -205,10 +222,9 @@
   color: var(--red);
 }
 
-.run-inspector-empty {
-  margin: 0;
-  font-size: var(--text-footnote);
-  color: var(--text-muted);
+/* The empty note of a section: the EmptyState block, without its own air. */
+.run-inspector-none .ui-empty-state {
+  padding: var(--space-2) 0;
 }
 
 /* The footer: a full-width "Raw log" button pinned under the scroll area. */
@@ -232,8 +248,6 @@
 }
 
 .run-inspector-count {
-  font-size: var(--text-caption-1);
-  font-weight: 400;
   font-variant-numeric: tabular-nums;
   color: var(--text-muted);
 }
@@ -301,7 +315,6 @@
 }
 
 .run-inspector-log .chat-bubble {
-  font-size: var(--text-caption-1);
   padding: var(--space-1) var(--space-2);
 }
 

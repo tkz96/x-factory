@@ -23,19 +23,19 @@ export function RunNowHeader({ run, now }: RunNowHeaderProps) {
   const headingId = `run-now-title-${run.id}`;
   return (
     <section className="run-now" aria-labelledby={headingId}>
-      <h2 id={headingId} className="run-now-title">
+      <h2 id={headingId} className="run-now-title text-title-3">
         {now.title}
       </h2>
-      <p className="run-now-sentence">{now.sentence}</p>
+      <p className="run-now-sentence text-body">{now.sentence}</p>
 
       {now.plan && (
-        <div className="run-now-plan">
+        <div className="run-now-plan text-callout">
           <MarkdownBlock content={now.plan} compact />
         </div>
       )}
 
       {now.diff && (
-        <p className="run-now-diff">
+        <p className="run-now-diff text-caption-1">
           {`${now.diff.files.length} ${plural(now.diff.files.length, "file", "files")} · +${now.diff.totalAdded} −${now.diff.totalRemoved}`}
         </p>
       )}
@@ -55,7 +55,7 @@ export function RunNowHeader({ run, now }: RunNowHeaderProps) {
           {now.pullRequestOutcome?.status === "merged" &&
             now.pullRequestOutcome.mergedAt && (
               <time
-                className="run-now-pr-time"
+                className="run-now-pr-time text-caption-1"
                 dateTime={now.pullRequestOutcome.mergedAt}
               >
                 {`Merged ${formatRelativeTime(now.pullRequestOutcome.mergedAt, Date.now())}`}
@@ -64,7 +64,7 @@ export function RunNowHeader({ run, now }: RunNowHeaderProps) {
           {now.pullRequestOutcome?.status === "closed" &&
             now.pullRequestOutcome.closedAt && (
               <time
-                className="run-now-pr-time"
+                className="run-now-pr-time text-caption-1"
                 dateTime={now.pullRequestOutcome.closedAt}
               >
                 {`Closed ${formatRelativeTime(now.pullRequestOutcome.closedAt, Date.now())}`}
@@ -75,8 +75,12 @@ export function RunNowHeader({ run, now }: RunNowHeaderProps) {
 
       {now.failure && (
         <div className="run-now-failure" role="status">
-          <p className="run-now-failure-message">{now.failure.message}</p>
-          <p className="run-now-failure-recovery">{now.failure.recovery}</p>
+          <p className="run-now-failure-message text-headline">
+            {now.failure.message}
+          </p>
+          <p className="run-now-failure-recovery text-callout">
+            {now.failure.recovery}
+          </p>
         </div>
       )}
     </section>

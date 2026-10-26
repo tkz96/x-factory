@@ -151,7 +151,7 @@ The design system is being migrated to the blocks. Until M8 lands, the code has 
 - M3 Projects (ProjectsView, ProjectDetailView, projects)
 - M4 Settings and connections
 - M5 Wizard
-- M6 Runs (RunsView, RunDetailView, runs)
+- M6 Runs (RunsView, RunDetailView, runs). Its files have no G3 to G9 findings. G3 to G9 stay inactive until M7 clears the other areas.
 - M7 Docs and diagrams (DocsView, DocsSidebarNav, diagrams). G3 to G9 land here.
 - M8 Legacy CSS removal (`buttons.css`, `cards.css`, `badges.css`). G11 lands here.
 

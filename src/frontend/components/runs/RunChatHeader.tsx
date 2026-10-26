@@ -52,7 +52,7 @@ function RunElapsed({
   if (!Number.isFinite(startMs)) return null;
   const endMs = endedAt ? Date.parse(endedAt) : tick;
   return (
-    <span className="run-chat-elapsed">
+    <span className="run-chat-elapsed text-footnote">
       {formatTook(Math.max(0, endMs - startMs))}
     </span>
   );
@@ -92,7 +92,7 @@ export function RunChatHeader({
       />
       {/* At phone width the count is left out: the stage list says the same per stage. */}
       {!narrow && (
-        <span className="run-chat-progress-count">
+        <span className="run-chat-progress-count text-caption-1">
           {`${stagesDoneCount(groups)} of ${groups.length} stages done`}
         </span>
       )}

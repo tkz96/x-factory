@@ -111,7 +111,7 @@ export function RunCheckpointBar({
   return (
     <section className="run-checkpoint-bar" aria-label="Checkpoint">
       {conflict && (
-        <p className="run-checkpoint-conflict" role="alert">
+        <p className="run-checkpoint-conflict text-callout" role="alert">
           This run already moved on. Showing the latest.
         </p>
       )}

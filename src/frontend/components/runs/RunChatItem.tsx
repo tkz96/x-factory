@@ -13,10 +13,15 @@ import { MotionEntry } from "../../motion/MotionEntry.js";
 import { MarkdownBlock } from "../MarkdownBlock.js";
 import { Badge } from "../ui/Badge.js";
 import { Button } from "../ui/Button.js";
+import { Card } from "../ui/Card.js";
 
 export function RunTime({ at, now }: { at: string; now: number }) {
   return (
-    <time className="run-chat-time" dateTime={at} title={formatTimestamp(at)}>
+    <time
+      className="run-chat-time text-caption-2"
+      dateTime={at}
+      title={formatTimestamp(at)}
+    >
       {formatRelativeTime(at, now)}
     </time>
   );
@@ -116,45 +121,47 @@ export function RunChatItemView({
       );
     case "evidence":
       return (
-        <div className="run-chat-card" data-kind="evidence">
-          <MarkdownBlock content={item.text} label={item.stage} compact />
-          <RunTime at={item.at} now={now} />
+        <div data-kind="evidence">
+          <Card variant="chat" className="text-callout">
+            <MarkdownBlock content={item.text} label={item.stage} compact />
+            <RunTime at={item.at} now={now} />
+          </Card>
         </div>
       );
     case "plan":
       return (
-        <article className="run-chat-card" data-kind="plan" aria-label="Plan">
-          <MarkdownBlock content={item.plan} label="Plan" compact />
-          <RunTime at={item.at} now={now} />
+        <article data-kind="plan" aria-label="Plan">
+          <Card variant="chat" className="text-callout">
+            <MarkdownBlock content={item.plan} label="Plan" compact />
+            <RunTime at={item.at} now={now} />
+          </Card>
         </article>
       );
     case "diff":
       return (
-        <article
-          className="run-chat-card"
-          data-kind="diff"
-          aria-label="Changes"
-        >
-          <h3>
-            Changes: {item.summary.files.length}{" "}
-            {item.summary.files.length === 1 ? "file" : "files"}
-          </h3>
-          <ul className="run-chat-files">
-            {item.summary.files.map((file) => (
-              <li key={file.path}>
-                <button
-                  type="button"
-                  className="run-chat-file"
-                  onClick={() => onOpenFile(file)}
-                >
-                  <span className="run-chat-file-name">{file.path}</span>
-                  <span className="run-chat-file-add">{`+${file.added}`}</span>
-                  <span className="run-chat-file-remove">{`−${file.removed}`}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-          <RunTime at={item.at} now={now} />
+        <article data-kind="diff" aria-label="Changes">
+          <Card variant="chat" className="text-callout">
+            <h3 className="text-headline">
+              Changes: {item.summary.files.length}{" "}
+              {item.summary.files.length === 1 ? "file" : "files"}
+            </h3>
+            <ul className="run-chat-files">
+              {item.summary.files.map((file) => (
+                <li key={file.path}>
+                  <Button
+                    variant="quiet"
+                    className="run-chat-file text-subhead"
+                    onPress={() => onOpenFile(file)}
+                  >
+                    <span className="run-chat-file-name">{file.path}</span>
+                    <span className="run-chat-file-add">{`+${file.added}`}</span>
+                    <span className="run-chat-file-remove">{`−${file.removed}`}</span>
+                  </Button>
+                </li>
+              ))}
+            </ul>
+            <RunTime at={item.at} now={now} />
+          </Card>
         </article>
       );
     case "review":
@@ -164,17 +171,21 @@ export function RunChatItemView({
           <RunTime at={item.at} now={now} />
         </div>
       ) : (
-        <div className="run-chat-card" data-kind="review">
-          <MarkdownBlock content={item.text ?? ""} compact />
-          <RunTime at={item.at} now={now} />
+        <div data-kind="review">
+          <Card variant="chat" className="text-callout">
+            <MarkdownBlock content={item.text ?? ""} compact />
+            <RunTime at={item.at} now={now} />
+          </Card>
         </div>
       );
     case "result": {
       const outcome = `${item.title} ${item.passed ? "passed" : "did not pass"}`;
       return item.summary ? (
-        <div className="run-chat-card" data-kind="result">
-          <MarkdownBlock content={item.summary} label={outcome} compact />
-          <RunTime at={item.at} now={now} />
+        <div data-kind="result">
+          <Card variant="chat" className="text-callout">
+            <MarkdownBlock content={item.summary} label={outcome} compact />
+            <RunTime at={item.at} now={now} />
+          </Card>
         </div>
       ) : (
         <div className="run-chat-system" data-kind="result">
@@ -199,7 +210,7 @@ export function RunChatItemView({
           className={`run-chat-bubble run-chat-bubble-${item.speaker}`}
           data-kind="output"
         >
-          <span className="run-chat-speaker">
+          <span className="run-chat-speaker text-caption-1">
             {item.speaker === "reviewer" ? "Reviewer" : "Builder"}
           </span>
           <MarkdownBlock content={item.text} compact />

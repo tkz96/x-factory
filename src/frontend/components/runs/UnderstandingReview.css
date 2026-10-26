@@ -22,11 +22,9 @@
 
 .understanding-review-verdict-title {
   margin: 0;
-  font-weight: 600;
 }
 
 .understanding-review-verdict-reason {
   margin: 0;
   color: var(--text-muted);
-  font-size: var(--text-footnote);
 }

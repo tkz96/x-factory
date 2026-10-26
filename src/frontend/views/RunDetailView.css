@@ -68,47 +68,6 @@
 .code-sub {
   display: block;
   font-family: var(--font-mono);
-  font-size: var(--text-footnote);
   color: var(--text-muted);
   margin-top: var(--space-1);
-}
-
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: var(--space-2);
-}
-
-.section-header h3 {
-  margin-bottom: 0;
-}
-
-/* ── Empty and loading states of the run page (moved from public/styles.css) ──
-   The card (shared/cards.css) owns the box and the heading, as it did before; the
-   legacy padding, dashed border and heading size were already overridden there. */
-
-.empty-state {
-  text-align: center;
-}
-
-.empty-icon {
-  margin-bottom: 0.8rem;
-  color: var(--text-dim);
-}
-
-.empty-state p {
-  color: var(--text-muted);
-  font-size: 0.85rem;
-  max-width: 27.5rem;
-  margin: 0 auto;
-  line-height: 1.5;
-}
-
-.empty-state code {
-  font-family: var(--font-mono);
-  background: var(--code-chip-bg);
-  padding: 0.1rem 0.3rem;
-  border-radius: var(--radius-xs);
-  color: var(--accent);
 }

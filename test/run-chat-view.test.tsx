@@ -873,7 +873,7 @@ describe("run chat text reads as Markdown and sits at the start of a stage", () 
     expect(system).toContain("justify-content: flex-start");
     expect(system).toContain("text-align: start");
     expect(system).not.toMatch(/justify-content: center|text-align: center/);
-    const card = /\.run-chat-card \{[^}]*\}/.exec(css)?.[0] ?? "";
+    const card = /\.run-chat-messages \.ui-card \{[^}]*\}/.exec(css)?.[0] ?? "";
     expect(card).toContain("text-align: start");
     expect(css).toContain(".run-chat-system-warning");
     expect(css).toContain(".run-chat-system-error");

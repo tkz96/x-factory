@@ -27,6 +27,8 @@ import {
   Sheet,
 } from "../overlays/index.js";
 import { Button } from "../ui/Button.js";
+import { EmptyState } from "../ui/EmptyState.js";
+import { Icon } from "../ui/Icon.js";
 import { IconButton } from "../ui/IconButton.js";
 import { ChatThread } from "./ChatThread.js";
 import { DiffModal } from "./DiffModal.js";
@@ -118,7 +120,7 @@ function DetailRow({
   if (kind !== "truncate") classes.push(`run-inspector-value--${kind}`);
   if (tone) classes.push(`run-inspector-value--${tone}`);
   return (
-    <div className="run-inspector-row">
+    <div className="run-inspector-row text-callout">
       <dt className="run-inspector-label" title={label}>
         {label}
       </dt>
@@ -147,7 +149,7 @@ function RunDetailsPane({ run, events, connected }: RunInspectorProps) {
   return (
     <>
       <header className="run-panel-header">
-        <h2 id="run-inspector-title" className="run-panel-title">
+        <h2 id="run-inspector-title" className="run-panel-title text-headline">
           Run details
         </h2>
       </header>
@@ -158,7 +160,10 @@ function RunDetailsPane({ run, events, connected }: RunInspectorProps) {
             className="run-inspector-section"
             aria-labelledby="run-inspector-run"
           >
-            <h3 id="run-inspector-run" className="run-inspector-caption">
+            <h3
+              id="run-inspector-run"
+              className="run-inspector-caption text-headline"
+            >
               Run
             </h3>
             <dl className="run-inspector-rows">
@@ -209,7 +214,10 @@ function RunDetailsPane({ run, events, connected }: RunInspectorProps) {
             className="run-inspector-section"
             aria-labelledby="run-inspector-models"
           >
-            <h3 id="run-inspector-models" className="run-inspector-caption">
+            <h3
+              id="run-inspector-models"
+              className="run-inspector-caption text-headline"
+            >
               Models
             </h3>
             <dl className="run-inspector-rows">
@@ -243,25 +251,30 @@ function RunDetailsPane({ run, events, connected }: RunInspectorProps) {
             aria-labelledby="run-inspector-files"
           >
             <div className="run-inspector-caption-row">
-              <h3 id="run-inspector-files" className="run-inspector-caption">
+              <h3
+                id="run-inspector-files"
+                className="run-inspector-caption text-headline"
+              >
                 Files
               </h3>
               {files.length > 0 && (
-                <span className="run-inspector-note">
+                <span className="run-inspector-note text-caption-1">
                   {`${files.length} ${plural(files.length, "file", "files")} · +${totalAdded} −${totalRemoved}`}
                 </span>
               )}
             </div>
             {files.length === 0 ? (
-              <p className="run-inspector-empty">No changes yet.</p>
+              <div className="run-inspector-none">
+                <EmptyState message="No changes yet." />
+              </div>
             ) : (
               <ul className="run-inspector-files">
                 {files.map((file) => (
                   <li key={file.file}>
-                    <button
-                      type="button"
-                      className="run-inspector-file"
-                      onClick={() => setDiffFile(file)}
+                    <Button
+                      variant="quiet"
+                      className="run-inspector-file text-callout"
+                      onPress={() => setDiffFile(file)}
                     >
                       <span className="run-inspector-label run-inspector-file-path">
                         {file.file}
@@ -270,7 +283,7 @@ function RunDetailsPane({ run, events, connected }: RunInspectorProps) {
                         <span className="run-inspector-add">{`+${file.added}`}</span>{" "}
                         <span className="run-inspector-remove">{`−${file.removed}`}</span>
                       </span>
-                    </button>
+                    </Button>
                   </li>
                 ))}
               </ul>
@@ -313,14 +326,15 @@ function RunDetailsPane({ run, events, connected }: RunInspectorProps) {
               </>
             )}
             <span>Raw log</span>
-            <span className="run-inspector-count">{logCount}</span>
+            <span className="run-inspector-count text-caption-1">
+              {logCount}
+            </span>
           </span>
-          <svg
-            className="icon icon-sm run-inspector-chevron"
-            aria-hidden="true"
-          >
-            <use href="/assets/icons/sprite.svg#icon-chevron-right" />
-          </svg>
+          <Icon
+            name="icon-chevron-right"
+            size="sm"
+            className="run-inspector-chevron"
+          />
         </Button>
       </footer>
 

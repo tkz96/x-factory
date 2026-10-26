@@ -160,8 +160,8 @@ describe("the send control", () => {
       ),
       "utf-8",
     );
-    expect(source).toContain('aria-label="Send"');
-    expect(source).toContain("sprite.svg#icon-send");
+    expect(source).toContain('label="Send"');
+    expect(source).toContain('icon="icon-send"');
     const sprite = readFileSync(
       path.join(process.cwd(), "public/assets/icons/sprite.svg"),
       "utf-8",

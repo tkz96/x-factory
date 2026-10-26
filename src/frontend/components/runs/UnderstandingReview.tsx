@@ -22,11 +22,11 @@ export function UnderstandingReview({ context }: UnderstandingReviewProps) {
     >
       {context.changeRequired === false && (
         <div className="understanding-review-verdict">
-          <p className="understanding-review-verdict-title">
+          <p className="understanding-review-verdict-title text-headline">
             The understanding found that no change is required
           </p>
           {context.changeReason && (
-            <p className="understanding-review-verdict-reason">
+            <p className="understanding-review-verdict-reason text-callout">
               {context.changeReason}
             </p>
           )}
