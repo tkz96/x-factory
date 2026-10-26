@@ -519,6 +519,10 @@ describe("Review Step: the gate and the creation submit (#146)", () => {
     expect(getEl("combo-summary").textContent).not.toContain("generic-githost");
 
     expect(getEl("review-proj-name").textContent).toBe("Rocket");
+    // The summary is the Card block, review variant.
+    expect(
+      getEl("review-proj-name").closest(".ui-card--review"),
+    ).not.toBeNull();
     expect(getEl("review-proj-id").textContent).toBe("rocket");
     expect(getEl("review-workspace-path").textContent).toBe("/work/rocket");
     expect(getEl("review-proj-description").textContent).toBe("Rocket app");

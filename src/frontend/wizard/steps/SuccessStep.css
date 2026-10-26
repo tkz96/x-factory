@@ -49,14 +49,11 @@
 
 .success-step-label {
   min-width: 6rem;
-  font-size: var(--text-footnote);
-  font-weight: 500;
   color: var(--text-muted);
 }
 
 .success-step-value {
   margin: 0;
-  font-weight: 600;
   color: var(--text-main);
 }
 

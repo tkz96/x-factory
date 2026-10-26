@@ -6,17 +6,11 @@
   margin-bottom: var(--space-4);
 }
 
-/* A section header: footnote, 600, --text-secondary, in the case it was written
-   in (DESIGN.md §7 "Lists, headers and sizes"). */
+/* A section header, in the case it was written in (DESIGN.md §7 "Lists,
+   headers and sizes"). Its size and weight come from `text-subhead`. */
 .repository-step-section {
   margin: var(--space-6) 0 var(--space-3);
-  font-size: var(--text-footnote);
-  font-weight: 600;
   color: var(--text-secondary);
-}
-
-.repository-step-pane .ui-field-description {
-  font-size: var(--text-footnote);
 }
 
 /* An identifier and a test command are code: read the block's own class from

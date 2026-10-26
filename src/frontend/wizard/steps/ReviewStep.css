@@ -1,23 +1,13 @@
-/* src/frontend/wizard/steps/ReviewStep.css — Step 5 Review styling.
-   Tokens only (docs/agents/frontend-styling.md): spacing is an --space-*
-   token and type is a HIG --text-* token. Where a value had no exact token it
-   snaps to the nearest one (ties go to the tighter value), and 1px hairlines
-   keep their literal `1px` because a hairline is a rendering constraint, not a
-   spacing step. */
+/* src/frontend/wizard/steps/ReviewStep.css — Step 5 Review styling. Tokens
+   only (docs/agents/frontend-styling.md). The summary is a Card block
+   (`variant="review"`); this file only sets its place in the step. */
 
 .review-step-pane {
   padding: 0;
 }
 
-.review-summary-card {
-  border: var(--hairline) solid var(--separator);
-  border-radius: var(--radius-md);
-  background: var(--bg-card);
-  padding: var(--space-5);
+.review-summary {
   margin-top: var(--space-5);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
 }
 
 .review-row {
@@ -33,13 +23,10 @@
 }
 
 .review-label {
-  font-size: var(--text-subhead);
   color: var(--text-muted);
 }
 
 .review-value {
-  font-size: var(--text-subhead);
-  font-weight: 500;
   color: var(--text);
 }
 
@@ -48,8 +35,6 @@
 }
 
 .review-section-title {
-  font-size: var(--text-subhead);
-  font-weight: 600;
   color: var(--text-main);
   margin: 0 0 var(--space-2);
 }
@@ -71,22 +56,17 @@
   border: var(--hairline) solid var(--separator);
   border-radius: var(--radius-md);
   background: var(--bg-card);
-  font-size: var(--text-subhead);
 }
 
 .review-repository-name {
-  font-weight: 600;
   color: var(--text-main);
 }
 
 .review-repository-role {
-  font-size: var(--text-caption-1);
   color: var(--text-muted);
 }
 
 .review-repository-primary {
-  font-size: var(--text-caption-1);
-  font-weight: 600;
   color: var(--green);
   border: var(--border-width) solid var(--green);
   border-radius: var(--radius-full);

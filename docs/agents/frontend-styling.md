@@ -155,6 +155,8 @@ The design system is being migrated to the blocks. Until M8 lands, the code has 
 - M7 Docs and diagrams (DocsView, DocsSidebarNav, diagrams). G3 to G9 land here.
 - M8 Legacy CSS removal (`buttons.css`, `cards.css`, `badges.css`). G11 lands here.
 
+Migration progress: M5 (Wizard) is done. `src/frontend/wizard/` has no G3 to G9 finding. Its G3 to G9 gates still wait for M7 because other areas have findings.
+
 Between step 3 and M7, drift in migrated areas is caught by the design-reviewer check, not by a gate. M7 closes that gap.
 
 Each migration PR updates the gate table. M8 deletes this section.

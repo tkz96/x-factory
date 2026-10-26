@@ -30,14 +30,11 @@
 
 .inspection-identity-label {
   min-width: 6rem;
-  font-size: var(--text-footnote);
-  font-weight: 500;
   color: var(--text-muted);
 }
 
 .inspection-identity-value {
   margin: 0;
-  font-weight: 600;
   color: var(--text-main);
 }
 
@@ -56,9 +53,7 @@
 
 .git-identity-explanation-text {
   margin: 0;
-  font-size: var(--text-subhead);
   color: var(--text-muted);
-  line-height: 1.5;
 }
 
 .git-identity-form {
@@ -79,14 +74,11 @@
 
 .git-identity-form-title {
   margin: 0;
-  font-size: var(--text-headline);
-  font-weight: 600;
   color: var(--text-main);
 }
 
 .git-identity-form-hint {
   margin: 0;
-  font-size: var(--text-footnote);
   color: var(--text-muted);
 }
 
@@ -109,8 +101,6 @@
 }
 
 .git-identity-scope-label {
-  font-size: var(--text-footnote);
-  font-weight: 600;
   color: var(--text-main);
 }
 
@@ -126,13 +116,11 @@
 
 .git-identity-scope-warning {
   margin: 0;
-  font-size: var(--text-caption-1);
   color: var(--text-muted);
 }
 
 .git-identity-scope-hint {
   margin: 0;
-  font-size: var(--text-caption-1);
   color: var(--text-muted);
   font-style: italic;
 }

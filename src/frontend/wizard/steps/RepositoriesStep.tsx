@@ -13,6 +13,7 @@ import { AsyncRegion } from "../../components/feedback/AsyncRegion.js";
 import { REPOSITORIES_COPY } from "../../components/feedback/copy-map.js";
 import { FeedbackBanner } from "../../components/feedback/FeedbackBanner.js";
 import { Button } from "../../components/ui/Button.js";
+import { EmptyState } from "../../components/ui/EmptyState.js";
 import { WizardFooter } from "../shared/WizardFooter.js";
 import { filterAndOrderRepositories } from "./repository-filter.js";
 import { useRepositoryDiscovery } from "./useRepositoryDiscovery.js";
@@ -69,10 +70,14 @@ export function RepositoriesStep() {
       className="wizard-step-pane repositories-step-pane"
     >
       <div className="wizard-step-header">
-        <h2 className="wizard-step-title">{REPOSITORIES_COPY.title}</h2>
-        <p className="wizard-step-subtitle">{REPOSITORIES_COPY.subtitle}</p>
+        <h2 className="wizard-step-title text-headline">
+          {REPOSITORIES_COPY.title}
+        </h2>
+        <p className="wizard-step-subtitle text-callout">
+          {REPOSITORIES_COPY.subtitle}
+        </p>
         <p
-          className="repositories-requirements-hint"
+          className="repositories-requirements-hint text-callout"
           id="repositories-requirements-hint"
         >
           {REPOSITORIES_COPY.requirementsHelp}
@@ -105,7 +110,7 @@ export function RepositoriesStep() {
             className="repositories-list-header"
             id="repositories-list-header"
           >
-            <label className="repositories-select-all">
+            <label className="repositories-select-all text-callout">
               <input
                 id="repo-select-all"
                 type="checkbox"
@@ -121,7 +126,7 @@ export function RepositoriesStep() {
               <span>{REPOSITORIES_COPY.selectAllLabel}</span>
             </label>
             <span
-              className="repositories-selected-count"
+              className="repositories-selected-count text-footnote"
               id="repositories-selected-count"
               aria-live="polite"
             >
@@ -134,14 +139,14 @@ export function RepositoriesStep() {
 
           <div className="repositories-filter">
             <label
-              className="repositories-filter-label"
+              className="repositories-filter-label text-callout"
               htmlFor="repositories-filter"
             >
               {REPOSITORIES_COPY.filterLabel}
             </label>
             <input
               id="repositories-filter"
-              className="repositories-filter-input"
+              className="repositories-filter-input text-callout"
               type="search"
               placeholder={REPOSITORIES_COPY.filterPlaceholder}
               value={filterQuery}
@@ -150,9 +155,11 @@ export function RepositoriesStep() {
           </div>
 
           {visibleRows.length === 0 && filterQuery.trim() !== "" && (
-            <p className="repositories-filter-empty" role="status">
-              {REPOSITORIES_COPY.noFilterMatches(filterQuery.trim())}
-            </p>
+            <div role="status">
+              <EmptyState
+                message={REPOSITORIES_COPY.noFilterMatches(filterQuery.trim())}
+              />
+            </div>
           )}
 
           <ul className="repositories-list" id="repositories-list">
@@ -178,9 +185,13 @@ export function RepositoriesStep() {
                     checked={selectedRepoIdSet.has(row.id)}
                     onChange={() => toggleRepository(row)}
                   />
-                  <span className="repositories-list-name">{row.name}</span>
-                  <span className="repositories-list-remote">{row.remote}</span>
-                  <span className="repositories-role-tag">
+                  <span className="repositories-list-name text-callout">
+                    {row.name}
+                  </span>
+                  <span className="repositories-list-remote text-footnote">
+                    {row.remote}
+                  </span>
+                  <span className="repositories-role-tag text-caption-1">
                     {row.isApplication
                       ? REPOSITORIES_COPY.applicationRoleLabel
                       : REPOSITORIES_COPY.noApplicationRoleLabel}
@@ -213,7 +224,7 @@ export function RepositoriesStep() {
           )}
 
           {selectedRepoIds.length > 0 && (
-            <p className="repositories-selection-summary">
+            <p className="repositories-selection-summary text-subhead">
               {REPOSITORIES_COPY.selectionSummary(selectedRepoIds.length)}
             </p>
           )}
@@ -228,7 +239,7 @@ export function RepositoriesStep() {
         status={
           continueBlockedReason !== null ? (
             <p
-              className="repositories-continue-reason"
+              className="repositories-continue-reason text-subhead"
               id="repositories-continue-reason"
               role="status"
             >

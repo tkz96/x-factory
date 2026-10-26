@@ -25,6 +25,7 @@ import {
   resolveFormValidationError,
 } from "../../components/feedback/copy-map.js";
 import { FeedbackBanner } from "../../components/feedback/FeedbackBanner.js";
+import { Card } from "../../components/ui/Card.js";
 import type { ProviderDescriptor } from "../../connection/types.js";
 import { useConnectionLine } from "../../hooks/useConnectionIdentity.js";
 import { ApiError, api } from "../../lib/api-client.js";
@@ -187,8 +188,10 @@ export function ReviewStep({ onSubmit }: ReviewStepProps) {
   return (
     <div id="onboard-step-5" className="wizard-step-pane review-step-pane">
       <div className="wizard-step-header">
-        <h2 className="wizard-step-title">{REVIEW_COPY.title}</h2>
-        <p className="wizard-step-subtitle">{REVIEW_COPY.subtitle}</p>
+        <h2 className="wizard-step-title text-headline">{REVIEW_COPY.title}</h2>
+        <p className="wizard-step-subtitle text-callout">
+          {REVIEW_COPY.subtitle}
+        </p>
       </div>
 
       <ConnectionComboLine
@@ -198,32 +201,49 @@ export function ReviewStep({ onSubmit }: ReviewStepProps) {
         descriptors={manifest}
       />
 
-      <div className="review-summary-card">
+      <Card variant="review" className="review-summary">
         <div className="review-row">
-          <span className="review-label">{REVIEW_COPY.nameLabel}</span>
-          <span className="review-value" id="review-proj-name">
+          <span className="review-label text-subhead">
+            {REVIEW_COPY.nameLabel}
+          </span>
+          <span className="review-value text-callout" id="review-proj-name">
             {name || REVIEW_COPY.unsetName}
           </span>
         </div>
 
         <div className="review-row">
-          <span className="review-label">{REVIEW_COPY.identifierLabel}</span>
-          <span className="review-value code-font" id="review-proj-id">
+          <span className="review-label text-subhead">
+            {REVIEW_COPY.identifierLabel}
+          </span>
+          <span
+            className="review-value code-font text-callout"
+            id="review-proj-id"
+          >
             {projectId || REVIEW_COPY.unsetValue}
           </span>
         </div>
 
         <div className="review-row">
-          <span className="review-label">{REVIEW_COPY.workspacePathLabel}</span>
-          <span className="review-value code-font" id="review-workspace-path">
+          <span className="review-label text-subhead">
+            {REVIEW_COPY.workspacePathLabel}
+          </span>
+          <span
+            className="review-value code-font text-callout"
+            id="review-workspace-path"
+          >
             {workspacePath || REVIEW_COPY.defaultWorkspacePath}
           </span>
         </div>
 
         {description.trim() && (
           <div className="review-row">
-            <span className="review-label">{REVIEW_COPY.descriptionLabel}</span>
-            <span className="review-value" id="review-proj-description">
+            <span className="review-label text-subhead">
+              {REVIEW_COPY.descriptionLabel}
+            </span>
+            <span
+              className="review-value text-callout"
+              id="review-proj-description"
+            >
               {description}
             </span>
           </div>
@@ -232,19 +252,22 @@ export function ReviewStep({ onSubmit }: ReviewStepProps) {
         {identity && (
           <>
             <div className="review-row">
-              <span className="review-label">
+              <span className="review-label text-subhead">
                 {REVIEW_COPY.identitySectionTitle}
               </span>
-              <span className="review-value" id="review-identity-name">
+              <span
+                className="review-value text-callout"
+                id="review-identity-name"
+              >
                 {identity.name}
               </span>
             </div>
             <div className="review-row">
-              <span className="review-label">
+              <span className="review-label text-subhead">
                 {REVIEW_COPY.identityEmailLabel}
               </span>
               <span
-                className="review-value code-font"
+                className="review-value code-font text-callout"
                 id="review-identity-email"
               >
                 {identity.email}
@@ -252,10 +275,10 @@ export function ReviewStep({ onSubmit }: ReviewStepProps) {
             </div>
           </>
         )}
-      </div>
+      </Card>
 
       <div className="review-repositories">
-        <h3 className="review-section-title">
+        <h3 className="review-section-title text-subhead">
           {REVIEW_COPY.repositoriesSectionTitle}
         </h3>
         <ul className="review-repository-list" id="review-repositories">
@@ -265,18 +288,20 @@ export function ReviewStep({ onSubmit }: ReviewStepProps) {
             return (
               <li
                 key={repoId}
-                className="review-repository-row"
+                className="review-repository-row text-subhead"
                 id={`review-repository-${repoId}`}
               >
                 <span className="review-repository-name">
                   {rows.find((row) => row.id === repoId)?.name ?? repoId}
                 </span>
                 {roles !== "" && (
-                  <span className="review-repository-role">{roles}</span>
+                  <span className="review-repository-role text-caption-1">
+                    {roles}
+                  </span>
                 )}
                 {repoId === primaryRepoId && (
                   <span
-                    className="review-repository-primary"
+                    className="review-repository-primary text-caption-1"
                     id={`review-repository-${repoId}-primary`}
                   >
                     {REVIEW_COPY.primaryBadge}
