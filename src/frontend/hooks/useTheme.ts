@@ -28,8 +28,10 @@ const STORAGE_KEY = "xf_appearance";
 const THEME_STORAGE_KEY = "xf_theme_choice";
 const THEME_NAMES: readonly ThemeName[] = ["default", "graphite", "sandstone"];
 
-/** Reduce Transparency setting (spec #292). */
+/** Reduce Transparency setting (spec #292). Automatic follows the OS. */
 export type TransparencySetting = "automatic" | "reduced" | "full";
+/** The value data-transparency takes on <html>: always resolved, never automatic. */
+export type TransparencyAttribute = "reduced" | "full";
 /** Readable Font setting (spec #292). */
 export type ReadableFontSetting = boolean;
 
@@ -62,13 +64,22 @@ export function resolveContrast(osPrefersContrast: boolean): ContrastSetting {
   return osPrefersContrast ? "more" : "standard";
 }
 
-/** Resolve the transparency setting. Automatic defers to the OS media query;
- *  On forces reduced; Off forces full glass. */
+/** Resolve the stored transparency setting. Anything unknown is Automatic. */
 export function resolveTransparency(
   stored?: string | null | undefined,
 ): TransparencySetting {
   if (stored === "reduced" || stored === "full") return stored;
   return "automatic";
+}
+
+/** Resolve the data-transparency attribute. On forces reduced, Off forces full
+ *  glass, and Automatic follows (prefers-reduced-transparency: reduce). */
+export function resolveTransparencyAttribute(
+  setting: TransparencySetting,
+  osPrefersReducedTransparency: boolean,
+): TransparencyAttribute {
+  if (setting === "reduced" || setting === "full") return setting;
+  return osPrefersReducedTransparency ? "reduced" : "full";
 }
 
 /** Resolve the readable-font setting from a stored string. */
@@ -157,7 +168,7 @@ export interface ApplyThemeOptions {
   theme?: string | undefined;
   resolvedAppearance: ResolvedAppearance;
   contrast: ContrastSetting;
-  transparency?: TransparencySetting | undefined;
+  transparency?: TransparencyAttribute | undefined;
   readableFont?: ReadableFontSetting | undefined;
 }
 
@@ -169,14 +180,12 @@ export function applyThemeToDocument(options: ApplyThemeOptions): void {
   root.setAttribute("data-theme", options.theme ?? "default");
   root.setAttribute("data-appearance", options.resolvedAppearance);
   root.setAttribute("data-contrast", options.contrast);
-  // Transparency: only set the attribute when not automatic so the CSS media
-  // query fallback (@media prefers-reduced-transparency) can apply.
-  if (options.transparency && options.transparency !== "automatic") {
+  if (options.transparency !== undefined) {
     root.setAttribute("data-transparency", options.transparency);
   } else {
     root.removeAttribute("data-transparency");
   }
-  // Readable font: set data-font="readable" when on, remove otherwise.
+  // Readable font: data-font="readable" when on, removed otherwise.
   if (options.readableFont) {
     root.setAttribute("data-font", "readable");
   } else {
@@ -267,19 +276,26 @@ export function useTheme() {
   );
   const prefersDark = useMediaQuery("(prefers-color-scheme: dark)");
   const prefersContrast = useMediaQuery("(prefers-contrast: more)");
+  const prefersReducedTransparency = useMediaQuery(
+    "(prefers-reduced-transparency: reduce)",
+  );
 
   const resolvedAppearance = resolveAppearance(appearance, prefersDark);
   const contrast = resolveContrast(prefersContrast);
+  const resolvedTransparency = resolveTransparencyAttribute(
+    transparency,
+    prefersReducedTransparency,
+  );
 
   useEffect(() => {
     applyThemeToDocument({
       theme,
       resolvedAppearance,
       contrast,
-      transparency,
+      transparency: resolvedTransparency,
       readableFont,
     });
-  }, [theme, resolvedAppearance, contrast, transparency, readableFont]);
+  }, [theme, resolvedAppearance, contrast, resolvedTransparency, readableFont]);
 
   /** Flips between Light and Dark from whatever is showing now. */
   const toggleTheme = (): AppearanceSetting => {
@@ -294,6 +310,7 @@ export function useTheme() {
     resolvedAppearance,
     contrast,
     transparency,
+    resolvedTransparency,
     readableFont,
     setAppearance,
     setTransparency,

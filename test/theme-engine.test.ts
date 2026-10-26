@@ -49,6 +49,9 @@ describe("Theme Engine (useTheme) — Resolution & Attributes", () => {
       setAttribute(key: string, val: string) {
         this.attributes[key] = val;
       },
+      removeAttribute(key: string) {
+        delete this.attributes[key];
+      },
     };
 
     const originalDoc = (globalThis as Record<string, unknown>).document;

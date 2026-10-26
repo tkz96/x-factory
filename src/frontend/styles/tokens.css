@@ -176,13 +176,15 @@
   --border-width-thick: 2px;
   --border-width-indicator: 3px;
   --border-width-indicator-thick: 4px;
-  /* Hairline: sub-pixel on HiDPI displays (spec #292). Containers, lists and
-     dividers use --hairline; buttons use a filled bezel with no border;
-     fields, checkboxes and radios keep 3:1 --border-control. */
+  /* Hairline (spec #292, DESIGN.md §Lines). Containers, lists and dividers
+     draw --hairline in --separator. Buttons use a filled bezel with no border.
+     Fields, checkboxes and radios keep the 3:1 --border-control. The 0.5px
+     width applies on HiDPI screens (see the min-resolution block below). */
   --hairline: 1px;
-  /* Low-alpha hairline separator colours (spec #292) */
-  --separator-light: rgba(60, 60, 67, 0.29);
-  --separator-dark: rgba(84, 84, 88, 0.65);
+  --separator: rgba(60, 60, 67, 0.29);
+  /* Filled bezel for a button with no border (spec #292, DESIGN.md §Lines). */
+  --fill-control: rgba(120, 120, 128, 0.12);
+  --fill-control-hover: rgba(120, 120, 128, 0.2);
 
   /* Radii — one ladder, six rungs (DESIGN.md §6). A control's radius comes from its
      size rather than from the screen it sits on, and an inner shape's radius is
@@ -196,6 +198,8 @@
   --radius-card: 16px;
   --radius-lg: 20px;
   --radius-full: 9999px;
+  /* A square corner, written as a token so no component carries a raw 0 (G1). */
+  --radius-none: 0;
 
   /* Continuous corners (DESIGN.md §6): Apple's corner is a superellipse, not a
      circular arc. --corner-shape is applied to every box in the @supports block
@@ -375,7 +379,7 @@
   }
 }
 
-/* ── Hairline: 0.5px on HiDPI displays (spec #292) ───────────────────────── */
+/* ── Hairline: 0.5px on HiDPI displays (spec #292) ──────────────────────── */
 
 @media (min-resolution: 2dppx) {
   :root {
@@ -383,39 +387,46 @@
   }
 }
 
-/* ── macOS Type Scale + Control Metrics (spec #292) ──────────────────────────
-   Applies when the primary pointer is fine (mouse / trackpad) AND the viewport
-   is at least 769px — i.e. a desktop layout. The iOS/touch defaults above
-   remain the fallback for coarse-pointer and narrow viewports. */
+/* ── macOS type scale and control metrics (spec #292) ─────────────────────
+   A fine primary pointer on a viewport wider than the phone breakpoint (768px).
+   Every other device gets the iOS scale above. Text tokens are rem, so the
+   browser's font-size setting scales them. */
 
 @media (pointer: fine) and (min-width: 769px) {
   :root {
-    /* macOS HIG type scale at 16px root */
-    --text-large-title: 1.625rem; /* 26px */
-    --text-title-1: 1.375rem; /* 22px */
-    --text-title-2: 1.0625rem; /* 17px */
-    --text-title-3: 0.9375rem; /* 15px */
-    --text-headline: 0.8125rem; /* 13px bold */
-    --text-body: 0.8125rem; /* 13px */
-    --text-callout: 0.75rem; /* 12px */
-    --text-subhead: 0.6875rem; /* 11px */
-    --text-footnote: 0.625rem; /* 10px */
-    --text-caption-1: 0.625rem; /* 10px */
-    --text-caption-2: 0.625rem; /* 10px medium */
-    /* macOS control metrics */
+    --text-large-title: 1.625rem; /* 26px regular */
+    --text-title-1: 1.375rem; /* 22px regular */
+    --text-title-2: 1.0625rem; /* 17px regular */
+    --text-title-3: 0.9375rem; /* 15px regular */
+    --text-headline: 0.8125rem; /* 13px bold (weight set by the text style) */
+    --text-body: 0.8125rem; /* 13px regular */
+    --text-callout: 0.75rem; /* 12px regular */
+    --text-subhead: 0.6875rem; /* 11px regular */
+    --text-footnote: 0.625rem; /* 10px regular */
+    --text-caption-1: 0.625rem; /* 10px regular */
+    --text-caption-2: 0.625rem; /* 10px medium (weight set by the text style) */
     --control-height: 28px;
     --control-height-sm: 22px;
     --control-height-lg: 32px;
     --header-height: 52px;
-    --list-row-height: 28px;
-    /* WCAG 2.5.8 minimum hit area on a precision pointer: 24×24px */
+    --sidebar-row-height: 28px;
+  }
+}
+
+/* ── Hit area on a precision-only device (spec #292) ──────────────────────
+   --tap-min is 44px wherever a touch input is present (any-pointer: coarse)
+   or the viewport is at most 768px. Otherwise the target is 24x24px, the
+   WCAG 2.5.8 minimum for a mouse or trackpad. */
+
+@media (min-width: 769px) and (not (any-pointer: coarse)) {
+  :root {
     --tap-min: 24px;
   }
 }
 
-/* ── Readable Font setting (spec #292) ────────────────────────────────────────
-   Setting data-font="readable" on <html> switches to Atkinson Hyperlegible Next
-   + Mono. Fonts are declared earlier; browsers load them lazily. */
+/* ── Readable font (spec #292) ────────────────────────────────────────────
+   Settings → Accessibility sets data-font="readable" on <html>. The Atkinson
+   faces are declared above and download only when text uses them. */
 
 [data-font="readable"] {
   --font-display:
@@ -426,32 +437,23 @@
     "Atkinson Hyperlegible Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }
 
-/* ── Glass material — sidebar and toolbar only (spec #292) ───────────────────
-   The material is keyed by data-transparency. Automatic (no attribute) is
-   glass. data-transparency="reduced" turns it opaque. data-transparency="full"
-   forces glass regardless of the OS setting (test helper). */
+/* ── Glass material: sidebar and toolbar only (spec #292) ───────────────────
+   Keyed on data-transparency, which useTheme resolves to "reduced" (Reduce
+   Transparency on, or Automatic with the OS setting on) or "full". Content
+   stays opaque. Without the attribute the material is glass. */
 
 .sidebar,
-.toolbar,
-[data-transparency="full"] .sidebar,
-[data-transparency="full"] .toolbar {
+.toolbar {
+  background: var(--bg-glass);
   backdrop-filter: blur(var(--blur-glass)) saturate(1.8);
   -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(1.8);
 }
 
 [data-transparency="reduced"] .sidebar,
 [data-transparency="reduced"] .toolbar {
+  background: var(--bg-sidebar);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
-}
-
-/* Reduced transparency OS preference: automatically opaque (Automatic mode). */
-@media (prefers-reduced-transparency: reduce) {
-  :root:not([data-transparency]) .sidebar,
-  :root:not([data-transparency]) .toolbar {
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
 }
 
 :root,
@@ -506,6 +508,12 @@
   --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
   --shadow-lg: 0 12px 36px rgba(0, 0, 0, 0.12);
   --shadow-focus: 0 0 0 3px var(--accent-dim);
+  /* Rings drawn as shadows, so a field's edge and its focus state use tokens (G1). */
+  --shadow-ring-control: inset 0 0 0 var(--border-width) var(--border-control);
+  --shadow-ring-focus: 0 0 0 var(--border-width-indicator) var(--border-focus);
+  --shadow-search-focus:
+    inset 0 0 0 var(--border-width) var(--accent),
+    0 0 0 var(--border-width-indicator) var(--accent-dim);
   --bg-hover: rgba(0, 0, 0, 0.03);
   --bg-tertiary: rgba(0, 0, 0, 0.04);
   --bg-secondary: rgba(0, 0, 0, 0.06);
@@ -1010,4 +1018,27 @@
     --duration-typing: 120ms;
     --duration-typing-offset: 0ms;
   }
+}
+
+/* ── Separator colour per appearance (spec #292) ──────────────────────────── */
+
+[data-appearance="dark"] {
+  --separator: rgba(84, 84, 88, 0.65);
+  --fill-control: rgba(118, 118, 128, 0.24);
+  --fill-control-hover: rgba(118, 118, 128, 0.34);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-appearance]) {
+    --separator: rgba(84, 84, 88, 0.65);
+    --fill-control: rgba(118, 118, 128, 0.24);
+    --fill-control-hover: rgba(118, 118, 128, 0.34);
+  }
+}
+
+/* ── Increase Contrast restores strong lines everywhere (spec #292) ───────── */
+
+[data-contrast="more"] {
+  --hairline: var(--border-width);
+  --separator: var(--border);
 }

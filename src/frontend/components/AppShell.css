@@ -9,10 +9,10 @@
 /* ── Sidebar ─────────────────────────────────────────────────────────── */
 
 .sidebar {
+  /* The glass material (background and backdrop-filter) lives in tokens.css. */
   width: var(--sidebar-width-narrow);
   flex-shrink: 0;
-  background: var(--bg-sidebar);
-  border-right: var(--border-width) solid var(--border);
+  border-right: var(--hairline) solid var(--separator);
   display: flex;
   flex-direction: column;
   position: sticky;
@@ -24,7 +24,7 @@
 
 .sidebar-header {
   padding: 1.25rem 1rem 1rem;
-  border-bottom: var(--border-width) solid var(--border-subtle);
+  border-bottom: var(--hairline) solid var(--separator);
 }
 
 .brand {
@@ -94,7 +94,7 @@
 
 .sidebar-footer {
   padding: 0.85rem 1rem;
-  border-top: var(--border-width) solid var(--border-subtle);
+  border-top: var(--hairline) solid var(--separator);
   font-size: var(--text-footnote);
   color: var(--text-dim);
   display: flex;
@@ -123,10 +123,7 @@
   align-items: center;
   gap: var(--space-4);
   padding: var(--space-3) var(--space-8);
-  background: var(--bg-glass);
-  backdrop-filter: blur(var(--blur-glass));
-  -webkit-backdrop-filter: blur(var(--blur-glass));
-  border-bottom: var(--border-width) solid var(--border);
+  border-bottom: var(--hairline) solid var(--separator);
   position: sticky;
   top: 0;
   z-index: 5;
@@ -551,7 +548,7 @@
     background: var(--bg-glass);
     backdrop-filter: blur(var(--blur-glass));
     -webkit-backdrop-filter: blur(var(--blur-glass));
-    border-top: var(--border-width) solid var(--border);
+    border-top: var(--hairline) solid var(--separator);
     z-index: 1000;
     justify-content: space-around;
     align-items: center;
