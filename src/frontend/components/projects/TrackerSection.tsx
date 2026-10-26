@@ -199,7 +199,7 @@ export function TrackerSection({ project }: TrackerSectionProps) {
               {!testResult.ok &&
                 remainingMs !== undefined &&
                 remainingMs > 0 && (
-                  <div className="feedback-countdown">
+                  <div className="feedback-countdown text-caption-1">
                     {formatRetryCountdown(remainingMs)}
                   </div>
                 )}

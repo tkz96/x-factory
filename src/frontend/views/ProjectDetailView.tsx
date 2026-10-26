@@ -108,7 +108,7 @@ export function ProjectDetailView() {
 
         {/* The three plain-word facts in one card: a glance answers what this
             project is wired to. */}
-        <Card className="projects-detail-facts-panel">
+        <Card className="projects-detail-facts-panel" padding="regular">
           <dl className="projects-detail-facts">
             {facts.map((fact) => (
               <div className="projects-detail-fact" key={fact.label}>

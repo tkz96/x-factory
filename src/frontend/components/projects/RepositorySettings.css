@@ -7,11 +7,6 @@
   gap: var(--space-4);
 }
 
-/* The Card block owns the surface; the form is the column inside it. */
-.repo-settings .repo-settings-item {
-  padding: var(--space-4);
-}
-
 .repo-settings-form {
   display: flex;
   flex-direction: column;

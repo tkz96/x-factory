@@ -78,7 +78,7 @@ function RepositoryForm({
   };
 
   return (
-    <Card className="repo-settings-item">
+    <Card className="repo-settings-item" padding="compact">
       <form className="repo-settings-form" onSubmit={save} noValidate>
         <h4 className="repo-settings-name text-headline">{repo.name}</h4>
 

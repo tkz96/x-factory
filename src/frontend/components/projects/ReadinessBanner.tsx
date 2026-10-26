@@ -12,7 +12,7 @@ export function ReadinessBanner() {
 
   if (isLoading) {
     return (
-      <Card className="readiness-banner">
+      <Card className="readiness-banner" padding="compact">
         <span className="text-muted text-callout">
           Checking system and project readiness…
         </span>
@@ -28,6 +28,7 @@ export function ReadinessBanner() {
   return (
     <Card
       className={`readiness-banner text-callout ${isReady ? "ready" : "warning"}`}
+      padding="compact"
     >
       <div className="readiness-content">
         {/* A glyph, not a floating dot: the state has a shape as well as a

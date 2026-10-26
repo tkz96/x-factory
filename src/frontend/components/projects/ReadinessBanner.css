@@ -4,8 +4,6 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--space-4);
-  border-radius: var(--radius-card);
   margin-top: var(--space-5);
   margin-bottom: var(--space-5);
 }

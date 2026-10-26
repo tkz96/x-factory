@@ -26,10 +26,9 @@
 
 /* The three plain-word facts (#267): repository, tracker, branch. A three-up
    card, so a glance answers "what is this project wired to?". The Card block
-   owns the surface; this only sets its margin and its tighter padding. */
+   owns the surface and its padding; this only sets the margin. */
 .projects-detail-facts-panel {
   margin: var(--space-5) 0 0;
-  padding: var(--space-5) var(--space-6);
 }
 
 .projects-detail-facts {
