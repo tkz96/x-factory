@@ -45,9 +45,11 @@ describe("hard-coded values are tokens", () => {
       "src/frontend/components/projects/RepositorySettings.css",
       "utf8",
     );
-    expect(tsx).toContain('className="form-input repo-settings-input"');
     expect(tsx).toContain(
-      'className="form-input repo-settings-input repo-settings-input--mono"',
+      'className="form-input repo-settings-input text-callout"',
+    );
+    expect(tsx).toContain(
+      'className="form-input repo-settings-input repo-settings-input--mono text-callout"',
     );
     // The focus ring lives in styles/shared/forms.css only.
     expect(css).not.toContain("box-shadow");
