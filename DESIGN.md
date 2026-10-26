@@ -238,22 +238,34 @@ Drop-in baseline for a web implementation — adjust values only against the HIG
      from the screen it sits on; an inner shape's radius is the outer radius
      minus the inset between them (segmented thumb 12/4/8, menu items 12/4/8,
      code inside a card 16/4/12). Capsules are for tags, status and count badges
-     and progress tracks only; circles stay circles. */
+     and progress tracks only; circles stay circles.
+
+     Tuned in step 2 of spec #292 (#294) by measuring macOS 26 window corners
+     (Finder, System Settings, Notes, captured at 2x) against our surfaces in
+     Chromium, in both corner paths. A macOS window corner measures a circle of
+     about 16.5px at 2x, so the card rung is 16px. The superellipse path (see
+     below) reads about 1.1x larger at the same radius, so the two large rungs
+     are no longer enlarged for it: the earlier 20px card and 24px sheet (set for
+     superellipse(1.6), which reads squarer) measured 14.5px and 17px, too tight
+     against the reference. The sheet rung stays 20px because no sheet reference
+     was captured; it is the largest floating surface and is the one to revisit
+     when one is. The small rungs (4, 8, 12) are unchanged: a macOS control
+     corner was not in the reference set, so they keep the concentric ladder. */
   --radius-xs: 4px; --radius-sm: 8px; --radius-md: 12px;
   --radius-card: 16px; --radius-lg: 20px; --radius-full: 9999px;
 
-  /* Continuous corners. Apple's corners are superellipses (continuous
-     curvature), not circular arcs. Where the browser supports `corner-shape`,
-     every box gets `corner-shape: var(--corner-shape)` (superellipse(1.6))
-     through a zero-specificity `:where(*)` rule, and the two large rungs grow
-     (--radius-card 20px, --radius-lg 24px), because a superellipse reads tighter
-     than an arc of the same radius. Elsewhere the ladder above applies as
-     written. Circles and capsules opt out: every rule that uses --radius-full
-     also sets `corner-shape: round` (the smoke gate enforces it). A nested
-     shape writes its radius as the pair's math —
-     `calc(var(--radius-md) - var(--space-1))` — so it stays concentric if the
-     ladder moves. */
-  --corner-shape: superellipse(1.6);
+  /* Continuous corners. Where the browser supports `corner-shape`, every box gets
+     `corner-shape: var(--corner-shape)` (superellipse(0.8)) through a
+     zero-specificity `:where(*)` rule. The exponent is the one that fits the
+     macOS window reference best: superellipse(0.8) fits it at rms 1.3 device px,
+     superellipse(1.6) at rms 5.5. Without `corner-shape` (any
+     browser that lacks it) the circular ladder above is the whole corner, and it
+     is within about 1px of the reference, so the fallback is soft on its own.
+     Circles and capsules opt out: every rule that uses --radius-full also sets
+     `corner-shape: round` (the smoke gate enforces it). A nested shape writes its
+     radius as the pair's math — `calc(var(--radius-md) - var(--space-1))` — so it
+     stays concentric if the ladder moves. */
+  --corner-shape: superellipse(0.8);
 
   /* Motion — the implemented ladder: 160 / 220 / 300 ms on the spring curve,
      which decelerates and settles without overshooting. A window arrives over

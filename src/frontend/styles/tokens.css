@@ -206,7 +206,7 @@
      below; circles and capsules opt out with `corner-shape: round`. A browser
      without corner-shape support keeps plain circular corners and this ladder
      as written. */
-  --corner-shape: superellipse(1.6);
+  --corner-shape: superellipse(0.8);
 
   /* Apple HIG Type Scale — iOS / default (applies at all widths and pointer types).
      A second, denser macOS scale applies under the fine-pointer + wide-viewport
@@ -361,24 +361,19 @@
   --code-chip-bg: rgba(255, 255, 255, 0.06);
 }
 
-/* ── Continuous corners (DESIGN.md §6) ────────────────────────────────────
-   Apple's corners are superellipses, not circular arcs. Where the browser
-   understands corner-shape, every box gets the continuous curve and the ladder
-   is re-tuned: a superellipse corner reads tighter than a circular one at the
-   same radius, so the two large rungs grow to keep their iOS look. The pair
-   math stays in the tokens (calc(outer - inset)), so every concentric pair
-   follows the ladder automatically. `:where(*)` holds the rule at zero
-   specificity, so a rule that must stay circular — circles and capsules
-   (--radius-full) — wins with plain `corner-shape: round`. A browser without
-   corner-shape support ignores this block and keeps the ladder above. */
+/* ── Continuous corners (DESIGN.md §6, spec #292 step 2) ─────────────────────
+   The corner curve. Measured against macOS 26 window corners (the specimen's
+   comparison, .brief/shots): superellipse(0.8) matches the reference curve
+   better than superellipse(1.6), which the earlier tuning used and which reads
+   squarer. The ladder above is the same in both paths: a circular corner of the
+   same radius is within about 1 px of the reference, so no rung is enlarged to
+   compensate. `:where(*)` holds the rule at zero specificity, so a rule that must
+   stay circular — circles and capsules (--radius-full) — wins with plain
+   `corner-shape: round`. Without corner-shape support this block is ignored and
+   the circular ladder applies as written. */
 @supports (corner-shape: superellipse(2)) {
   :where(*) {
     corner-shape: var(--corner-shape);
-  }
-
-  :root {
-    --radius-card: 20px;
-    --radius-lg: 24px;
   }
 }
 
