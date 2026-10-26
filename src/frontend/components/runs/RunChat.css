@@ -394,8 +394,11 @@
 /* Long runs of progress lines fold into one group the reader can open. */
 /* A folded run of agent updates: a disclosure row (RunDisclosure) in the secondary
    label colour, and its rows indented under it on a hairline when it is open. */
-.ui-button.run-chat-group-header {
+.ui-button.run-disclosure.run-chat-group-header {
   color: var(--text-secondary);
+  /* The label lines up with the lines around it; the fill reaches past them. */
+  width: calc(100% + var(--space-2) * 2);
+  margin-inline: calc(var(--space-2) * -1);
 }
 
 .run-chat-group-body {
