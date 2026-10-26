@@ -99,7 +99,7 @@ function Status({
 }) {
   return (
     <div className="run-chat-system" data-kind="status">
-      <span>{item.label}</span>
+      <span className="run-chat-system-text">{item.label}</span>
       <RunTime at={item.at} now={now} />
       {item.failure && (
         <div className="run-chat-failure">
@@ -129,13 +129,15 @@ function SystemLine({
       className={`run-chat-system${tone ? ` run-chat-system-${tone}` : ""}`}
       data-kind={item.kind}
     >
-      {link ? (
-        <a href={link} target="_blank" rel="noreferrer">
-          {text}
-        </a>
-      ) : (
-        <span>{text}</span>
-      )}
+      <span className="run-chat-system-text">
+        {link ? (
+          <a href={link} target="_blank" rel="noreferrer">
+            {text}
+          </a>
+        ) : (
+          text
+        )}
+      </span>
       {onRetry && (
         <Button variant="secondary" size="sm" onPress={onRetry}>
           Retry
@@ -207,7 +209,7 @@ export function RunChatItemView({ item, now, onRetry }: RunChatItemProps) {
     case "review":
       return item.tool ? (
         <div className="run-chat-system" data-kind="review">
-          <span>{`Ran ${item.tool}`}</span>
+          <span className="run-chat-system-text">{`Ran ${item.tool}`}</span>
           <RunTime at={item.at} now={now} />
         </div>
       ) : (
@@ -236,9 +238,9 @@ export function RunChatItemView({ item, now, onRetry }: RunChatItemProps) {
       );
     case "progress":
       return (
-        <div className="run-chat-progress" data-kind="progress">
+        <div className="run-chat-system run-chat-progress" data-kind="progress">
           <Badge className="run-chat-badge">Iteration {item.iteration}</Badge>
-          <span>{item.text}</span>
+          <span className="run-chat-system-text">{item.text}</span>
           <RunTime at={item.at} now={now} />
         </div>
       );

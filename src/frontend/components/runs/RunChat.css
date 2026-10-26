@@ -205,6 +205,18 @@
   text-align: start;
 }
 
+/* The text takes the free width and wraps; the time stays at the end of the line. */
+.run-chat-system-text {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.run-chat-system .run-chat-time {
+  flex: none;
+  margin-inline-start: auto;
+}
+
 .run-chat-system a {
   color: var(--accent);
 }
