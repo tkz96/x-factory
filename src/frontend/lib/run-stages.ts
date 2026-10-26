@@ -30,25 +30,6 @@ export interface StageGroup {
   tookMs: number | null;
 }
 
-/**
- * The stage a run that left the stages behind (failed or stopped) was last in: the stage of
- * the latest status event that names one.
- */
-function lastStageIn(
-  events: readonly RunEvent[] | undefined,
-): WorkflowStage | null {
-  if (!events) return null;
-  for (let i = events.length - 1; i >= 0; i--) {
-    const event = events[i];
-    if (event?.type !== "status") continue;
-    const status = (event.payload as { status?: RunStatus }).status;
-    const stage = status ? STATUS_TO_STAGE[status] : null;
-    if (stage) return stage;
-  }
-  return null;
-}
-
-/** "12s", "1m 4s", "1h 2m". Zero or less is "0s". */
 export function formatTook(ms: number): string {
   if (ms <= 0) return "0s";
   const totalSec = Math.floor(ms / 1000);
@@ -102,9 +83,17 @@ export function groupItemsByStage(
   const delivered = status === "pr_created";
   const endState: StageState | null =
     status === "failed" ? "failed" : status === "stopped" ? "stopped" : null;
+  // Where the run stands: the stage its items reached, or its status's stage when that is
+  // later. The walk sees steps the status does not (a review runs while the status still
+  // says executing), and a failed or stopped status names no stage, so the walk holds the
+  // stage the run left.
   let position: WorkflowStage = walked;
-  if (endState) position = lastStageIn(events) ?? walked;
-  else if (!delivered) position = STATUS_TO_STAGE[status] ?? walked;
+  if (!endState && !delivered) {
+    const byStatus = STATUS_TO_STAGE[status] ?? walked;
+    if (STAGE_ORDER.indexOf(byStatus) > STAGE_ORDER.indexOf(walked)) {
+      position = byStatus;
+    }
+  }
   const positionIdx = STAGE_ORDER.indexOf(position);
 
   // 3. Start times, and the end of a terminal run's last stage.

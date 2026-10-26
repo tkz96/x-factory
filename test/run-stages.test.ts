@@ -340,3 +340,40 @@ describe("formatTook", () => {
     expect(formatTook(3_720_000)).toBe("1h 2m");
   });
 });
+
+describe("where a run stands when the review runs inside execute", () => {
+  const reviewStart = (id: number, minutes: number) =>
+    ev(
+      id,
+      "stage_started",
+      { stage: "execute", step: "review", attempt: 1, model: MODEL },
+      minutes,
+    );
+
+  it("makes Review the current stage while the reviewer works, though the status says executing", () => {
+    const events = [
+      status(1, "executing", 0),
+      reviewStart(2, 5),
+      ev(3, "review_activity", { tool: "read", text: "Running tool read" }, 6),
+    ];
+    const groups = groupsFor("executing", events);
+    expect(groups.find((g) => g.stage === "execute")?.state).toBe("done");
+    expect(groups.find((g) => g.stage === "review")?.state).toBe("current");
+  });
+
+  it("marks Review failed when the run fails during the review", () => {
+    const events = [
+      status(1, "executing", 0),
+      reviewStart(2, 5),
+      status(3, "failed", 7),
+    ];
+    const groups = groupsFor("failed", events);
+    expect(groups.find((g) => g.stage === "execute")?.state).toBe("done");
+    expect(groups.find((g) => g.stage === "review")?.state).toBe("failed");
+  });
+
+  it("still follows a status that is ahead of the items", () => {
+    const groups = groupsFor("awaiting_review", [status(1, "executing", 0)]);
+    expect(groups.find((g) => g.stage === "review")?.state).toBe("current");
+  });
+});
