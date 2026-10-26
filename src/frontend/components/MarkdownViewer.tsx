@@ -2,9 +2,9 @@
 
 import "./MarkdownViewer.css";
 
-import { createContext, type ReactNode, useContext, useState } from "react";
+import { createContext, type ReactNode, useContext } from "react";
 import { FlowDiagramViewer } from "./diagrams/FlowDiagramViewer.js";
-import { Button } from "./ui/Button.js";
+import { CopyButton } from "./ui/CopyButton.js";
 
 interface MarkdownViewerProps {
   content: string;
@@ -94,31 +94,13 @@ function MarkdownInlineCode({ children }: { children: ReactNode }) {
 }
 
 function CodeBlock({ language, code }: CodeBlockProps) {
-  const [copied, setCopied] = useState(false);
   const scale = useContext(MarkdownScaleContext);
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(code);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Clipboard fallback
-    }
-  };
 
   return (
     <div className="md-code-container">
       <div className="md-code-header text-caption-1">
         <span>{language || "text"}</span>
-        <Button
-          variant="quiet"
-          size="sm"
-          onPress={handleCopy}
-          className={`md-copy-btn ${copied ? "copied" : ""}`}
-        >
-          {copied ? "✓ Copied" : "Copy"}
-        </Button>
+        <CopyButton text={code} label="Copy Code" />
       </div>
       <pre
         className={`md-code-pre ${scale === "page" ? "text-footnote" : "text-caption-1"}`}

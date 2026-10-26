@@ -29,6 +29,8 @@ export interface SegmentedControlOption {
   isDisabled?: boolean | undefined;
   /** A count shown after the label, read as part of the segment's name (#259). */
   count?: number | undefined;
+  /** Draws only the icon. The label stays the segment's accessible name and its tooltip. */
+  iconOnly?: boolean | undefined;
 }
 
 export interface SegmentedControlProps {
@@ -180,8 +182,19 @@ export function SegmentedControl({
           })}
           data-segment-value={option.id}
         >
-          {option.icon !== undefined && <Icon name={option.icon} size="sm" />}
-          <span>{option.label}</span>
+          {option.iconOnly && option.icon !== undefined ? (
+            <span className="ui-segment-icon" title={option.label}>
+              <Icon name={option.icon} size="sm" />
+              <span className="sr-only">{option.label}</span>
+            </span>
+          ) : (
+            <>
+              {option.icon !== undefined && (
+                <Icon name={option.icon} size="sm" />
+              )}
+              <span>{option.label}</span>
+            </>
+          )}
           {option.count !== undefined && (
             <span className="ui-segment-count">{option.count}</span>
           )}

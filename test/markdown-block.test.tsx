@@ -129,3 +129,14 @@ describe("MarkdownBlock previews Markdown as elements", () => {
     expect(container.querySelector("pre.md-block-raw img")).toBeNull();
   });
 });
+
+describe("MarkdownBlock header: icon view switch and copy", () => {
+  it("offers Preview and Raw as icons and copies the source", () => {
+    const view = render(
+      <MarkdownBlock content={"# Plan\n\n- one"} label="Plan" />,
+    );
+    expect(view.getByRole("radio", { name: "Preview" })).toBeTruthy();
+    expect(view.getByRole("radio", { name: "Raw" })).toBeTruthy();
+    expect(view.getByRole("button", { name: "Copy Plan" })).toBeTruthy();
+  });
+});

@@ -6,6 +6,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "../ui/Button.js";
+import { useCopyToClipboard } from "../ui/useCopyToClipboard.js";
 
 type Kind = "px" | "rem" | "number" | "weight" | "color" | "superellipse";
 
@@ -195,7 +196,7 @@ export function SpecimenTuner() {
   const [open, setOpen] = useState(true);
   const [overrides, setOverrides] = useState<Overrides>(readStored);
   const [baseline, setBaseline] = useState<Record<string, string>>({});
-  const [copied, setCopied] = useState(false);
+  const { copied, copy } = useCopyToClipboard();
 
   // Read the page's own values once, before any override is applied.
   useEffect(() => {
@@ -261,16 +262,6 @@ export function SpecimenTuner() {
     ].join("\n");
   };
 
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(summary());
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      setCopied(false);
-    }
-  };
-
   if (!open) {
     return (
       <div className="specimen-tuner specimen-tuner--closed">
@@ -297,7 +288,7 @@ export function SpecimenTuner() {
           variant="primary"
           size="sm"
           isDisabled={changed.length === 0}
-          onPress={copy}
+          onPress={() => void copy(summary())}
         >
           {copied ? "Copied" : `Copy Changes (${changed.length})`}
         </Button>

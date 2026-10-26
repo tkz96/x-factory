@@ -527,6 +527,13 @@
 }
 
 /* The count after a segment's label (#259): a quiet pill, not a second action. */
+/* An icon-only segment: the glyph centred, its name kept for assistive tech. */
+.ui-segment-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .ui-segment-count {
   display: inline-flex;
   align-items: center;

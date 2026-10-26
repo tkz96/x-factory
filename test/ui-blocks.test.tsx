@@ -15,6 +15,7 @@ import { MemoryRouter } from "react-router-dom";
 import { Badge } from "../src/frontend/components/ui/Badge.js";
 import { Button } from "../src/frontend/components/ui/Button.js";
 import { Card, type CardVariant } from "../src/frontend/components/ui/Card.js";
+import { CopyButton } from "../src/frontend/components/ui/CopyButton.js";
 import { EmptyState } from "../src/frontend/components/ui/EmptyState.js";
 import { Icon } from "../src/frontend/components/ui/Icon.js";
 import { IconButton } from "../src/frontend/components/ui/IconButton.js";
@@ -1069,5 +1070,49 @@ describe("Card — the card block", () => {
       (rule) => rule.selector === ".ui-card--ticket",
     );
     expect(ticket?.body).toContain("var(--transition)");
+  });
+});
+
+describe("CopyButton — the one icon button that copies text", () => {
+  it("writes the text, then names and announces itself Copied", async () => {
+    let written = "";
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: (text: string) => {
+          written = text;
+          return Promise.resolve();
+        },
+      },
+    });
+    const view = render(<CopyButton text="# Plan" label="Copy Plan" />);
+    await act(async () => {
+      fireEvent.click(view.getByRole("button", { name: "Copy Plan" }));
+    });
+    expect(written).toBe("# Plan");
+    expect(view.getByRole("button", { name: "Copied" })).toBeTruthy();
+    expect(view.container.querySelector("[aria-live]")?.textContent).toBe(
+      "Copied",
+    );
+  });
+});
+
+describe("SegmentedControl — icon-only segments", () => {
+  it("draws only the icon and keeps the label as the segment's name", () => {
+    const view = render(
+      <SegmentedControl
+        label="Text view"
+        value="preview"
+        onChange={() => {}}
+        options={[
+          { id: "preview", label: "Preview", icon: "icon-eye", iconOnly: true },
+          { id: "raw", label: "Raw", icon: "icon-code", iconOnly: true },
+        ]}
+      />,
+    );
+    expect(view.getByRole("radio", { name: "Preview" })).toBeTruthy();
+    const icon = view.container.querySelector(".ui-segment-icon");
+    expect(icon?.getAttribute("title")).toBe("Preview");
+    expect(icon?.querySelector(".sr-only")?.textContent).toBe("Preview");
   });
 });

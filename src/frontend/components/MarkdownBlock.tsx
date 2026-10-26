@@ -7,6 +7,7 @@ import "./MarkdownBlock.css";
 import { useState } from "react";
 import { looksLikeMarkdown } from "../lib/markdown-syntax.js";
 import { MarkdownScaleContext, MarkdownViewer } from "./MarkdownViewer.js";
+import { CopyButton } from "./ui/CopyButton.js";
 import {
   SegmentedControl,
   type SegmentedControlOption,
@@ -26,8 +27,8 @@ export interface MarkdownBlockProps {
 }
 
 const VIEW_OPTIONS: readonly SegmentedControlOption[] = [
-  { id: "preview", label: "Preview" },
-  { id: "raw", label: "Raw" },
+  { id: "preview", label: "Preview", icon: "icon-eye", iconOnly: true },
+  { id: "raw", label: "Raw", icon: "icon-code", iconOnly: true },
 ];
 
 export function MarkdownBlock({
@@ -52,15 +53,21 @@ export function MarkdownBlock({
               {label}
             </span>
           )}
-          {markdown && (
-            <SegmentedControl
-              label="Text view"
-              value={view}
-              onChange={(id) => setView(id === "raw" ? "raw" : "preview")}
-              options={VIEW_OPTIONS}
-              className="md-block-toggle text-caption-1"
+          <div className="md-block-tools">
+            {markdown && (
+              <SegmentedControl
+                label="Text view"
+                value={view}
+                onChange={(id) => setView(id === "raw" ? "raw" : "preview")}
+                options={VIEW_OPTIONS}
+                className="md-block-toggle"
+              />
+            )}
+            <CopyButton
+              text={content}
+              label={label === undefined ? "Copy Text" : `Copy ${label}`}
             />
-          )}
+          </div>
         </div>
       )}
       {!markdown ? (
