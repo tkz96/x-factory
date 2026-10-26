@@ -10,6 +10,10 @@ import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { specimenRoute } from "../src/frontend/dev-routes.js";
 
+// The route loads its module on first render; the default 1s wait is too short
+// when the whole suite is running.
+const LOAD_TIMEOUT_MS = 10_000;
+
 afterAll(async () => {
   cleanup();
   await unregisterHappyDom();
@@ -18,8 +22,10 @@ afterAll(async () => {
 describe("the specimen page", () => {
   it("switches settings and opens every overlay it shows", async () => {
     const view = render(<MemoryRouter>{specimenRoute().element}</MemoryRouter>);
-    await waitFor(() =>
-      expect(view.getByRole("heading", { name: "Overlays" })).toBeTruthy(),
+    await waitFor(
+      () =>
+        expect(view.getByRole("heading", { name: "Overlays" })).toBeTruthy(),
+      { timeout: LOAD_TIMEOUT_MS },
     );
     fireEvent.click(view.getByRole("radio", { name: "Dark" }));
     fireEvent.click(view.getByRole("radio", { name: "Increase" }));
@@ -49,8 +55,10 @@ describe("the specimen page", () => {
     // Queries are bound to the render result: `screen` binds to document at import,
     // before the DOM is registered.
     const view = render(<MemoryRouter>{specimenRoute().element}</MemoryRouter>);
-    await waitFor(() =>
-      expect(view.getByRole("heading", { name: "Specimen" })).toBeTruthy(),
+    await waitFor(
+      () =>
+        expect(view.getByRole("heading", { name: "Specimen" })).toBeTruthy(),
+      { timeout: LOAD_TIMEOUT_MS },
     );
     for (const name of [
       "Switches",

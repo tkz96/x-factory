@@ -43,7 +43,7 @@ function snapshotOf(global: ReturnType<typeof useTheme>): AppSnapshot {
 
 type AppSnapshot = Parameters<typeof applyThemeToDocument>[0];
 
-export function SpecimenView() {
+function SpecimenView() {
   const global = useTheme();
   const [snapshot] = useState(() => snapshotOf(global));
   const [settings, setSettings] = useState<SpecimenSettings>({
