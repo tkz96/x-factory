@@ -105,12 +105,12 @@ describe("the ticket row's tags (A4)", () => {
     );
 
     await waitFor(() => {
-      if (container.querySelectorAll(".ticket-card").length === 0) {
+      if (container.querySelectorAll(".ui-card--ticket").length === 0) {
         throw new Error("ticket rows missing");
       }
     });
 
-    const cards = [...container.querySelectorAll(".ticket-card")];
+    const cards = [...container.querySelectorAll(".ui-card--ticket")];
     const tagsOf = (index: number) =>
       [...(cards[index]?.querySelectorAll(".ticket-tags .ui-badge") ?? [])].map(
         (badge) => badge.textContent,

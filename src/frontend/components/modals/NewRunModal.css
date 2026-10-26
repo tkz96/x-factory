@@ -12,18 +12,17 @@
 }
 
 /* The help tooltip carries a heading and a sentence or two, so it is wider and
-   looser than the one-line tooltip the primitive draws. */
+   looser than the one-line tooltip the primitive draws. Size and weight come
+   from the text styles on the content inside (`text-subhead`, with
+   `font-semibold` on the heading). */
 .field-help-tooltip {
   max-width: min(20rem, calc(100vw - 2 * var(--space-6)));
   padding: var(--space-3) var(--space-4);
-  font-size: var(--text-footnote);
-  line-height: 1.5;
 }
 
 .field-help-tooltip strong {
   display: block;
   margin-bottom: var(--space-1);
-  font-weight: 600;
 }
 
 .field-help-tooltip code {

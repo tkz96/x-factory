@@ -147,7 +147,7 @@ The design system is being migrated to the blocks. Until M8 lands, the code has 
 **Migration matrix** (spec #292, "Migration matrix"). Order M1 to M8. Each row removes every finding of the gates in its column from the files it owns:
 
 - M1 Shell and shared layer (AppShell, notifications, palette, overlays, feedback, Markdown, Modal, forms, controls, utilities, NotFound, Welcome, SetupChecklist)
-- M2 Tickets (QueueView, queue, NewRunModal)
+- M2 Tickets (QueueView, queue, NewRunModal). Cleared: every G3 to G9 finding in its files; the gates still land in M7 with the rest of the matrix.
 - M3 Projects (ProjectsView, ProjectDetailView, projects). Cleared: every G3 to G9 finding in its files; the gates still land in M7 with the rest of the matrix.
 - M4 Settings and connections
 - M5 Wizard
