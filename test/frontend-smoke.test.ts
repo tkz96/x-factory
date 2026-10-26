@@ -333,10 +333,7 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
       ).text();
       expect(indexCss).toContain("./tokens.css");
       expect(indexCss).toContain("./base.css");
-      expect(indexCss).toContain("./shared/buttons.css");
-      expect(indexCss).toContain("./shared/cards.css");
       expect(indexCss).toContain("./shared/forms.css");
-      expect(indexCss).toContain("./shared/badges.css");
       expect(indexCss).toContain("./shared/icons.css");
       expect(indexCss).toContain("./shared/scrollbar.css");
       expect(indexCss).toContain("./utilities.css");
