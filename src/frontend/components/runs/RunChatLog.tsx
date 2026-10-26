@@ -11,6 +11,7 @@ import type { WorkflowStage } from "../../../shared/types.js";
 import type { ChatItem } from "../../lib/run-chat-items.js";
 import type { StageGroup } from "../../lib/run-stages.js";
 import { Button } from "../ui/Button.js";
+import { EmptyState } from "../ui/EmptyState.js";
 import { RunStageTimeline } from "./RunStageTimeline.js";
 
 /** How close to the bottom still counts as following the chat. */
@@ -104,7 +105,7 @@ export function RunChatLog({
   return (
     <div className="run-chat-timeline">
       <div
-        className="run-chat-messages run-panel-scroll"
+        className="run-chat-messages run-panel-scroll text-subhead"
         role="log"
         aria-live="polite"
         aria-relevant="additions"
@@ -112,7 +113,9 @@ export function RunChatLog({
         onScroll={scroll.onScroll}
       >
         {items.length === 0 && (
-          <p className="run-chat-empty">Waiting for the first update…</p>
+          <div className="run-chat-note">
+            <EmptyState message="Waiting for the first update…" />
+          </div>
         )}
         <RunStageTimeline
           groups={groups}

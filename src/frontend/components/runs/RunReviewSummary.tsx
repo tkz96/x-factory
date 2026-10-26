@@ -44,7 +44,7 @@ export function RunReviewSummary({ review }: RunReviewSummaryProps) {
   );
 
   return (
-    <section className="run-review" aria-label="Review">
+    <section className="run-review text-callout" aria-label="Review">
       <p
         className={
           review.passed
@@ -57,7 +57,7 @@ export function RunReviewSummary({ review }: RunReviewSummaryProps) {
 
       {findings.length > 0 && (
         <div className="run-review-group">
-          <h3 className="run-review-caption">Findings</h3>
+          <h3 className="run-review-caption text-headline">Findings</h3>
           <ul className="run-review-list">
             {findings.map((finding) => (
               <li key={finding.message} className="run-review-finding">
@@ -73,7 +73,9 @@ export function RunReviewSummary({ review }: RunReviewSummaryProps) {
 
       {review.criteriaChecked.length > 0 && (
         <div className="run-review-group">
-          <h3 className="run-review-caption">Reviewer judgement</h3>
+          <h3 className="run-review-caption text-headline">
+            Reviewer judgement
+          </h3>
           <ul className="run-review-list">
             {review.criteriaChecked.map((check) => {
               const verdict = VERDICT[reviewCriterionStatus(check)];

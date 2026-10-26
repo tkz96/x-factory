@@ -15,6 +15,9 @@ import {
   type StageGroup,
   type StageState,
 } from "../../lib/run-stages.js";
+import { Button } from "../ui/Button.js";
+import { EmptyState } from "../ui/EmptyState.js";
+import { Icon } from "../ui/Icon.js";
 import { RunChatRow } from "./RunChatItem.js";
 
 export interface RunStageTimelineProps {
@@ -146,58 +149,46 @@ export function RunStageTimeline({
           <li key={group.stage} className="run-stage" data-state={group.state}>
             <span className="run-stage-node" aria-hidden="true">
               {group.state === "done" && (
-                <svg
+                <Icon
+                  name="icon-stage-done"
+                  size="sm"
                   className="run-stage-check"
-                  viewBox="0 0 16 16"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  focusable="false"
-                  aria-hidden="true"
-                >
-                  <path d="M3.5 8.5 6.5 11.5 12.5 4.5" />
-                </svg>
+                />
               )}
             </span>
-            <button
-              type="button"
+            <Button
+              variant="quiet"
               id={headId}
               className="run-stage-header"
               aria-expanded={isOpen}
               aria-controls={bodyId}
-              onClick={() => onToggle(group.stage)}
+              onPress={() => onToggle(group.stage)}
             >
-              <span className="run-stage-label">{group.label}</span>
+              <span className="run-stage-label text-headline">
+                {group.label}
+              </span>
               {group.tookMs !== null && (
-                <span className="run-stage-took">
+                <span className="run-stage-took text-footnote">
                   {`Took ${formatTook(group.tookMs)}`}
                 </span>
               )}
               {statusText && (
-                <span className="run-stage-status">{statusText}</span>
+                <span className="run-stage-status text-footnote">
+                  {statusText}
+                </span>
               )}
               {isCurrent && waiting && (
-                <span className="run-stage-waiting">
+                <span className="run-stage-waiting text-caption-1">
                   <span className="run-stage-waiting-dot" aria-hidden="true" />
                   Waiting for you
                 </span>
               )}
-              <svg
+              <Icon
+                name="icon-stage-chevron"
+                size="sm"
                 className="run-stage-chevron"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                focusable="false"
-                aria-hidden="true"
-              >
-                <path d="M6 3.5 10.5 8 6 12.5" />
-              </svg>
-            </button>
+              />
+            </Button>
             <section
               id={bodyId}
               aria-labelledby={headId}
@@ -207,7 +198,9 @@ export function RunStageTimeline({
             >
               <div className="run-stage-panel">
                 {group.items.length === 0 && !holdsDecision && (
-                  <p className="run-stage-empty">Nothing yet.</p>
+                  <div className="run-stage-note">
+                    <EmptyState message="Nothing yet." />
+                  </div>
                 )}
                 <StageRows
                   items={group.items}

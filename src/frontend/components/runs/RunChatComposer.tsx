@@ -48,6 +48,7 @@ export function RunChatComposer({
     >
       <textarea
         ref={inputRef}
+        className="text-body"
         id="input-understanding-chat"
         aria-label="Message"
         rows={1}
@@ -68,16 +69,13 @@ export function RunChatComposer({
           {TIPS_TEXT}
         </Tooltip>
       </TooltipTrigger>
-      <button
+      <IconButton
         type="submit"
         className="run-chat-send"
-        disabled={sendDisabled}
-        aria-label="Send"
-      >
-        <svg className="icon icon-md" aria-hidden="true">
-          <use href="/assets/icons/sprite.svg#icon-send" />
-        </svg>
-      </button>
+        label="Send"
+        icon="icon-send"
+        isDisabled={sendDisabled}
+      />
     </form>
   );
 }
