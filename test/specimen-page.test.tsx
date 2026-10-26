@@ -49,11 +49,11 @@ describe("the specimen page", () => {
       fireEvent.click(view.getByRole("radio", { name: /^Active/ }));
       fireEvent.click(view.getByRole("radio", { name: "Done" }));
       fireEvent.click(view.getByText("Notify me"));
-      fireEvent.click(view.getByRole("button", { name: "Open dialog…" }));
+      fireEvent.click(view.getByRole("button", { name: "Open Dialog…" }));
       fireEvent.click(view.getByRole("button", { name: "Save" }));
-      fireEvent.click(view.getByRole("button", { name: "Open sheet…" }));
+      fireEvent.click(view.getByRole("button", { name: "Open Sheet…" }));
       fireEvent.keyDown(view.getByRole("dialog"), { key: "Escape" });
-      fireEvent.click(view.getByRole("button", { name: "Open bottom sheet…" }));
+      fireEvent.click(view.getByRole("button", { name: "Open Bottom Sheet…" }));
       fireEvent.keyDown(view.getByRole("dialog"), { key: "Escape" });
       fireEvent.click(view.getByRole("button", { name: "Delete Run…" }));
       fireEvent.click(view.getByRole("button", { name: "Cancel" }));
@@ -61,7 +61,7 @@ describe("the specimen page", () => {
       fireEvent.click(view.getByRole("button", { name: "Delete Run" }));
       fireEvent.click(view.getByRole("button", { name: "Run actions" }));
       fireEvent.click(view.getByRole("menuitem", { name: "Open Run" }));
-      fireEvent.focus(view.getByRole("button", { name: "Hover for tooltip" }));
+      fireEvent.focus(view.getByRole("button", { name: "Hover for Tooltip" }));
     },
     TEST_TIMEOUT_MS,
   );
