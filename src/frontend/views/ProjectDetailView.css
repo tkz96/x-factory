@@ -16,7 +16,7 @@
   min-width: 0;
 }
 
-.projects-detail-header {
+.projects-detail-status {
   display: flex;
   align-items: center;
   gap: var(--space-3);
@@ -25,7 +25,13 @@
 }
 
 /* The three plain-word facts (#267): repository, tracker, branch. A three-up
-   card, so a glance answers "what is this project wired to?". */
+   card, so a glance answers "what is this project wired to?". The Card block
+   owns the surface; this only sets its margin and its tighter padding. */
+.projects-detail-facts-panel {
+  margin: var(--space-5) 0 0;
+  padding: var(--space-5) var(--space-6);
+}
+
 .projects-detail-facts {
   display: grid;
   /* `min(…, 100%)` so a 290px pane takes one full-width column instead of
@@ -35,11 +41,7 @@
       minmax(min(var(--grid-card-sm), 100%), 1fr)
     );
   gap: var(--space-5);
-  margin: var(--space-5) 0 0;
-  padding: var(--space-5) var(--space-6);
-  background: var(--bg-card);
-  border: var(--hairline) solid var(--separator);
-  border-radius: var(--radius-card);
+  margin: 0;
 }
 
 .projects-detail-fact {
@@ -50,21 +52,17 @@
 }
 
 .projects-detail-fact dt {
-  font-size: var(--text-caption-1);
-  font-weight: 600;
   color: var(--text-muted);
 }
 
 .projects-detail-fact-value {
   margin: 0;
-  font-size: var(--text-subhead);
   color: var(--text);
   overflow-wrap: anywhere;
 }
 
 .projects-detail-fact-value--path {
   font-family: var(--font-mono);
-  font-size: var(--text-footnote);
 }
 
 .projects-detail-id {
@@ -72,18 +70,12 @@
   align-items: baseline;
   gap: var(--space-2);
   margin: var(--space-2) 0 0;
-  font-size: var(--text-footnote);
   color: var(--text-muted);
 }
 
 .projects-detail-id code {
   font-family: var(--font-mono);
-  font-size: var(--text-footnote);
   color: var(--text-muted);
-}
-
-.projects-detail-id-label {
-  font-weight: 600;
 }
 
 /* ── Project Detail View ─────────────────────────────────────────────── */
@@ -113,15 +105,12 @@
 
 /* A meta label reads as a sentence, not as a small-caps stamp. */
 .project-meta-item strong {
-  font-size: var(--text-caption-1);
   color: var(--text-muted);
-  font-weight: 600;
 }
 
 .project-meta-item code,
 .project-meta-item .meta-val {
   font-family: var(--font-mono);
-  font-size: 0.85rem;
   color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -140,7 +129,6 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: var(--font-mono);
-  font-size: var(--text-footnote);
   color: var(--text-secondary);
 }
 
@@ -158,6 +146,5 @@
 
 .repo-branch-cell {
   font-family: var(--font-mono);
-  font-size: var(--text-footnote);
   white-space: nowrap;
 }
