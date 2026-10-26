@@ -84,3 +84,22 @@ export function formatTimelineTime(
     ? formatRelativeTime(iso, now)
     : formatClockTime(iso, timeZone);
 }
+
+/** "14 Oct 2026, 11:20": a run's start, once, where the timeline shows only times of day. */
+export function formatRunDate(
+  iso: string | null | undefined,
+  timeZone?: string,
+): string {
+  if (!iso) return "Not started";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(date);
+}

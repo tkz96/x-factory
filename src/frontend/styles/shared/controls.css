@@ -752,9 +752,16 @@
   pointer-events: none;
 }
 
-.ui-row-hover[data-hovered]::before,
-a.ui-row-hover:hover::before {
+.ui-row-hover[data-hovered]::before {
   background: var(--bg-hover);
+}
+
+/* A row that is not itself a control (its link or button stretches over it) takes the
+   fill from :hover, only where a pointer can hover, so a tap never leaves it lit. */
+@media (hover: hover) {
+  .ui-row-hover:hover::before {
+    background: var(--bg-hover);
+  }
 }
 
 .ui-list-row--pressable {

@@ -7,7 +7,13 @@ import { registerHappyDom, unregisterHappyDom } from "./setup-happy-dom.js";
 registerHappyDom();
 
 import { afterAll, afterEach, describe, expect, it } from "bun:test";
-import { cleanup, fireEvent, render, within } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  within,
+} from "@testing-library/react";
 import {
   RunInspector,
   RunInspectorSheet,
@@ -97,9 +103,9 @@ describe("the Run details pane names its sections", () => {
     const { container } = render(
       <RunInspector run={makeRun("executing")} events={[]} connected={false} />,
     );
-    const branch = within(container).getByText("factory/t-1");
-    expect(branch.tagName).toBe("DD");
-    expect(branch.classList.contains("run-inspector-value")).toBe(true);
+    // The branch row copies the branch, so its value sits in the row's copy control.
+    const branch = within(container).getByText("factory/t-1").closest("dd");
+    expect(branch?.classList.contains("run-inspector-value")).toBe(true);
     expect(within(container).getAllByText("None yet").length).toBeGreaterThan(
       0,
     );
@@ -414,11 +420,81 @@ describe("the value kinds keep long rows from pushing a verdict out of the pane"
     expect(
       model.closest("dd")?.classList.contains("run-inspector-value--wrap"),
     ).toBe(true);
-    const branch = within(container).getByText("factory/t-1");
-    expect(branch.classList.contains("run-inspector-value--status")).toBe(
+    const branch = within(container).getByText("factory/t-1").closest("dd");
+    expect(branch?.classList.contains("run-inspector-value--status")).toBe(
       false,
     );
-    expect(branch.classList.contains("run-inspector-value--wrap")).toBe(false);
-    expect(branch.getAttribute("title")).toBe("factory/t-1");
+    expect(branch?.classList.contains("run-inspector-value--wrap")).toBe(false);
+    expect(branch?.getAttribute("title")).toBe("factory/t-1");
+  });
+});
+
+describe("Run details rows: a fill only where a row does something (run page plan, 2b)", () => {
+  function rowOf(container: HTMLElement, label: string) {
+    return within(container).getByText(label, { selector: "dt" }).parentElement;
+  }
+
+  it("makes Branch, Ticket and Pull request whole-row actions, and leaves Started plain", () => {
+    const { container } = render(
+      <RunInspector
+        run={makeRun("pr_created", {
+          ticket: {
+            id: "GH-7",
+            title: "Factorial",
+            url: "https://github.com/o/r/issues/7",
+            acceptanceCriteria: [],
+          },
+          pullRequest: { url: "https://github.com/o/r/pull/9" },
+        })}
+        events={[]}
+        connected={false}
+      />,
+    );
+    for (const label of ["Branch", "Ticket", "Pull request"]) {
+      expect(rowOf(container, label)?.classList.contains("ui-row-hover")).toBe(
+        true,
+      );
+    }
+    expect(
+      rowOf(container, "Started")?.classList.contains("ui-row-hover"),
+    ).toBe(false);
+    const ticket = within(container).getByRole("link", { name: "GH-7" });
+    expect(ticket.getAttribute("href")).toBe("https://github.com/o/r/issues/7");
+    expect(ticket.classList.contains("run-inspector-stretch")).toBe(true);
+    expect(within(container).getByRole("link", { name: "#9" })).toBeTruthy();
+  });
+
+  it("copies the branch when its row is pressed", async () => {
+    let written = "";
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: (text: string) => {
+          written = text;
+          return Promise.resolve();
+        },
+      },
+    });
+    const { container } = render(
+      <RunInspector run={makeRun("executing")} events={[]} connected={false} />,
+    );
+    await act(async () => {
+      fireEvent.click(
+        within(container).getByRole("button", { name: "Copy Branch" }),
+      );
+    });
+    expect(written).toBe("factory/t-1");
+    expect(
+      within(container).getByRole("button", { name: "Branch copied" }),
+    ).toBeTruthy();
+  });
+
+  it("has no fill on a row without an action", () => {
+    const { container } = render(
+      <RunInspector run={makeRun("executing")} events={[]} connected={false} />,
+    );
+    expect(rowOf(container, "Ticket")?.classList.contains("ui-row-hover")).toBe(
+      false,
+    );
   });
 });

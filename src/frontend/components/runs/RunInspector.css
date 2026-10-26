@@ -131,6 +131,62 @@
   text-decoration: underline;
 }
 
+/* A row with an action is one target: the link or copy button stretches over the whole
+   row, which carries the shared hover fill (.ui-row-hover). */
+.run-inspector-stretch::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+.run-inspector-stretch:focus-visible,
+.run-inspector-stretch[data-focus-visible] {
+  outline: none;
+}
+
+.run-inspector-row:has(
+  .run-inspector-stretch:focus-visible,
+  .run-inspector-stretch[data-focus-visible]
+) {
+  outline: var(--border-width-indicator) solid var(--border-focus);
+  outline-offset: var(--space-1);
+  border-radius: var(--radius-sm);
+}
+
+.ui-button.run-inspector-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  max-width: 100%;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-none);
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+}
+
+.ui-button.run-inspector-copy[data-hovered],
+.ui-button.run-inspector-copy[data-pressed] {
+  background: transparent;
+  color: inherit;
+  transform: none;
+}
+
+.run-inspector-copy-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.run-inspector-copy .icon {
+  flex: none;
+  color: var(--text-secondary);
+}
+
 .run-inspector-files {
   list-style: none;
   display: flex;
@@ -178,19 +234,6 @@
   .ui-button.run-inspector-file {
     min-height: var(--tap-min);
   }
-}
-
-.run-inspector-file::before {
-  content: "";
-  position: absolute;
-  inset: calc(var(--space-1) * -1) calc(var(--space-2) * -1);
-  border-radius: var(--radius-sm);
-  background: transparent;
-  transition: background-color var(--transition-fast);
-}
-
-.run-inspector-file[data-hovered]::before {
-  background: var(--bg-hover);
 }
 
 .run-inspector-file[data-focus-visible] {

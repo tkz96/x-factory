@@ -18,6 +18,7 @@ import {
   type ParsedDiffFile,
   parseDiffToFiles,
 } from "../../lib/diff-parser.js";
+import { formatRunDate } from "../../lib/format-timestamp.js";
 import { usageFor } from "../../lib/run-models.js";
 import {
   DialogBody,
@@ -29,6 +30,7 @@ import {
 import { Button } from "../ui/Button.js";
 import { Icon } from "../ui/Icon.js";
 import { IconButton } from "../ui/IconButton.js";
+import { useCopyToClipboard } from "../ui/useCopyToClipboard.js";
 import { ChatThread } from "./ChatThread.js";
 import { DiffModal } from "./DiffModal.js";
 import { useDetailsSheet } from "./RunDetailsContext.js";
@@ -104,24 +106,73 @@ function evidenceChecks(
   ];
 }
 
-/** One label on the left, one mono value on the right: the pane's only row shape. */
+/** What a row does when pressed: open a page, or copy its value. */
+type RowAction =
+  | { kind: "link"; href: string }
+  | { kind: "copy"; text: string };
+
+/** The control that makes a whole row its target; it stretches over the row. */
+function RowActionControl({
+  action,
+  label,
+  children,
+}: {
+  action: RowAction;
+  label: string;
+  children: ReactNode;
+}) {
+  const { copied, copy } = useCopyToClipboard();
+  if (action.kind === "link") {
+    return (
+      <a
+        className="run-inspector-link run-inspector-stretch"
+        href={action.href}
+        target="_blank"
+        rel="noreferrer"
+      >
+        {children}
+      </a>
+    );
+  }
+  return (
+    <Button
+      variant="quiet"
+      className="run-inspector-stretch run-inspector-copy"
+      aria-label={copied ? `${label} copied` : `Copy ${label}`}
+      onPress={() => void copy(action.text)}
+    >
+      <span className="run-inspector-copy-text">{children}</span>
+      <Icon name={copied ? "icon-check" : "icon-copy"} size="xs" />
+    </Button>
+  );
+}
+
+/**
+ * One label on the left, one mono value on the right: the pane's only row shape. A row with
+ * an action is one target, with the shared row hover; a row without one has no hover, so a
+ * fill never promises an action that does not exist.
+ */
 function DetailRow({
   label,
   value,
   tone,
   kind = "truncate",
+  action,
 }: {
   label: string;
   value: ReactNode;
   tone?: Tone | undefined;
   /** "status" never shrinks, "wrap" wraps onto more lines, "truncate" (the default) cuts with an ellipsis. */
   kind?: "truncate" | "status" | "wrap";
+  action?: RowAction | undefined;
 }) {
   const classes = ["run-inspector-value"];
   if (kind !== "truncate") classes.push(`run-inspector-value--${kind}`);
   if (tone) classes.push(`run-inspector-value--${tone}`);
   return (
-    <div className="run-inspector-row text-callout">
+    <div
+      className={`run-inspector-row text-callout${action ? " ui-row-hover" : ""}`}
+    >
       <dt className="run-inspector-label" title={label}>
         {label}
       </dt>
@@ -129,7 +180,13 @@ function DetailRow({
         className={classes.join(" ")}
         title={typeof value === "string" ? value : undefined}
       >
-        {value}
+        {action ? (
+          <RowActionControl action={action} label={label}>
+            {value}
+          </RowActionControl>
+        ) : (
+          value
+        )}
       </dd>
     </div>
   );
@@ -172,42 +229,30 @@ function RunDetailsPane({ run, events, connected }: RunInspectorProps) {
                 label="Branch"
                 value={run.branch || "None yet"}
                 tone={run.branch ? undefined : "muted"}
+                action={
+                  run.branch ? { kind: "copy", text: run.branch } : undefined
+                }
               />
               <DetailRow
                 label="Ticket"
-                value={
-                  ticketUrl ? (
-                    <a
-                      className="run-inspector-link"
-                      href={ticketUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      {run.ticket.id}
-                    </a>
-                  ) : (
-                    run.ticket.id
-                  )
+                value={run.ticket.id}
+                action={
+                  ticketUrl ? { kind: "link", href: ticketUrl } : undefined
                 }
               />
               <DetailRow
                 label="Pull request"
                 value={
-                  pullRequest ? (
-                    <a
-                      className="run-inspector-link"
-                      href={pullRequest.url}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      {pullRequestLabel(pullRequest.url)}
-                    </a>
-                  ) : (
-                    "None yet"
-                  )
+                  pullRequest ? pullRequestLabel(pullRequest.url) : "None yet"
                 }
                 tone={pullRequest ? undefined : "muted"}
+                action={
+                  pullRequest
+                    ? { kind: "link", href: pullRequest.url }
+                    : undefined
+                }
               />
+              <DetailRow label="Started" value={formatRunDate(run.startedAt)} />
             </dl>
           </section>
 
@@ -276,7 +321,7 @@ function RunDetailsPane({ run, events, connected }: RunInspectorProps) {
                   <li key={file.file}>
                     <Button
                       variant="quiet"
-                      className="run-inspector-file text-callout"
+                      className="run-inspector-file ui-row-hover text-callout"
                       onPress={() => setDiffFile(file)}
                     >
                       <span className="run-inspector-label run-inspector-file-path">

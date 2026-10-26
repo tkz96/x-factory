@@ -198,6 +198,14 @@
     color: HighlightText;
   }
 
+  /* A row with an action: the hover fill becomes a Highlight outline, so the row's own
+     text keeps its system colour. */
+  :root .ui-row-hover:hover::before,
+  :root .ui-row-hover[data-hovered]::before {
+    background: Canvas;
+    outline: var(--border-width) solid Highlight;
+  }
+
   :root .ui-list-group {
     background: Canvas;
     color: CanvasText;

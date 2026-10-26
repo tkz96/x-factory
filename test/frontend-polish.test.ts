@@ -169,7 +169,7 @@ describe("run stage rows: the label and its node share a centre", () => {
       /--run-stage-row:\s*max\(var\(--tap-min\),\s*var\(--control-height-lg\)\);/,
     );
     expect(css).toMatch(
-      /--run-stage-node-top:\s*calc\(\(var\(--run-stage-row\) - var\(--run-stage-node\)\) \/ 2\);/,
+      /--run-stage-node-top:\s*calc\(\s*\(var\(--run-stage-row\) - var\(--run-stage-node\)\)\s*\/\s*2\s*\);/,
     );
     const header = css.match(
       /\.ui-button\.run-disclosure\.run-stage-header \{([^}]*)\}/,
