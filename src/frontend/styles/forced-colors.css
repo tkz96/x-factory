@@ -7,7 +7,8 @@
 @media (forced-colors: active) {
   /* Components drop their outline and draw a box-shadow ring instead; box-shadow is
    * lost in forced colours, so the focus ring is an outline here, on every control. */
-  :root :is(button, a, input, textarea, select, [tabindex]):focus-visible {
+  :root
+  :is(a, input, textarea, select, [tabindex], .ui-table-sort):focus-visible {
     outline: var(--border-width-thick) solid Highlight;
     outline-offset: var(--space-0-5);
   }
@@ -21,16 +22,11 @@
     color: LinkText;
   }
 
-  :root button,
+  :root .ui-table-sort,
   :root .ui-nav-item {
     background: ButtonFace;
     color: ButtonText;
     border: var(--border-width) solid ButtonBorder;
-  }
-
-  :root button:disabled {
-    color: GrayText;
-    border-color: GrayText;
   }
 
   /* Selected navigation rows paint Highlight themselves: without opting out,
@@ -62,8 +58,7 @@
   :root .ui-badge--success,
   :root .ui-badge--warning,
   :root .ui-badge--error,
-  :root .ui-badge--id,
-  :root .filter-pill {
+  :root .ui-badge--id {
     background: Canvas;
     color: CanvasText;
     border: var(--border-width) solid CanvasText;
@@ -184,7 +179,6 @@
     color: HighlightText;
   }
 
-  :root .card,
   :root .ui-list-group {
     background: Canvas;
     color: CanvasText;

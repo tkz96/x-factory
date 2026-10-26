@@ -211,6 +211,8 @@
   /* Apple HIG Type Scale — iOS / default (applies at all widths and pointer types).
      A second, denser macOS scale applies under the fine-pointer + wide-viewport
      media query below (spec #292). */
+  /* The root font size is a percentage, so the browser setting scales every text style. */
+  --text-root: 100%;
   --text-caption-2: 0.6875rem; /* 11px */
   --text-caption-1: 0.75rem; /* 12px */
   --text-footnote: 0.8125rem; /* 13px */

@@ -117,7 +117,7 @@ export function NotificationBell() {
               {notifications.map((item) => (
                 <li key={item.id} className="notification-row">
                   <OverlayTriggerButton
-                    className="notification-item"
+                    className="notification-item text-subhead"
                     onPress={() => choose(item)}
                   >
                     <span className="notification-item-main">

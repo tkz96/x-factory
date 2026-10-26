@@ -48,7 +48,9 @@
   justify-content: center;
   gap: var(--space-2);
   min-height: var(--control-height);
+  max-width: 100%;
   padding: 0 var(--space-5);
+  white-space: nowrap;
   font-family: var(--font-sans);
   font-size: var(--text-callout);
   font-weight: var(--font-weight-semibold);
@@ -702,6 +704,9 @@
 }
 
 .ui-list-row--pressable {
+  font-family: var(--font-sans);
+  font-size: var(--text-subhead);
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
   transition:
     background-color var(--transition),
@@ -1080,6 +1085,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
+  white-space: nowrap;
   margin: 0;
   padding: 0;
   font: inherit;
