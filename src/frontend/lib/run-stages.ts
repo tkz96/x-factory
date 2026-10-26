@@ -6,12 +6,7 @@ import {
   STATUS_TO_STAGE,
   TERMINAL_RUN_STATUSES,
 } from "../../shared/run-status-policy.js";
-import type {
-  Run,
-  RunEvent,
-  RunStatus,
-  WorkflowStage,
-} from "../../shared/types.js";
+import type { Run, RunEvent, WorkflowStage } from "../../shared/types.js";
 import type { ChatItem } from "./run-chat-items.js";
 import { STAGE_LABELS, STAGE_ORDER } from "./workflow-stages.js";
 
