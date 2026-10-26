@@ -35,11 +35,11 @@ export function SpecimenBlocks() {
   const [enabled, setEnabled] = useState(true);
   return (
     <section className="specimen-section" aria-labelledby="specimen-blocks">
-      <h2 id="specimen-blocks" className="specimen-heading">
+      <h2 id="specimen-blocks" className="specimen-heading text-title-2">
         Blocks
       </h2>
 
-      <h3 className="specimen-subheading">Button</h3>
+      <h3 className="specimen-subheading text-headline">Button</h3>
       <div className="specimen-row">
         {VARIANTS.map((variant) =>
           SIZES.map((size) => (
@@ -56,16 +56,16 @@ export function SpecimenBlocks() {
         </Button>
       </div>
 
-      <h3 className="specimen-subheading">IconButton</h3>
+      <h3 className="specimen-subheading text-headline">IconButton</h3>
       <div className="specimen-row">
         <IconButton label="Search" icon="icon-search" variant="filled" />
         <IconButton label="Settings" icon="icon-settings" variant="plain" />
         <IconButton label="Notifications" icon="icon-bell" variant="filled">
-          <span className="specimen-count">3</span>
+          <span className="specimen-count text-caption-2">3</span>
         </IconButton>
       </div>
 
-      <h3 className="specimen-subheading">Badge</h3>
+      <h3 className="specimen-subheading text-headline">Badge</h3>
       <div className="specimen-row">
         {TONES.map((tone) => (
           <Badge key={tone} tone={tone}>
@@ -75,7 +75,9 @@ export function SpecimenBlocks() {
         <Badge variant="id">DEMO-101</Badge>
       </div>
 
-      <h3 className="specimen-subheading">Segmented control, select, switch</h3>
+      <h3 className="specimen-subheading text-headline">
+        Segmented control, select, switch
+      </h3>
       <div className="specimen-row">
         <SegmentedControl
           label="Filter"
@@ -103,7 +105,7 @@ export function SpecimenBlocks() {
         />
       </div>
 
-      <h3 className="specimen-subheading">Text field</h3>
+      <h3 className="specimen-subheading text-headline">Text field</h3>
       <div className="specimen-fields">
         <TextField
           label="Repository"
@@ -113,7 +115,7 @@ export function SpecimenBlocks() {
         <TextAreaField label="Notes" placeholder="Describe the change" />
       </div>
 
-      <h3 className="specimen-subheading">List group</h3>
+      <h3 className="specimen-subheading text-headline">List group</h3>
       <div className="specimen-lists">
         <ListGroup title="Connections" footer="Each connection is one account.">
           <ListGroupRow title="GitHub" subtitle="Connected" href="/settings" />
@@ -130,7 +132,7 @@ export function SpecimenBlocks() {
         <PlaceholderRows count={2} group />
       </div>
 
-      <h3 className="specimen-subheading">Table</h3>
+      <h3 className="specimen-subheading text-headline">Table</h3>
       <Table
         label="Runs"
         columns={[
@@ -151,12 +153,12 @@ export function SpecimenBlocks() {
         </TableRow>
       </Table>
 
-      <h3 className="specimen-subheading">Spinner</h3>
+      <h3 className="specimen-subheading text-headline">Spinner</h3>
       <div className="specimen-row">
         <Spinner />
       </div>
 
-      <h3 className="specimen-subheading">Icon</h3>
+      <h3 className="specimen-subheading text-headline">Icon</h3>
       <div className="specimen-row">
         {(["xs", "sm", "md", "lg", "xl"] as const).map((size) => (
           <Icon key={size} name="icon-check" size={size} />
@@ -164,7 +166,7 @@ export function SpecimenBlocks() {
         <Icon name="icon-alert-circle" label="Warning" />
       </div>
 
-      <h3 className="specimen-subheading">Card</h3>
+      <h3 className="specimen-subheading text-headline">Card</h3>
       <div className="specimen-row">
         {CARDS.map((variant) => (
           <Card key={variant} variant={variant}>
@@ -174,7 +176,7 @@ export function SpecimenBlocks() {
         ))}
       </div>
 
-      <h3 className="specimen-subheading">EmptyState</h3>
+      <h3 className="specimen-subheading text-headline">EmptyState</h3>
       <EmptyState
         icon="icon-search"
         headingLevel={4}

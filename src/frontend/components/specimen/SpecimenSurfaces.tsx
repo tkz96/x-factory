@@ -21,12 +21,13 @@ const TYPE_SCALE = [
 export function SpecimenTypeScale() {
   return (
     <section className="specimen-section" aria-labelledby="specimen-type">
-      <h2 id="specimen-type" className="specimen-heading">
+      <h2 id="specimen-type" className="specimen-heading text-title-2">
         Type scale
       </h2>
       {TYPE_SCALE.map(([name, key]) => (
         <p key={key} className={`specimen-type text-${key}`}>
-          <span className="specimen-type-name">{name}</span> The quick brown fox
+          <span className="specimen-type-name text-caption-1">{name}</span> The
+          quick brown fox
         </p>
       ))}
     </section>
@@ -37,18 +38,22 @@ export function SpecimenTypeScale() {
 export function SpecimenCorners() {
   return (
     <section className="specimen-section" aria-labelledby="specimen-corners">
-      <h2 id="specimen-corners" className="specimen-heading">
+      <h2 id="specimen-corners" className="specimen-heading text-title-2">
         Corners
       </h2>
       <div className="specimen-corners">
         <div className="specimen-corner-cell" data-corner="button">
           <Button variant="primary">Button</Button>
         </div>
-        <div className="specimen-corner-cell" data-corner="card">
-          <div className="specimen-corner-card">Card · --radius-card</div>
+        <div className="specimen-corner-cell" data-corner="panel">
+          <div className="specimen-corner-sample text-footnote">
+            Card · --radius-card
+          </div>
         </div>
         <div className="specimen-corner-cell" data-corner="sheet">
-          <div className="specimen-corner-sheet">Sheet · --radius-lg</div>
+          <div className="specimen-corner-sheet text-footnote">
+            Sheet · --radius-lg
+          </div>
         </div>
         <div className="specimen-corner-cell" data-corner="field">
           <TextField label="Field" placeholder="Text field" />
