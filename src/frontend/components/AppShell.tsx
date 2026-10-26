@@ -1,7 +1,7 @@
 import "./AppShell.css";
 import "./AppShellDocsPhone.css";
 
-import { type UIEvent, useEffect, useState } from "react";
+import { type ReactNode, type UIEvent, useEffect, useState } from "react";
 import {
   Link,
   NavLink,
@@ -13,6 +13,10 @@ import {
 import { STOPPABLE_RUN_STATUSES } from "../../shared/run-status-policy.js";
 import { ModalProvider, useModal } from "../context/ModalContext.js";
 import { NotificationProvider } from "../context/NotificationContext.js";
+import {
+  PageHeaderProvider,
+  usePageHeaderContent,
+} from "../context/PageHeaderContext.js";
 import { ProjectProvider } from "../context/ProjectContext.js";
 import {
   useProjects,
@@ -44,6 +48,7 @@ import { CommandPalette } from "./palette/CommandPalette.js";
 import { ShortcutSheet } from "./palette/ShortcutSheet.js";
 import { ProjectScopePicker } from "./projects/ProjectScopePicker.js";
 import { Button } from "./ui/Button.js";
+import { PageHeader } from "./ui/PageHeader.js";
 import { SegmentedControl } from "./ui/SegmentedControl.js";
 
 /** Scrolling past this many pixels moves the page title into the toolbar. */
@@ -263,6 +268,36 @@ function PageAction({ section, onStartRun, onAddProject }: PageActionProps) {
   return null;
 }
 
+interface PageHeaderSlotProps {
+  /** The shell's own title, standing until a view claims the heading. */
+  title: string;
+  /** The shell's own subtitle for the address, standing the same way. */
+  subtitle: string;
+  /** The section's page action, standing until a view brings its own. */
+  actions: ReactNode;
+}
+
+/**
+ * The page heading the shell renders (#298): the mounted view's claim when
+ * there is one — its title, its subtitle and its actions — and the shell's
+ * own title and section action otherwise. It is the same slot at desktop and
+ * phone width; the toolbar picks the claimed title up when the page scrolls.
+ */
+function PageHeaderSlot({ title, subtitle, actions }: PageHeaderSlotProps) {
+  const provided = usePageHeaderContent();
+  const resolvedActions =
+    provided !== null && provided.actions !== undefined
+      ? provided.actions
+      : actions;
+  return (
+    <PageHeader
+      title={provided?.title ?? title}
+      subtitle={provided?.subtitle ?? subtitle}
+      actions={resolvedActions}
+    />
+  );
+}
+
 interface AppShellHeaderProps {
   isDocs: boolean;
   isRunDetail: boolean;
@@ -307,6 +342,13 @@ function AppShellHeader({
   stopPending,
   onOpenPalette,
 }: AppShellHeaderProps) {
+  // A view that claims the page heading names itself everywhere the title
+  // shows: the compact toolbar copy and the run-page heading included (#298).
+  // Only this component and PageHeaderSlot read the claim, so a claim change
+  // re-renders the bar and the heading — never the view that made it.
+  const providedHeader = usePageHeaderContent();
+  const headingTitle = providedHeader?.title ?? title;
+  const headingSubtitle = providedHeader?.subtitle ?? subtitle;
   return (
     <header
       id="content-toolbar"
@@ -330,7 +372,7 @@ function AppShellHeader({
               </span>
             </div>
             <span id="toolbar-subtitle" className="toolbar-subtitle">
-              {subtitle}
+              {headingSubtitle}
             </span>
           </nav>
         ) : isRunDetail ? (
@@ -339,10 +381,10 @@ function AppShellHeader({
           // branch beneath it as a caption, only the title on a phone (#258, F3).
           <div className="toolbar-run-heading">
             <h1 id="toolbar-title" className="toolbar-title is-visible">
-              {title}
+              {headingTitle}
             </h1>
             <span id="toolbar-subtitle" className="toolbar-subtitle">
-              {subtitle}
+              {headingSubtitle}
             </span>
           </div>
         ) : (
@@ -352,7 +394,7 @@ function AppShellHeader({
           // title span (#258).
           compact && (
             <span className="toolbar-title is-visible" aria-hidden="true">
-              {title}
+              {headingTitle}
             </span>
           )
         )}
@@ -627,53 +669,52 @@ function AppShellContent() {
         className={`main-content ${isRunDetail ? "main-content-locked" : ""}`}
         onScroll={onMainScroll}
       >
-        {!isWelcome && (
-          <AppShellHeader
-            isDocs={isDocs}
-            isRunDetail={isRunDetail}
-            docsNavOpen={docsNavOpen}
-            onToggleDocsNav={() => setDocsNavOpen((open) => !open)}
-            title={title}
-            subtitle={subtitle}
-            compact={compact}
-            docBreadcrumb={docBreadcrumb}
-            section={section}
-            onSelectSection={(id) => navigate(`/${id}`)}
-            needsYouCount={needsYouCount}
-            isDegraded={isDegraded}
-            activeRunId={activeRunId}
-            onStopRun={handleStopRun}
-            stopPending={stopRunMutation.isPending}
-            onOpenPalette={() => setPaletteOpen(true)}
-          />
-        )}
-
-        <div
-          id="viewport-container"
-          className={`viewport-container ${isRunDetail ? "viewport-container-locked" : ""}`}
-        >
-          {!isDocs && !isRunDetail && (
-            <div className="page-heading">
-              <div className="page-heading-text">
-                <h1 id="page-title" className="large-title">
-                  {title}
-                </h1>
-                <p className="page-subtitle">{genericSubtitle}</p>
-              </div>
-              {/* The screen's own action: the toolbar does not carry one
-                   The slot is empty on a screen without one. */}
-              <div className="page-heading-actions">
-                <PageAction
-                  section={section}
-                  onStartRun={() => openNewRunModal()}
-                  onAddProject={() => openOnboardingModal()}
-                />
-              </div>
-            </div>
+        {/* The heading slot wraps the bar and the view: while a view is
+            mounted it claims this heading through usePageHeader (#298), and
+            the toolbar and the heading below read the same claim. */}
+        <PageHeaderProvider>
+          {!isWelcome && (
+            <AppShellHeader
+              isDocs={isDocs}
+              isRunDetail={isRunDetail}
+              docsNavOpen={docsNavOpen}
+              onToggleDocsNav={() => setDocsNavOpen((open) => !open)}
+              title={title}
+              subtitle={subtitle}
+              compact={compact}
+              docBreadcrumb={docBreadcrumb}
+              section={section}
+              onSelectSection={(id) => navigate(`/${id}`)}
+              needsYouCount={needsYouCount}
+              isDegraded={isDegraded}
+              activeRunId={activeRunId}
+              onStopRun={handleStopRun}
+              stopPending={stopRunMutation.isPending}
+              onOpenPalette={() => setPaletteOpen(true)}
+            />
           )}
 
-          <Outlet />
-        </div>
+          <div
+            id="viewport-container"
+            className={`viewport-container ${isRunDetail ? "viewport-container-locked" : ""}`}
+          >
+            {!isDocs && !isRunDetail && (
+              <PageHeaderSlot
+                title={title}
+                subtitle={genericSubtitle}
+                actions={
+                  <PageAction
+                    section={section}
+                    onStartRun={() => openNewRunModal()}
+                    onAddProject={() => openOnboardingModal()}
+                  />
+                }
+              />
+            )}
+
+            <Outlet />
+          </div>
+        </PageHeaderProvider>
       </main>
 
       {!isWelcome && <AppShellMobileTabBar needsYouCount={needsYouCount} />}
