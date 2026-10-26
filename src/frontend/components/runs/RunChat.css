@@ -311,6 +311,11 @@
   min-width: 0;
 }
 
+/* Markdown in a summary line reads as the line: no paragraph margins. */
+.run-chat-summary-text :is(p, ul, ol) {
+  margin: 0;
+}
+
 .run-chat-summary-note {
   color: var(--text-secondary);
 }
