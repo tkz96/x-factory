@@ -7,6 +7,8 @@ import "./RunDetailView.css";
 
 import { type CSSProperties, useRef } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
+import { AsyncRegion } from "../components/feedback/AsyncRegion.js";
+import { deriveAsyncState } from "../components/feedback/derive-async-state.js";
 import { FeedbackBanner } from "../components/feedback/FeedbackBanner.js";
 import { RunChat } from "../components/runs/RunChat.js";
 import type { CheckpointAction } from "../components/runs/RunCheckpointBar.js";
@@ -20,7 +22,9 @@ import {
   useRunCheckpointActions,
 } from "../components/runs/useRunCheckpointActions.js";
 import { useRunSplit } from "../components/runs/useRunSplit.js";
+import { EmptyState } from "../components/ui/EmptyState.js";
 import { useMediaQuery } from "../components/ui/useMediaQuery.js";
+import { usePageHeader } from "../context/PageHeaderContext.js";
 import { useRunDetail } from "../hooks/useRunDetail.js";
 
 /** What a screen that opens this run may pass along in its navigation state. */
@@ -31,13 +35,24 @@ interface RunPageState {
 
 type RunData = ReturnType<typeof useRunDetail>;
 
-function RunLoadingState({ runId }: { runId: string | undefined }) {
+/** The region while the run loads: the one loading state, with no data yet. */
+const LOADING = deriveAsyncState({
+  data: undefined,
+  isPending: true,
+  isError: false,
+  error: undefined,
+});
+
+/** The page heading the shell draws for the run page: the same words the shell uses. */
+const PAGE_HEADER = {
+  title: "Run",
+  subtitle: "What the run is doing and what it needs from you",
+};
+
+function RunLoadingState() {
   return (
     <section id="area-runs" className="area-view active">
-      <div className="empty-state card">
-        <div className="spinner-sm" />
-        <h3 className="mt-4">Loading Run {runId}…</h3>
-      </div>
+      <AsyncRegion derived={LOADING} />
     </section>
   );
 }
@@ -45,23 +60,19 @@ function RunLoadingState({ runId }: { runId: string | undefined }) {
 function RunNotFoundState({ runId }: { runId: string | undefined }) {
   return (
     <section id="area-runs" className="area-view active">
-      <div className="empty-state card">
-        <div className="empty-icon">
-          <svg className="icon icon-xl" aria-hidden="true">
-            <use href="/assets/icons/sprite.svg#icon-alert-circle" />
-          </svg>
-        </div>
-        <h3>Run Not Found</h3>
-        <p className="text-muted">
-          No active or historical run matches ID: {runId}
-        </p>
-        <Link
-          to="/runs"
-          className="ui-button ui-button--secondary ui-button--sm mt-4"
-        >
-          ← Back to Runs
-        </Link>
-      </div>
+      <EmptyState
+        icon="icon-alert-circle"
+        title="Run Not Found"
+        message={`No active or historical run matches ID: ${runId}`}
+        action={
+          <Link
+            to="/runs"
+            className="ui-button ui-button--secondary ui-button--sm"
+          >
+            ← Back to Runs
+          </Link>
+        }
+      />
     </section>
   );
 }
@@ -182,12 +193,14 @@ function RunDetailLayout({
 }
 
 export function RunDetailView() {
+  // The run page's heading is the shell's toolbar title: the view claims it, and draws none of its own.
+  usePageHeader(PAGE_HEADER);
   const { runId } = useParams<{ runId: string }>();
   const { run, isLoading, error, events, connected } = useRunDetail(runId);
   const location = useLocation();
   const notice = (location.state as RunPageState | null)?.notice;
 
-  if (isLoading) return <RunLoadingState runId={runId} />;
+  if (isLoading) return <RunLoadingState />;
   if (error || !run) return <RunNotFoundState runId={runId} />;
 
   return (
