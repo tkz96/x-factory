@@ -256,7 +256,7 @@
   --text-footnote-tracking: -0.0062em; /* -0.08pt */
   --text-caption-1-weight: 400;
   --text-caption-1-leading: 1rem; /* 16px */
-  --text-caption-1-tracking: 0em;
+  --text-caption-1-tracking: 0.012em; /* 10px: +0.12pt */
   --text-caption-2-weight: 400;
   --text-caption-2-leading: 0.8125rem; /* 13px */
   --text-caption-2-tracking: 0.0064em; /* 0.07pt */
@@ -450,29 +450,29 @@
        Caption 2 is Medium. Tracking is 0 until Apple's macOS tracking table is
        checked against the live page (it was not retrievable when this was set). */
     --text-large-title-leading: 2rem; /* 32px */
-    --text-large-title-tracking: 0em;
+    --text-large-title-tracking: 0.0142em; /* 26px: +0.37pt */
     --text-title-1-leading: 1.625rem; /* 26px */
-    --text-title-1-tracking: 0em;
+    --text-title-1-tracking: 0.0159em; /* 22px: +0.35pt */
     --text-title-2-leading: 1.375rem; /* 22px */
-    --text-title-2-tracking: 0em;
+    --text-title-2-tracking: -0.0241em; /* 17px: -0.41pt */
     --text-title-3-leading: 1.25rem; /* 20px */
-    --text-title-3-tracking: 0em;
+    --text-title-3-tracking: -0.016em; /* 15px: -0.24pt */
     --text-headline-weight: 700;
     --text-headline-leading: 1rem; /* 16px */
-    --text-headline-tracking: 0em;
+    --text-headline-tracking: -0.0062em; /* 13px: -0.08pt */
     --text-body-leading: 1rem; /* 16px */
-    --text-body-tracking: 0em;
+    --text-body-tracking: -0.0062em; /* 13px: -0.08pt */
     --text-callout-leading: 0.9375rem; /* 15px */
-    --text-callout-tracking: 0em;
+    --text-callout-tracking: 0em; /* 12px: 0pt */
     --text-subhead-leading: 0.875rem; /* 14px */
-    --text-subhead-tracking: 0em;
+    --text-subhead-tracking: 0.0064em; /* 11px: +0.07pt */
     --text-footnote-leading: 0.8125rem; /* 13px */
-    --text-footnote-tracking: 0em;
+    --text-footnote-tracking: 0.012em; /* 10px: +0.12pt */
     --text-caption-1-leading: 0.8125rem; /* 13px */
-    --text-caption-1-tracking: 0em;
+    --text-caption-1-tracking: 0.012em; /* 10px: +0.12pt */
     --text-caption-2-weight: 500;
     --text-caption-2-leading: 0.8125rem; /* 13px */
-    --text-caption-2-tracking: 0em;
+    --text-caption-2-tracking: 0.012em; /* 10px: +0.12pt */
     --control-height: 28px;
     --control-height-sm: 22px;
     --control-height-lg: 32px;
