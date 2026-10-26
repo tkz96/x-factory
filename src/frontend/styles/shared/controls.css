@@ -52,7 +52,7 @@
   padding: 0 var(--space-5);
   white-space: nowrap;
   font-family: var(--font-sans);
-  font-size: var(--text-callout);
+  font-size: var(--text-control);
   font-weight: var(--font-weight-semibold);
   /* Buttons have a filled bezel and no border (spec #292). */
   border: 0;
@@ -92,13 +92,17 @@
   box-shadow: var(--shadow-md);
 }
 
+/* Secondary: an opaque bezel with a hairline, so it reads on a tinted card too
+   (spec #292, item 2). The bezel is a token, not a border, so the press and focus
+   rings keep their geometry. */
 .ui-button--secondary {
-  background: var(--fill-control);
+  background: var(--fill-bezel);
   color: var(--text);
+  box-shadow: var(--shadow-bezel);
 }
 
 .ui-button--secondary[data-hovered] {
-  background: var(--fill-control-hover);
+  background: var(--fill-bezel-hover);
 }
 
 .ui-button--danger {
@@ -121,7 +125,7 @@
 .ui-button--sm {
   min-height: var(--control-height-sm);
   padding: 0 var(--space-3);
-  font-size: var(--text-footnote);
+  font-size: var(--text-control-sm);
   border-radius: var(--radius-sm);
 }
 
@@ -144,11 +148,9 @@
     min-height: var(--tap-min);
   }
 
-  .ui-icon-button {
-    width: var(--tap-min);
-    height: var(--tap-min);
+  /* A label-less "…" or a glyph-only button still has a 44px width (spec #292, item 9). */
+  .ui-button {
     min-width: var(--tap-min);
-    min-height: var(--tap-min);
   }
 }
 
@@ -193,8 +195,10 @@
   transform: scale(0.96);
 }
 
+/* Disabled keeps the control and dims the glyph (macOS), so the button stays visible
+   on any surface (spec #292, item 3). It does not fade the whole control. */
 .ui-icon-button[data-disabled] {
-  opacity: 0.4;
+  color: var(--text-dim);
   cursor: not-allowed;
 }
 
@@ -235,6 +239,18 @@
 .ui-icon-button svg {
   width: var(--icon-md);
   height: var(--icon-md);
+}
+
+/* A finger's icon button. It sits after the icon button's own size: a rule placed
+   earlier loses to it at the same specificity, which left the phone target at 28px
+   (spec #292, item 9). */
+@media (any-pointer: coarse), (max-width: 768px) {
+  .ui-icon-button {
+    width: var(--tap-min);
+    height: var(--tap-min);
+    min-width: var(--tap-min);
+    min-height: var(--tap-min);
+  }
 }
 
 /* ── Text field, text area, select ──────────────────────────────────────── */
@@ -417,7 +433,8 @@
   padding: 0;
   min-height: var(--control-height);
   max-width: 100%;
-  background: var(--bg-tertiary);
+  /* A track a step darker than the thumb it carries (spec #292, item 7). */
+  background: var(--fill-control);
   border: none;
   box-shadow: var(--shadow-ring-control);
   border-radius: var(--radius-md);
@@ -500,7 +517,7 @@
   width: calc(var(--thumb-w) - 2 * var(--space-1));
   background: var(--bg-card);
   border-radius: calc(var(--radius-md) - var(--space-1));
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-bezel), var(--shadow-sm);
   pointer-events: none;
 }
 
@@ -511,11 +528,17 @@
 
 /* The count after a segment's label (#259): a quiet pill, not a second action. */
 .ui-segment-count {
-  min-width: var(--space-5);
-  padding: 0 var(--space-1-5);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--space-4);
+  height: var(--space-4);
+  padding: 0 var(--space-1);
   font-size: var(--text-caption-1);
   font-variant-numeric: tabular-nums;
-  line-height: var(--space-5);
+  /* Centred in its own pill, with the line box the height of the pill, so the
+     count's figures sit on the label's baseline, not below it (spec #292, item 7). */
+  line-height: 1;
   text-align: center;
   color: var(--text-muted);
   background: var(--bg-tertiary);
@@ -967,15 +990,26 @@
   border-radius: var(--radius-none);
 }
 
-/* The row the URL names reads as chosen: one filled row, no border. */
+/* The row the URL names reads as chosen, as a macOS list does (spec #292, item 7):
+   a neutral fill while the list is not focused, and the accent fill only while focus
+   is inside the list. The accent never competes with the primary button otherwise. */
 .ui-list-group .ui-list-row[aria-current="page"] {
+  background: var(--bg-secondary);
+  color: var(--text);
+}
+
+.ui-list-group:focus-within .ui-list-row[aria-current="page"] {
   background: var(--accent);
   color: var(--text-on-accent);
 }
 
-.ui-list-group .ui-list-row[aria-current="page"] .ui-list-row-title,
-.ui-list-group .ui-list-row[aria-current="page"] .ui-list-row-subtitle,
-.ui-list-group .ui-list-row[aria-current="page"] > .icon {
+.ui-list-group:focus-within
+  .ui-list-row[aria-current="page"]
+  .ui-list-row-title,
+.ui-list-group:focus-within
+  .ui-list-row[aria-current="page"]
+  .ui-list-row-subtitle,
+.ui-list-group:focus-within .ui-list-row[aria-current="page"] > .icon {
   color: var(--text-on-accent);
 }
 
@@ -1361,9 +1395,13 @@
   color: var(--text);
 }
 
+/* A subtitle is a sentence, so it is Callout (12px on macOS), never a 10px
+   caption (spec #292, item 4). */
 .page-subtitle {
   margin: 0;
-  font-size: var(--text-subhead);
+  font-size: var(--text-callout);
+  line-height: var(--text-callout-leading);
+  letter-spacing: var(--text-callout-tracking);
   color: var(--text-muted);
 }
 
