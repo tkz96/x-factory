@@ -6,7 +6,6 @@ import "./RunChat.css";
 import "./RunStageTimeline.css";
 
 import { type ReactNode, useId, useState } from "react";
-import type { DiffFileSummary } from "../../../shared/diff-summary.js";
 import type { WorkflowStage } from "../../../shared/types.js";
 import type { ChatItem } from "../../lib/run-chat-items.js";
 import { groupRows } from "../../lib/run-chat-rows.js";
@@ -29,7 +28,6 @@ export interface RunStageTimelineProps {
   onToggle: (stage: WorkflowStage) => void;
   /** The clock the chat rows' relative times read from. */
   now: number;
-  onOpenFile: (file: DiffFileSummary) => void;
   /** The retry offered for a trailing error row, if any. */
   retryFor?: (item: ChatItem) => (() => void) | undefined;
   /** Rendered at the end of the body of the decision stage (see `defaultDecisionStage`). */
@@ -87,15 +85,7 @@ const STATE_STATUS: Partial<
 };
 
 /** A folded run of agent updates: one disclosure row, closed until the reader opens it. */
-function ActivityGroup({
-  items,
-  now,
-  onOpenFile,
-}: {
-  items: ChatItem[];
-  now: number;
-  onOpenFile: (file: DiffFileSummary) => void;
-}) {
+function ActivityGroup({ items, now }: { items: ChatItem[]; now: number }) {
   const [isOpen, setOpen] = useState(false);
   const id = useId();
   return (
@@ -111,12 +101,7 @@ function ActivityGroup({
       </RunDisclosure>
       <div id={`${id}-body`} className="run-chat-group-body" hidden={!isOpen}>
         {items.map((item) => (
-          <RunChatRow
-            key={item.id}
-            item={item}
-            now={now}
-            onOpenFile={onOpenFile}
-          />
+          <RunChatRow key={item.id} item={item} now={now} />
         ))}
       </div>
     </div>
@@ -126,12 +111,10 @@ function ActivityGroup({
 function StageRows({
   items,
   now,
-  onOpenFile,
   retryFor,
 }: {
   items: ChatItem[];
   now: number;
-  onOpenFile: (file: DiffFileSummary) => void;
   retryFor?: ((item: ChatItem) => (() => void) | undefined) | undefined;
 }) {
   return (
@@ -142,16 +125,10 @@ function StageRows({
             key={row.item.id}
             item={row.item}
             now={now}
-            onOpenFile={onOpenFile}
             onRetry={retryFor?.(row.item)}
           />
         ) : (
-          <ActivityGroup
-            key={row.id}
-            items={row.items}
-            now={now}
-            onOpenFile={onOpenFile}
-          />
+          <ActivityGroup key={row.id} items={row.items} now={now} />
         ),
       )}
     </>
@@ -163,7 +140,6 @@ export function RunStageTimeline({
   open,
   onToggle,
   now,
-  onOpenFile,
   retryFor,
   decision,
   decisionStage,
@@ -230,12 +206,7 @@ export function RunStageTimeline({
                     <EmptyState message="Nothing yet." />
                   </div>
                 )}
-                <StageRows
-                  items={group.items}
-                  now={now}
-                  onOpenFile={onOpenFile}
-                  retryFor={retryFor}
-                />
+                <StageRows items={group.items} now={now} retryFor={retryFor} />
                 {holdsDecision && decision}
               </div>
             </section>

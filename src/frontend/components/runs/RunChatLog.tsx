@@ -6,7 +6,6 @@ import "./RunChat.css";
 
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import type { DiffFileSummary } from "../../../shared/diff-summary.js";
 import type { WorkflowStage } from "../../../shared/types.js";
 import type { ChatItem } from "../../lib/run-chat-items.js";
 import type { StageGroup } from "../../lib/run-stages.js";
@@ -75,7 +74,6 @@ interface RunChatLogProps {
   openStages: ReadonlySet<WorkflowStage>;
   onToggleStage: (stage: WorkflowStage) => void;
   now: number;
-  onOpenFile: (file: DiffFileSummary) => void;
   retryFor: (item: ChatItem) => (() => void) | undefined;
   decision: ReactNode;
   waiting: boolean;
@@ -92,7 +90,6 @@ export function RunChatLog({
   openStages,
   onToggleStage,
   now,
-  onOpenFile,
   retryFor,
   decision,
   waiting,
@@ -122,7 +119,6 @@ export function RunChatLog({
           open={openStages}
           onToggle={onToggleStage}
           now={now}
-          onOpenFile={onOpenFile}
           retryFor={retryFor}
           decision={decision}
           waiting={waiting}

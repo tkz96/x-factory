@@ -250,45 +250,75 @@
   color: var(--text);
 }
 
-.run-chat-files {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.run-chat-file {
+/* A summary line: one result in one line (files changed, a check passed). A line that opens its
+   section in Run details is a quiet button drawn as the line, with the shared row hover. */
+.run-chat-summary {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
+  gap: var(--space-2);
   width: 100%;
-  min-height: var(--tap-min);
-  padding: var(--space-2) var(--space-1);
-  border: 0;
-  background: transparent;
+  min-width: 0;
   color: var(--text);
   text-align: start;
-  cursor: pointer;
 }
 
-.run-chat-file:focus-visible {
-  outline: var(--border-width-indicator) solid var(--border-focus);
-  outline-offset: calc(var(--border-width-indicator) * -1);
+.ui-button.run-chat-summary {
+  justify-content: flex-start;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-none);
+  background: transparent;
+  color: var(--text);
 }
 
-.run-chat-file-name {
-  min-width: 0;
-  overflow-wrap: anywhere;
-  font-family: var(--font-mono);
+.ui-button.run-chat-summary[data-hovered],
+.ui-button.run-chat-summary[data-pressed] {
+  background: transparent;
+  transform: none;
 }
 
-.run-chat-file-add {
+.run-chat-summary-icon {
+  flex: none;
+  color: var(--text-secondary);
+}
+
+.run-chat-summary-icon--success {
   color: var(--green);
 }
 
-.run-chat-file-remove {
+.run-chat-summary-icon--error {
+  color: var(--red);
+}
+
+.run-chat-summary-text {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+}
+
+.run-chat-summary-note {
+  color: var(--text-secondary);
+}
+
+.run-chat-summary-counts {
+  display: inline-flex;
+  gap: var(--space-1);
+  font-variant-numeric: tabular-nums;
+}
+
+.run-chat-summary .run-chat-time {
+  margin-inline-start: auto;
+  flex: none;
+}
+
+.run-chat-add {
+  color: var(--green);
+}
+
+.run-chat-remove {
   color: var(--red);
 }
 

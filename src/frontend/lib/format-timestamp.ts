@@ -56,3 +56,31 @@ export function formatRelativeTime(
   if (elapsed < DAY_MS) return `${Math.floor(elapsed / HOUR_MS)} h ago`;
   return formatTimestamp(iso);
 }
+
+/** An ISO instant as `HH:mm` (24-hour clock) in the viewer's local time zone. */
+export function formatClockTime(iso: string, timeZone?: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(date);
+}
+
+/**
+ * The run timeline's clock: relative for the last hour, so a live run reads as it happens,
+ * then the time of day. The run's date is shown once, in Run details, not on every line.
+ */
+export function formatTimelineTime(
+  iso: string,
+  now: number = Date.now(),
+  timeZone?: string,
+): string {
+  const time = new Date(iso).getTime();
+  if (Number.isNaN(time)) return iso;
+  return now - time < HOUR_MS
+    ? formatRelativeTime(iso, now)
+    : formatClockTime(iso, timeZone);
+}

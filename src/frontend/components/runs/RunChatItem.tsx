@@ -1,19 +1,23 @@
 // src/frontend/components/runs/RunChatItem.tsx — One row of the run chat (#261).
 //
 // Each kind of chat item has one row shape. Every time goes through RunTime, so a moment
-// reads the same everywhere: relative when recent, the exact time on hover.
+// reads the same everywhere: relative within the hour, then the time of day, the full date
+// and time on hover.
 
-import type { DiffFileSummary } from "../../../shared/diff-summary.js";
+import type { ReactNode } from "react";
 import {
-  formatRelativeTime,
+  formatTimelineTime,
   formatTimestamp,
 } from "../../lib/format-timestamp.js";
 import type { ChatItem } from "../../lib/run-chat-items.js";
 import { MotionEntry } from "../../motion/MotionEntry.js";
 import { MarkdownBlock } from "../MarkdownBlock.js";
+import { MarkdownScaleContext, MarkdownViewer } from "../MarkdownViewer.js";
 import { Badge } from "../ui/Badge.js";
 import { Button } from "../ui/Button.js";
 import { Card } from "../ui/Card.js";
+import { Icon } from "../ui/Icon.js";
+import { type RunDetailsSection, useShowDetails } from "./RunDetailsContext.js";
 
 export function RunTime({ at, now }: { at: string; now: number }) {
   return (
@@ -22,15 +26,66 @@ export function RunTime({ at, now }: { at: string; now: number }) {
       dateTime={at}
       title={formatTimestamp(at)}
     >
-      {formatRelativeTime(at, now)}
+      {formatTimelineTime(at, now)}
     </time>
+  );
+}
+
+/**
+ * One line that names a result: what happened, and the time. When Run details holds the full
+ * list (files, criteria), the line is a button that brings that section into view.
+ */
+function SummaryLine({
+  kind,
+  icon,
+  tone,
+  section,
+  at,
+  now,
+  children,
+}: {
+  kind: ChatItem["kind"];
+  icon: string;
+  tone?: "success" | "error" | undefined;
+  section?: RunDetailsSection | undefined;
+  at: string;
+  now: number;
+  children: ReactNode;
+}) {
+  const showDetails = useShowDetails();
+  const body = (
+    <>
+      <Icon
+        name={icon}
+        size="sm"
+        className={`run-chat-summary-icon${tone ? ` run-chat-summary-icon--${tone}` : ""}`}
+      />
+      <div className="run-chat-summary-text">{children}</div>
+      <RunTime at={at} now={now} />
+    </>
+  );
+  if (section && showDetails) {
+    return (
+      <Button
+        variant="quiet"
+        className="run-chat-summary ui-row-hover text-callout"
+        data-kind={kind}
+        onPress={() => showDetails(section)}
+      >
+        {body}
+      </Button>
+    );
+  }
+  return (
+    <div className="run-chat-summary text-callout" data-kind={kind}>
+      {body}
+    </div>
   );
 }
 
 export interface RunChatItemProps {
   item: ChatItem;
   now: number;
-  onOpenFile: (file: DiffFileSummary) => void;
   /** Re-sends the message before a trailing error (#263); absent when a retry is not offered. */
   onRetry?: (() => void) | undefined;
 }
@@ -91,12 +146,7 @@ function SystemLine({
   );
 }
 
-export function RunChatItemView({
-  item,
-  now,
-  onOpenFile,
-  onRetry,
-}: RunChatItemProps) {
+export function RunChatItemView({ item, now, onRetry }: RunChatItemProps) {
   switch (item.kind) {
     case "status":
       return <Status item={item} now={now} />;
@@ -121,12 +171,11 @@ export function RunChatItemView({
       );
     case "evidence":
       return (
-        <div data-kind="evidence">
-          <Card variant="chat" className="text-callout">
-            <MarkdownBlock content={item.text} label={item.stage} compact />
-            <RunTime at={item.at} now={now} />
-          </Card>
-        </div>
+        <SummaryLine kind="evidence" icon="icon-check" at={item.at} now={now}>
+          <MarkdownScaleContext.Provider value="compact">
+            <MarkdownViewer content={item.text} />
+          </MarkdownScaleContext.Provider>
+        </SummaryLine>
       );
     case "plan":
       return (
@@ -137,33 +186,24 @@ export function RunChatItemView({
           </Card>
         </article>
       );
-    case "diff":
+    case "diff": {
+      const { files, totalAdded, totalRemoved } = item.summary;
       return (
-        <article data-kind="diff" aria-label="Changes">
-          <Card variant="chat" className="text-callout">
-            <h3 className="text-headline">
-              Changes: {item.summary.files.length}{" "}
-              {item.summary.files.length === 1 ? "file" : "files"}
-            </h3>
-            <ul className="run-chat-files">
-              {item.summary.files.map((file) => (
-                <li key={file.path}>
-                  <Button
-                    variant="quiet"
-                    className="run-chat-file text-subhead"
-                    onPress={() => onOpenFile(file)}
-                  >
-                    <span className="run-chat-file-name">{file.path}</span>
-                    <span className="run-chat-file-add">{`+${file.added}`}</span>
-                    <span className="run-chat-file-remove">{`−${file.removed}`}</span>
-                  </Button>
-                </li>
-              ))}
-            </ul>
-            <RunTime at={item.at} now={now} />
-          </Card>
-        </article>
+        <SummaryLine
+          kind="diff"
+          icon="icon-code"
+          section="files"
+          at={item.at}
+          now={now}
+        >
+          {`${files.length} ${files.length === 1 ? "file" : "files"} changed`}
+          <span className="run-chat-summary-counts">
+            <span className="run-chat-add">{`+${totalAdded}`}</span>
+            <span className="run-chat-remove">{`−${totalRemoved}`}</span>
+          </span>
+        </SummaryLine>
       );
+    }
     case "review":
       return item.tool ? (
         <div className="run-chat-system" data-kind="review">
@@ -178,24 +218,22 @@ export function RunChatItemView({
           </Card>
         </div>
       );
-    case "result": {
-      const outcome = `${item.title} ${item.passed ? "passed" : "did not pass"}`;
-      return item.summary ? (
-        <div data-kind="result">
-          <Card variant="chat" className="text-callout">
-            <MarkdownBlock content={item.summary} label={outcome} compact />
-            <RunTime at={item.at} now={now} />
-          </Card>
-        </div>
-      ) : (
-        <div className="run-chat-system" data-kind="result">
-          <span>
-            <strong>{outcome}</strong>
-          </span>
-          <RunTime at={item.at} now={now} />
-        </div>
+    case "result":
+      return (
+        <SummaryLine
+          kind="result"
+          icon={item.passed ? "icon-check-circle-2" : "icon-x-circle"}
+          tone={item.passed ? "success" : "error"}
+          section="evidence"
+          at={item.at}
+          now={now}
+        >
+          <strong>{`${item.title} ${item.passed ? "passed" : "did not pass"}`}</strong>
+          {item.summary && (
+            <span className="run-chat-summary-note">{item.summary}</span>
+          )}
+        </SummaryLine>
       );
-    }
     case "progress":
       return (
         <div className="run-chat-progress" data-kind="progress">

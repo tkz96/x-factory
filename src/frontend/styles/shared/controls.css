@@ -733,6 +733,30 @@
   padding: var(--space-2) var(--space-4);
 }
 
+/* A row you can act on: a fill reaches just past the row on hover, without changing its
+   layout, so a list of such rows reads as one surface (run page plan, decision 2b). The
+   row keeps its own stacking context so the fill sits behind its text. */
+.ui-row-hover {
+  position: relative;
+  isolation: isolate;
+}
+
+.ui-row-hover::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: calc(var(--space-1) * -1) calc(var(--space-2) * -1);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  transition: background-color var(--transition-fast);
+  pointer-events: none;
+}
+
+.ui-row-hover[data-hovered]::before,
+a.ui-row-hover:hover::before {
+  background: var(--bg-hover);
+}
+
 .ui-list-row--pressable {
   font-family: var(--font-sans);
   font-size: var(--text-subhead);

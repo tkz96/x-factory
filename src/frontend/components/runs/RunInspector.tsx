@@ -31,6 +31,7 @@ import { Icon } from "../ui/Icon.js";
 import { IconButton } from "../ui/IconButton.js";
 import { ChatThread } from "./ChatThread.js";
 import { DiffModal } from "./DiffModal.js";
+import { useDetailsSheet } from "./RunDetailsContext.js";
 
 export interface RunInspectorProps {
   run: Run;
@@ -381,7 +382,7 @@ export function RunInspector(props: RunInspectorProps) {
 
 /** The same pane at phone width: a labelled button that opens it as a sheet. */
 export function RunInspectorSheet(props: RunInspectorProps) {
-  const [open, setOpen] = useState(false);
+  const { sheetOpen: open, setSheetOpen: setOpen } = useDetailsSheet();
   return (
     <>
       {/* An icon button named "Details": it sits in the chat's header strip at phone width. */}

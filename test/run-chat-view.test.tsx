@@ -29,8 +29,12 @@ import {
   RouterProvider,
 } from "react-router-dom";
 import { RunChat } from "../src/frontend/components/runs/RunChat.js";
+import { RunDetailsProvider } from "../src/frontend/components/runs/RunDetailsContext.js";
 import { ModalProvider } from "../src/frontend/context/ModalContext.js";
-import { formatTimestamp } from "../src/frontend/lib/format-timestamp.js";
+import {
+  formatClockTime,
+  formatTimestamp,
+} from "../src/frontend/lib/format-timestamp.js";
 import { queryKeys } from "../src/frontend/lib/query-policies.js";
 import { RunDetailView } from "../src/frontend/views/RunDetailView.js";
 import type { Run, RunEvent, RunStatus } from "../src/shared/types.js";
@@ -133,7 +137,9 @@ describe("the run chat shows real events and nothing invented", () => {
     );
     const chat = within(log(container));
     expect(chat.getByText("Step one, then step two")).toBeTruthy();
-    expect(chat.getByRole("button", { name: /src\/a\.ts/ })).toBeTruthy();
+    // The diff is one summary line; the file list lives in Run details (run page plan, 1b).
+    expect(chat.getByText("1 file changed")).toBeTruthy();
+    expect(chat.queryByRole("button", { name: /src\/a\.ts/ })).toBeNull();
     expect(chat.getByText("+4")).toBeTruthy();
     expect(chat.getByText("−1")).toBeTruthy();
     expect(chat.getByText("Ran read_file")).toBeTruthy();
@@ -214,7 +220,7 @@ describe("one clock for the run chat", () => {
     expect(time?.getAttribute("title")).toBe(formatTimestamp(recent));
   });
 
-  it("shows an old time as the exact time", () => {
+  it("shows an old time as the time of day, with the exact time on hover", () => {
     const { container } = render(
       <RunChat
         run={makeRun("executing")}
@@ -222,7 +228,8 @@ describe("one clock for the run chat", () => {
       />,
     );
     const time = container.querySelector(`time[datetime="${AT}"]`);
-    expect(time?.textContent).toBe(formatTimestamp(AT));
+    expect(time?.textContent).toBe(formatClockTime(AT));
+    expect(time?.getAttribute("title")).toBe(formatTimestamp(AT));
   });
 });
 
@@ -797,7 +804,7 @@ describe("run chat text reads as Markdown and sits at the start of a stage", () 
     expect(card.querySelector("pre.md-block-raw")?.textContent).toBe(plan);
   });
 
-  it("labels evidence with its stage and reads its text as Markdown", () => {
+  it("reads evidence as Markdown, without repeating the stage name its stage header shows", () => {
     const { container } = render(
       <RunChat
         run={makeRun("awaiting_understanding_approval")}
@@ -813,14 +820,13 @@ describe("run chat text reads as Markdown and sits at the start of a stage", () 
       '[data-kind="evidence"]',
     );
     if (!row) throw new Error("the evidence row is missing");
-    expect(row.querySelector(".md-block-label")?.textContent).toBe(
-      "Understand",
-    );
+    expect(row.querySelector(".md-block-label")).toBeNull();
+    expect(row.textContent).not.toContain("Understand");
     expect(row.querySelector("strong")?.textContent).toBe("Scope:");
     expect(row.textContent).not.toContain("**");
   });
 
-  it("labels a lowercase stage name with its display label, not the raw word", () => {
+  it("shows each stage summary as its own line, whatever the stage is called", () => {
     const { container } = render(
       <RunChat
         run={makeRun("executing")}
@@ -836,13 +842,9 @@ describe("run chat text reads as Markdown and sits at the start of a stage", () 
     const rows = log(container).querySelectorAll<HTMLElement>(
       '[data-kind="evidence"]',
     );
-    expect(rows[0]?.querySelector(".md-block-label")?.textContent).toBe(
-      "Prepare",
-    );
+    expect(rows).toHaveLength(2);
     expect(rows[0]?.textContent).toContain("Worktree ready at external path");
-    expect(rows[1]?.querySelector(".md-block-label")?.textContent).toBe(
-      "Custom_step",
-    );
+    expect(rows[1]?.textContent).toContain("done");
   });
 
   it("reads Builder output as Markdown and keeps the speaker's name above it", () => {
@@ -982,5 +984,40 @@ describe("the chat state of one run does not follow the reader into the next", (
     });
 
     await waitFor(() => expect(composer().value).toBe(""));
+  });
+});
+
+describe("summary lines open their section in Run details (run page plan, 1b)", () => {
+  it("brings the Files section into view and focus when the changes line is pressed", () => {
+    const events = [
+      ev(1, "diff_summary", {
+        files: [{ path: "src/a.ts", added: 4, removed: 1 }],
+        totalAdded: 4,
+        totalRemoved: 1,
+      }),
+    ];
+    const { container } = render(
+      <RunDetailsProvider isPhone={false}>
+        <h3 id="run-inspector-files">Files</h3>
+        <RunChat run={makeRun("awaiting_review")} events={events} />
+      </RunDetailsProvider>,
+    );
+    const line = within(log(container)).getByRole("button", {
+      name: /1 file changed/,
+    });
+    fireEvent.click(line);
+    expect(document.activeElement?.id).toBe("run-inspector-files");
+  });
+
+  it("stays plain text where no Run details pane exists", () => {
+    const events = [
+      ev(1, "diff_summary", { files: [], totalAdded: 0, totalRemoved: 0 }),
+    ];
+    const { container } = render(
+      <RunChat run={makeRun("awaiting_review")} events={events} />,
+    );
+    expect(
+      within(log(container)).queryByRole("button", { name: /changed/ }),
+    ).toBeNull();
   });
 });

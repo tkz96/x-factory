@@ -203,7 +203,6 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
           open: defaultOpenStages(groups),
           onToggle: () => undefined,
           now: Date.parse("2026-10-20T12:00:00.000Z"),
-          onOpenFile: () => undefined,
           waiting: false,
         }),
       );

@@ -12,6 +12,7 @@ import { deriveAsyncState } from "../components/feedback/derive-async-state.js";
 import { FeedbackBanner } from "../components/feedback/FeedbackBanner.js";
 import { RunChat } from "../components/runs/RunChat.js";
 import type { CheckpointAction } from "../components/runs/RunCheckpointBar.js";
+import { RunDetailsProvider } from "../components/runs/RunDetailsContext.js";
 import {
   RunInspector,
   RunInspectorSheet,
@@ -150,56 +151,58 @@ function RunDetailLayout({
   const inspectorProps = { run, events, connected };
 
   return (
-    <section id="area-runs" className="area-view active run-detail-container">
-      <div
-        ref={layoutRef}
-        className={
-          isPhone
-            ? "run-detail-layout run-detail-layout--phone"
-            : "run-detail-layout run-detail-layout--split"
-        }
-        style={
-          isPhone
-            ? undefined
-            : ({ "--run-split": `${split}%` } as CSSProperties)
-        }
-      >
-        <div className="run-detail-main">
-          {notice && <FeedbackBanner tone="info" message={notice} />}
-          {actionError && (
-            <div id="run-error">
-              <FeedbackBanner tone="error" message={actionError} />
-            </div>
-          )}
+    <RunDetailsProvider isPhone={isPhone}>
+      <section id="area-runs" className="area-view active run-detail-container">
+        <div
+          ref={layoutRef}
+          className={
+            isPhone
+              ? "run-detail-layout run-detail-layout--phone"
+              : "run-detail-layout run-detail-layout--split"
+          }
+          style={
+            isPhone
+              ? undefined
+              : ({ "--run-split": `${split}%` } as CSSProperties)
+          }
+        >
+          <div className="run-detail-main">
+            {notice && <FeedbackBanner tone="info" message={notice} />}
+            {actionError && (
+              <div id="run-error">
+                <FeedbackBanner tone="error" message={actionError} />
+              </div>
+            )}
 
-          {/* Keyed by the run: the chat's own state (the reader's lines, the composer draft, the
+            {/* Keyed by the run: the chat's own state (the reader's lines, the composer draft, the
               open stages) belongs to one run and never leaks into the next. */}
-          <RunChat
-            key={run.id}
-            run={run}
-            events={events}
-            onAction={onAction}
-            pending={pending}
-            conflict={conflict}
-            detailsTrigger={
-              isPhone ? <RunInspectorSheet {...inspectorProps} /> : undefined
-            }
-          />
-        </div>
+            <RunChat
+              key={run.id}
+              run={run}
+              events={events}
+              onAction={onAction}
+              pending={pending}
+              conflict={conflict}
+              detailsTrigger={
+                isPhone ? <RunInspectorSheet {...inspectorProps} /> : undefined
+              }
+            />
+          </div>
 
-        {!isPhone && (
-          <RunSplitHandle
-            containerRef={layoutRef}
-            split={split}
-            onSplit={setSplit}
-            onReset={resetSplit}
-          />
-        )}
-        {/* Keyed by the run: the pane's own state (the raw-log sheet, the open diff) belongs to
+          {!isPhone && (
+            <RunSplitHandle
+              containerRef={layoutRef}
+              split={split}
+              onSplit={setSplit}
+              onReset={resetSplit}
+            />
+          )}
+          {/* Keyed by the run: the pane's own state (the raw-log sheet, the open diff) belongs to
             one run and never leaks into the next. */}
-        {!isPhone && <RunInspector key={run.id} {...inspectorProps} />}
-      </div>
-    </section>
+          {!isPhone && <RunInspector key={run.id} {...inspectorProps} />}
+        </div>
+      </section>
+    </RunDetailsProvider>
   );
 }
 
