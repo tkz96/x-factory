@@ -5,7 +5,7 @@
   display: inline-block;
   width: var(--icon-md);
   height: var(--icon-md);
-  stroke-width: 1.5;
+  stroke-width: var(--icon-stroke);
   stroke: currentColor;
   fill: none;
   stroke-linecap: round;

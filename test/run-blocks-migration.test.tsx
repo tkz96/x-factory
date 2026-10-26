@@ -27,12 +27,17 @@ function read(relative: string): string {
 }
 
 describe("the stage timeline's glyphs", () => {
-  it("are sprite symbols on the same 1.5 stroke as the others, not inline paths", () => {
+  it("are sprite symbols on the same stroke as the others, not inline paths", () => {
     const sprite = read("public/assets/icons/sprite.svg");
     for (const id of ["icon-stage-done", "icon-stage-chevron"]) {
-      const symbol = new RegExp(`<symbol id="${id}"[^>]*stroke-width="1.5"`);
-      expect(sprite).toMatch(symbol);
+      expect(sprite).toContain(`<symbol id="${id}"`);
     }
+    // No glyph sets its own stroke: every one inherits --icon-stroke (1.5).
+    expect(sprite).not.toContain("stroke-width");
+    expect(read("src/frontend/styles/shared/icons.css")).toContain(
+      "stroke-width: var(--icon-stroke)",
+    );
+    expect(read("src/frontend/styles/tokens.css")).toMatch(/--icon-stroke:\s*1\.5;/);
     const timeline = read("src/frontend/components/runs/RunStageTimeline.tsx");
     expect(timeline).not.toContain("<path");
     expect(timeline).not.toContain("<circle");

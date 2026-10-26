@@ -275,6 +275,9 @@
   --text-caption-2-tracking: 0.0064em; /* 0.07pt */
 
   /* Icon Sizes */
+  /* Icon stroke: SF Symbols Regular weight. The sprite symbols carry no stroke
+     width of their own, so every glyph inherits this one value. */
+  --icon-stroke: 1.5;
   --icon-xs: 12px;
   --icon-sm: 14px;
   --icon-md: 16px;

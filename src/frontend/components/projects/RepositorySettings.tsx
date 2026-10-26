@@ -176,7 +176,9 @@ export function RepositorySettings({
 }: RepositorySettingsProps) {
   return (
     <section className="repo-settings" aria-labelledby="repo-settings-title">
-      <h3 id="repo-settings-title" className="text-headline">{REPOSITORY_SETTINGS_COPY.title}</h3>
+      <h3 id="repo-settings-title" className="text-headline">
+        {REPOSITORY_SETTINGS_COPY.title}
+      </h3>
       {repositories.map((repo) => (
         <RepositoryForm
           key={repo.id}

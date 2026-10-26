@@ -84,3 +84,82 @@
   border-radius: var(--radius-lg);
   background: var(--bg-modal);
 }
+
+/* ── Tune panel (dev only) ─────────────────────────────────────────────── */
+
+.specimen--tuning {
+  margin-inline-end: calc(var(--sidebar-width) + var(--space-8));
+}
+
+.specimen-tuner {
+  position: fixed;
+  inset-block: var(--space-4);
+  inset-inline-end: var(--space-4);
+  z-index: var(--z-fixed);
+  width: var(--sidebar-width);
+  overflow-y: auto;
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--bg-card);
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-card);
+}
+
+.specimen-tuner--closed {
+  inset-block: auto var(--space-4);
+  width: auto;
+  padding: var(--space-2);
+}
+
+.specimen-tuner-header,
+.specimen-tuner-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.specimen-tuner-actions {
+  justify-content: flex-start;
+}
+
+.specimen-tuner-note {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.specimen-tuner-group {
+  display: grid;
+  gap: var(--space-2);
+  padding-block-start: var(--space-3);
+  border-top: var(--hairline) solid var(--separator);
+}
+
+.specimen-tuner-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+
+.specimen-tuner-row input,
+.specimen-tuner-row select {
+  grid-column: 1 / -1;
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.specimen-tuner-row--changed label {
+  color: var(--accent);
+}
+
+.specimen-tuner-value {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.specimen-tuner-probe {
+  color: var(--accent);
+}

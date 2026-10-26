@@ -16,6 +16,7 @@ import {
   SpecimenCorners,
   SpecimenTypeScale,
 } from "../components/specimen/SpecimenSurfaces.js";
+import { SpecimenTuner } from "../components/specimen/SpecimenTuner.js";
 import type { SpecimenSettings } from "../components/specimen/specimen-settings.js";
 import { PageHeader } from "../components/ui/PageHeader.js";
 import { applyThemeToDocument, useTheme } from "../hooks/useTheme.js";
@@ -69,7 +70,7 @@ function SpecimenView() {
   }, [settings, snapshot]);
 
   return (
-    <main className="specimen" aria-labelledby="page-title">
+    <main className="specimen specimen--tuning" aria-labelledby="page-title">
       {/* The specimen is a dev route outside AppShell, so it carries the
           shell's PageHeader block itself: its one h1 and its note. */}
       <PageHeader
@@ -81,6 +82,7 @@ function SpecimenView() {
       <SpecimenOverlays />
       <SpecimenTypeScale />
       <SpecimenCorners />
+      <SpecimenTuner />
     </main>
   );
 }

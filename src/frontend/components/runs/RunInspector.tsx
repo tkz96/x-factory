@@ -294,7 +294,10 @@ function RunDetailsPane({ run, events, connected }: RunInspectorProps) {
             className="run-inspector-section"
             aria-labelledby="run-inspector-evidence"
           >
-            <h3 id="run-inspector-evidence" className="run-inspector-caption text-headline">
+            <h3
+              id="run-inspector-evidence"
+              className="run-inspector-caption text-headline"
+            >
               Evidence
             </h3>
             <dl className="run-inspector-rows">
