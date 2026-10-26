@@ -143,13 +143,13 @@ describe("the Tickets area on the blocks (M2)", () => {
   it("says a list with no tickets through the EmptyState block", async () => {
     const { container } = renderQueue([]);
 
-    let empty: Element | null = null;
-    await waitFor(() => {
-      empty = container.querySelector("#queue-tickets-list .ui-empty-state");
-      if (empty === null) throw new Error("empty state missing");
+    const empty = await waitFor(() => {
+      const el = container.querySelector("#queue-tickets-list .ui-empty-state");
+      if (el === null) throw new Error("empty state missing");
+      return el;
     });
-    expect(empty?.textContent).toContain(QUEUE_COPY.emptyTitle);
-    expect(empty?.textContent).toContain(QUEUE_COPY.empty("x-factory"));
+    expect(empty.textContent).toContain(QUEUE_COPY.emptyTitle);
+    expect(empty.textContent).toContain(QUEUE_COPY.empty("x-factory"));
   });
 
   it("claims the shell's page heading and renders no header of its own", async () => {
