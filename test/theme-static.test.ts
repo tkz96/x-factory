@@ -79,7 +79,7 @@ describe("theme fonts (#249, spec #292)", () => {
       "Atkinson Hyperlegible Mono",
     ]) {
       const sources = families.get(family) ?? [];
-      expect(sources.length).toBeGreaterThan(0);
+      expect(sources.length).toBe(4);
       for (const src of sources) {
         expect(src.startsWith("/fonts/")).toBe(true);
         expect(fs.existsSync(path.join(ROOT, "public", src))).toBe(true);

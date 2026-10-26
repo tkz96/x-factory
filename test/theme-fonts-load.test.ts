@@ -67,4 +67,32 @@ describe("theme fonts load only when active (#249)", () => {
     },
     TIMEOUT,
   );
+
+  test(
+    "turning on the Readable font requests the Atkinson faces",
+    async () => {
+      const context = await browser.newContext();
+      await context.addInitScript(() => {
+        localStorage.setItem("xf_readable_font", "true");
+      });
+      const page = await context.newPage();
+      const fontRequests: string[] = [];
+      page.on("request", (request) => {
+        if (READABLE_FONT.test(new URL(request.url()).pathname)) {
+          fontRequests.push(new URL(request.url()).pathname);
+        }
+      });
+
+      await page.goto(`${instance.url}/settings?tab=general`, {
+        waitUntil: "load",
+      });
+      await page.waitForFunction(
+        () => document.documentElement.dataset.font === "readable",
+      );
+      await page.waitForLoadState("networkidle");
+      expect(fontRequests.length).toBeGreaterThan(0);
+      await context.close();
+    },
+    TIMEOUT,
+  );
 });
