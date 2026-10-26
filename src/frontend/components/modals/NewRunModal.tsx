@@ -58,8 +58,12 @@ function FieldHelp({
         className="ui-icon-button--inline"
       />
       <Tooltip className="field-help-tooltip" placement="bottom start">
-        <strong>{title}</strong>
-        {children}
+        {/* The text styles sit on the tooltip's content, so the primitive's
+            own caption size never decides what the guidance reads at. */}
+        <div className="text-subhead">
+          <strong className="font-semibold">{title}</strong>
+          {children}
+        </div>
       </Tooltip>
     </TooltipTrigger>
   );
