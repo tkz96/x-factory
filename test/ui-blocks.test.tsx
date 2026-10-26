@@ -14,6 +14,7 @@ import { createElement, useState } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { Badge } from "../src/frontend/components/ui/Badge.js";
 import { Button } from "../src/frontend/components/ui/Button.js";
+import { EmptyState } from "../src/frontend/components/ui/EmptyState.js";
 import { IconButton } from "../src/frontend/components/ui/IconButton.js";
 import {
   ListGroup,
@@ -618,5 +619,59 @@ describe("Spinner — one standard inline wait", () => {
       createElement(Spinner, { label: "Fetching…" }),
     );
     expect(getByRole("status").textContent).toBe("Fetching…");
+  });
+});
+
+describe("EmptyState — what is not here, once", () => {
+  it("renders the icon, the title as a heading, the message and the action", () => {
+    const { getByRole, getByText, container } = render(
+      createElement(EmptyState, {
+        icon: "icon-search",
+        title: "No matches",
+        message: "Try a different search.",
+        action: createElement(Button, { variant: "secondary" }, "Clear Search"),
+      }),
+    );
+
+    const heading = getByRole("heading", { level: 2, name: "No matches" });
+    expect(classesOf(heading)).toContain("ui-empty-state-title");
+    expect(getByText("Try a different search.").className).toContain(
+      "ui-empty-state-message",
+    );
+    expect(getByRole("button", { name: "Clear Search" })).not.toBeNull();
+    expect(container.querySelector("use")?.getAttribute("href")).toBe(
+      "/assets/icons/sprite.svg#icon-search",
+    );
+  });
+
+  it("is quiet: the icon is decorative and the block is not a live region", () => {
+    const { container, queryByRole } = render(
+      createElement(EmptyState, { icon: "icon-folder", title: "No projects" }),
+    );
+
+    expect(container.querySelector("svg")?.getAttribute("aria-hidden")).toBe(
+      "true",
+    );
+    expect(queryByRole("status")).toBeNull();
+    expect(queryByRole("alert")).toBeNull();
+  });
+
+  it("takes the heading level from the page's outline", () => {
+    const { getByRole } = render(
+      createElement(EmptyState, { title: "Nothing yet", headingLevel: 3 }),
+    );
+    expect(
+      getByRole("heading", { level: 3, name: "Nothing yet" }),
+    ).not.toBeNull();
+  });
+
+  it("leaves out the parts it does not have", () => {
+    const { container } = render(
+      createElement(EmptyState, { message: "Only a line of guidance." }),
+    );
+    expect(container.querySelector("svg")).toBeNull();
+    expect(container.querySelector("h2")).toBeNull();
+    expect(container.querySelector(".ui-empty-state-action")).toBeNull();
+    expect(container.textContent).toBe("Only a line of guidance.");
   });
 });
