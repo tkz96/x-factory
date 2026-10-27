@@ -52,7 +52,10 @@ export function RunDecisionCard({
       )}
       {run.status === "awaiting_understanding_approval" &&
         run.implementationContext && (
-          <UnderstandingReview context={run.implementationContext} />
+          <UnderstandingReview
+            context={run.implementationContext}
+            ticket={run.ticket}
+          />
         )}
       <RunCheckpointBar
         status={run.status}

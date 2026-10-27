@@ -1,0 +1,37 @@
+/* src/frontend/components/runs/RunTicket.css — The ticket as the run received it: description and
+   acceptance criteria, in the run details pane and on the understanding checkpoint. */
+
+.run-ticket {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/* The tracker's body keeps its own line breaks; a long word wraps instead of widening the pane. */
+.run-ticket-description {
+  margin: 0;
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.run-ticket-criteria {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.run-ticket-caption {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.run-ticket-criteria-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding-inline-start: var(--space-5);
+  overflow-wrap: anywhere;
+}

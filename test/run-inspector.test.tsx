@@ -82,7 +82,7 @@ const BUILDER_USE = {
 } as Run["stageModels"] extends (infer U)[] | undefined ? U : never;
 
 describe("the Run details pane names its sections", () => {
-  it("is labelled Run details and holds the four sections", () => {
+  it("is labelled Run details and holds the five sections", () => {
     const { container } = render(
       <RunInspector run={makeRun("executing")} events={[]} connected={false} />,
     );
@@ -92,7 +92,7 @@ describe("the Run details pane names its sections", () => {
     expect(
       within(pane).getByRole("heading", { level: 2, name: "Run details" }),
     ).toBeTruthy();
-    for (const name of ["Run", "Models", "Files", "Evidence"]) {
+    for (const name of ["Run", "Ticket", "Models", "Files", "Evidence"]) {
       expect(
         within(pane).getByRole("heading", { level: 3, name: new RegExp(name) }),
       ).toBeTruthy();
@@ -144,6 +144,45 @@ describe("the Run details pane names its sections", () => {
     expect(container.textContent).toContain("Builder");
     expect(container.textContent).toContain("Reviewer");
     expect(container.textContent).toContain("None yet");
+  });
+});
+
+describe("the Ticket section shows the ticket as the run received it", () => {
+  it("shows the description with its line breaks and each acceptance criterion", () => {
+    const { container } = render(
+      <RunInspector
+        run={makeRun("executing", {
+          ticket: {
+            id: "T-1",
+            title: "A ticket",
+            description: "First line.\nSecond line.",
+            acceptanceCriteria: ["It loads", "It stays put"],
+          },
+        })}
+        events={[]}
+        connected={false}
+      />,
+    );
+    const description = container.querySelector(".run-ticket-description");
+    expect(description?.textContent).toBe("First line.\nSecond line.");
+    const criteria = within(container).getByRole("list", {
+      name: "Acceptance criteria",
+    });
+    expect(
+      within(criteria)
+        .getAllByRole("listitem")
+        .map((item) => item.textContent),
+    ).toEqual(["It loads", "It stays put"]);
+    expect(within(container).queryByRole("status")).toBeNull();
+  });
+
+  it("warns when the run has only the ticket's title", () => {
+    const { container } = render(
+      <RunInspector run={makeRun("executing")} events={[]} connected={false} />,
+    );
+    expect(within(container).getByRole("status").textContent).toContain(
+      "only the ticket's title",
+    );
   });
 });
 

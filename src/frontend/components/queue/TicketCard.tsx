@@ -52,6 +52,7 @@ export function TicketCard({
       projectId,
       ticketId: ticket.id,
       ticketTitle: ticket.title,
+      description: ticket.description,
       criteria: ticket.acceptanceCriteria,
     });
   };

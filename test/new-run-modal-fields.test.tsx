@@ -28,11 +28,22 @@ import {
 } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { NewRunModal } from "../src/frontend/components/modals/NewRunModal.js";
+import { TicketCard } from "../src/frontend/components/queue/TicketCard.js";
 import {
   ModalProvider,
   useModal,
 } from "../src/frontend/context/ModalContext.js";
 import { ProjectProvider } from "../src/frontend/context/ProjectContext.js";
+
+/** A ticket as any tracker lists it: the description is its body. */
+const TRACKER_TICKET = {
+  id: "GH-313",
+  title: "Run page 1: loading state",
+  description:
+    "Show the Spinner in place of the timeline.\nRemove the EmptyState.",
+  acceptanceCriteria: [],
+  provider: "github",
+};
 
 function Harness() {
   const { openNewRunModal } = useModal();
@@ -55,6 +66,12 @@ function Harness() {
       >
         Open from a ticket
       </button>
+      <TicketCard
+        ticket={TRACKER_TICKET}
+        projectId="proj-1"
+        runLink={{ kind: "none" }}
+        workflowLabel="agentic-workflow"
+      />
       <NewRunModal />
     </main>
   );
@@ -111,13 +128,16 @@ describe("New Run form fields", () => {
   const originalFetch = globalThis.fetch;
   const originalProject = localStorage.getItem("xf_selected_project");
   let posts = 0;
+  let lastBody: Record<string, unknown> | null = null;
 
   beforeEach(() => {
     posts = 0;
+    lastBody = null;
     localStorage.setItem("xf_selected_project", "proj-1");
     globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
       if (String(input).endsWith("/api/runs") && init?.method === "POST") {
         posts += 1;
+        lastBody = JSON.parse(String(init.body));
       }
       return Promise.resolve(
         new Response("[]", { headers: { "Content-Type": "application/json" } }),
@@ -160,6 +180,41 @@ describe("New Run form fields", () => {
     expect(el<HTMLTextAreaElement>("input-plan").value).toBe("");
   });
 
+  it("starts a run from a ticket with the ticket's description", async () => {
+    await openModal();
+    const startFromCard = document.querySelector<HTMLElement>(
+      '.btn-start-ticket[data-id="GH-313"]',
+    );
+    if (!startFromCard) throw new Error("missing the ticket's Start Run");
+    act(() => {
+      fireEvent.click(startFromCard);
+    });
+    await flush();
+    expect(el<HTMLTextAreaElement>("input-description").value).toBe(
+      TRACKER_TICKET.description,
+    );
+
+    await act(async () => {
+      fireEvent.submit(el<HTMLFormElement>("view-setup"));
+    });
+    await flush();
+    expect(posts).toBe(1);
+    expect(lastBody?.ticketId).toBe("GH-313");
+    expect(lastBody?.description).toBe(TRACKER_TICKET.description);
+  });
+
+  it("sends a description typed by hand, and none when it is blank", async () => {
+    await openModal();
+    typeInto("input-ticket-id", "T-1");
+    typeInto("input-ticket-title", "Ticket one");
+    typeInto("input-description", "  What the ticket asks for.  ");
+    await act(async () => {
+      fireEvent.submit(el<HTMLFormElement>("view-setup"));
+    });
+    await flush();
+    expect(lastBody?.description).toBe("What the ticket asks for.");
+  });
+
   it("sends a run without a plan", async () => {
     await openModal();
     typeInto("input-ticket-id", "T-1");
@@ -170,6 +225,7 @@ describe("New Run form fields", () => {
     await flush();
     expect(posts).toBe(1);
     expect(document.getElementById("setup-error")).toBeNull();
+    expect(lastBody?.description).toBeUndefined();
   });
 
   it("gives each field a named help button, and only the popup is a tooltip", async () => {
@@ -178,6 +234,7 @@ describe("New Run form fields", () => {
     for (const field of [
       "Ticket ID",
       "Ticket Title",
+      "Description",
       "Acceptance Criteria",
       "Implementation Plan",
     ]) {

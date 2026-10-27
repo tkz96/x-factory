@@ -1,5 +1,5 @@
 // src/frontend/components/runs/RunInspector.tsx — The "Run details" pane (#262, spec #241): the run's
-// branch, ticket and pull request, the models that did its work, the files it changed and its evidence.
+// branch, ticket and pull request, the ticket as the run received it, the models that did its work, the files it changed and its evidence.
 // The raw activity log opens from the footer. Beside the chat on a wide window; a sheet at phone width.
 
 import "./RunPanel.css";
@@ -34,6 +34,7 @@ import { useCopyToClipboard } from "../ui/useCopyToClipboard.js";
 import { ChatThread } from "./ChatThread.js";
 import { DiffModal } from "./DiffModal.js";
 import { useDetailsSheet } from "./RunDetailsContext.js";
+import { RunTicket } from "./RunTicket.js";
 import { TokenUsage } from "./TokenUsage.js";
 
 export interface RunInspectorProps {
@@ -254,6 +255,19 @@ function RunDetailsPane({ run, events, connected }: RunInspectorProps) {
               />
               <DetailRow label="Started" value={formatRunDate(run.startedAt)} />
             </dl>
+          </section>
+
+          <section
+            className="run-inspector-section"
+            aria-labelledby="run-inspector-ticket"
+          >
+            <h3
+              id="run-inspector-ticket"
+              className="run-inspector-caption text-headline"
+            >
+              Ticket
+            </h3>
+            <RunTicket ticket={run.ticket} idPrefix="run-inspector-ticket" />
           </section>
 
           <section
