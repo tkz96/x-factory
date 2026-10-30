@@ -6,7 +6,6 @@ import { mapEventsToChatItems } from "../src/frontend/lib/run-chat-items.js";
 import {
   formatTook,
   groupItemsByStage,
-  stagesDoneCount,
 } from "../src/frontend/lib/run-stages.js";
 import {
   STAGE_LABELS,
@@ -219,15 +218,6 @@ describe("groupItemsByStage: timing and state", () => {
     expect(groups[2]).toMatchObject({ state: "done", tookMs: 5 * 60_000 });
   });
 
-  it("counts done stages", () => {
-    const events = [
-      status(1, "executing", 0),
-      status(2, "awaiting_review", 10),
-    ];
-    const groups = groupsFor("awaiting_review", events);
-    expect(stagesDoneCount(groups)).toBe(4);
-  });
-
   it("shows an awaiting-review run on the review stage, waiting for the reader", () => {
     const events = [
       status(1, "executing", 0),
@@ -252,7 +242,6 @@ describe("groupItemsByStage: timing and state", () => {
       endedAt: null,
       tookMs: null,
     });
-    expect(stagesDoneCount(groups)).toBe(4);
   });
 
   it("marks the stage a failed run was in as failed, and times it to the last event", () => {
@@ -316,7 +305,6 @@ describe("groupItemsByStage: timing and state", () => {
     ];
     const groups = groupsFor("pr_created", events);
     expect(groups.every((g) => g.state === "done")).toBe(true);
-    expect(stagesDoneCount(groups)).toBe(6);
     expect(groups[5]).toMatchObject({ startedAt: at(10), endedAt: at(12) });
   });
 });

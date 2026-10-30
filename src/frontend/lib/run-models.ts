@@ -73,8 +73,3 @@ export function stageStartedText(payload: StageStartedPayload): string {
   const verb = STAGE_VERBS[work] ?? `Running ${work}`;
   return `${verb} with ${payload.model.modelId} via ${payload.model.connectionName}`;
 }
-
-/** "Coding" for a stage ID, for tables. */
-export function stageLabel(stage: string): string {
-  return STAGE_VERBS[stage] ?? stage;
-}

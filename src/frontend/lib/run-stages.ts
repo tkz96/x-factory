@@ -64,11 +64,6 @@ export function defaultOpenStages(
   return new Set(stage ? [stage] : []);
 }
 
-/** How many stages are done: the count the run page's header reads as "N of 6". */
-export function stagesDoneCount(groups: readonly StageGroup[]): number {
-  return groups.filter((group) => group.state === "done").length;
-}
-
 /**
  * Groups a run's chat items under the six stages, in order. A status item moves the stage to its
  * own stage (a null stage keeps the previous one); a stage item moves it to the stage it names;
