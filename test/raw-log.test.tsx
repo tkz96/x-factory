@@ -81,6 +81,41 @@ describe("RawLog renders through the one event mapping (#322)", () => {
   });
 });
 
+describe("RawLog renders every kind the mapping gives it (#322)", () => {
+  const events: RunEvent[] = [
+    ev(1, "plan_ready", { plan: "1. Read the parser" }),
+    ev(2, "diff_summary", {
+      files: [{ path: "src/a.ts", added: 4, removed: 1 }],
+      totalAdded: 4,
+      totalRemoved: 1,
+    }),
+    ev(3, "review_activity", { tool: "read", text: "Running tool read" }),
+    ev(4, "verification", {
+      result: { passed: true, summary: "12 of 12 passed" },
+    }),
+    ev(5, "review", {
+      result: { passed: false, summary: "1 criterion unmet" },
+    }),
+    ev(6, "chat_user", { text: "Please continue" }),
+    ev(7, "chat_agent", { text: "Continuing now" }),
+    ev(8, "error", { message: "The model quota ran out" }),
+  ];
+
+  it("shows each item's own text, in the bubble its kind dresses", () => {
+    const { container } = render(React.createElement(RawLog, { events }));
+    const text = container.textContent ?? "";
+    expect(text).toContain("1. Read the parser");
+    expect(text).toContain("1 file · +4 −1");
+    expect(text).toContain("Running tool read");
+    expect(text).toContain("Verification passed: 12 of 12 passed");
+    expect(text).toContain("Review did not pass: 1 criterion unmet");
+    expect(text).toContain("Please continue");
+    expect(text).toContain("Continuing now");
+    expect(text).toContain("The model quota ran out");
+    expect(container.querySelector(".bubble-error")).not.toBeNull();
+  });
+});
+
 describe("RawLog scrolls only when the reader is at the end (#322)", () => {
   it("follows new events while the reader is at the end", () => {
     const events = [ev(1, "info", { text: "one" })];

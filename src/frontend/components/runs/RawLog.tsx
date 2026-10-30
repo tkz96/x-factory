@@ -9,6 +9,7 @@ import "./RawLog.css";
 import { type ReactNode, useEffect, useMemo, useRef } from "react";
 import type { RunEvent } from "../../../shared/types.js";
 import { formatTimestamp } from "../../lib/format-timestamp.js";
+import { plural } from "../../lib/plural.js";
 import {
   type ChatItem,
   mapEventsToChatItems,
@@ -71,7 +72,7 @@ function bubbleFor(item: ChatItem): ReactNode {
     case "diff":
       return bubble(item, {
         className: "bubble-system",
-        text: `${String(item.summary.files.length)} files · +${String(item.summary.totalAdded)} −${String(item.summary.totalRemoved)}`,
+        text: `${String(item.summary.files.length)} ${plural(item.summary.files.length, "file", "files")} · +${String(item.summary.totalAdded)} −${String(item.summary.totalRemoved)}`,
       });
     case "review":
       return bubble(item, {
