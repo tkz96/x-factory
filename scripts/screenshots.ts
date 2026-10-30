@@ -27,7 +27,12 @@ const MAX_HEIGHT = 4000;
 async function capture(
   browser: Browser,
   baseUrl: string,
-  ids: { runId: string; projectId: string; failedRunId: string },
+  ids: {
+    runId: string;
+    projectId: string;
+    failedRunId: string;
+    reworkedRunId: string;
+  },
   request: ScreenshotRequest,
 ): Promise<string[]> {
   const written: string[] = [];

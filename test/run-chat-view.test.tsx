@@ -315,6 +315,46 @@ describe("scroll position and Jump to Latest", () => {
     ).toBeNull();
   });
 
+  it("keeps following when the content grows (a stage opens, an attempt starts) while at the bottom", () => {
+    const callbacks: Array<() => void> = [];
+    const original = globalThis.ResizeObserver;
+    globalThis.ResizeObserver = class {
+      constructor(callback: () => void) {
+        callbacks.push(callback);
+      }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as unknown as typeof ResizeObserver;
+    try {
+      const { container } = render(
+        <RunChat
+          run={makeRun("executing")}
+          events={[ev(1, "chat_agent", { text: "first" })]}
+        />,
+      );
+      const list = log(container);
+      Object.defineProperty(list, "scrollHeight", {
+        value: 1500,
+        configurable: true,
+      });
+      Object.defineProperty(list, "clientHeight", {
+        value: 200,
+        configurable: true,
+      });
+      for (const callback of callbacks) callback();
+      expect(list.scrollTop).toBe(1500);
+
+      // Up the chat, growth does not move the reader.
+      list.scrollTop = 0;
+      fireEvent.scroll(list);
+      for (const callback of callbacks) callback();
+      expect(list.scrollTop).toBe(0);
+    } finally {
+      globalThis.ResizeObserver = original;
+    }
+  });
+
   it("only announces new items, and only additions", () => {
     const { container } = render(
       <RunChat run={makeRun("executing")} events={[]} />,

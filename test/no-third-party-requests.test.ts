@@ -89,6 +89,7 @@ describe("no third-party requests", () => {
         "/runs?filter=done",
         `/runs/${instance.runId}`,
         `/runs/${instance.failedRunId}`,
+        `/runs/${instance.reworkedRunId}`,
         "/projects",
         `/projects/${instance.projectId}`,
         "/settings",

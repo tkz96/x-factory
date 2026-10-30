@@ -8,7 +8,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import type { WorkflowStage } from "../../../shared/types.js";
 import type { ChatItem } from "../../lib/run-chat-items.js";
-import type { StageGroup } from "../../lib/run-stages.js";
+import type { Attempt, StageGroup } from "../../lib/run-stages.js";
 import { Button } from "../ui/Button.js";
 import { EmptyState } from "../ui/EmptyState.js";
 import { RunStageTimeline } from "./RunStageTimeline.js";
@@ -51,6 +51,19 @@ function useScrollFollow(itemCount: number) {
     }
   }, [itemCount]);
 
+  // The content grows when a stage opens, a row arrives or an attempt starts. While the reader is
+  // at the end, the newest content stays in view.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: observe the current children each time the count changes
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => {
+      if (atBottomRef.current) scrollToBottom();
+    });
+    for (const child of Array.from(el.children)) observer.observe(child);
+    return () => observer.disconnect();
+  }, [itemCount]);
+
   const onScroll = () => {
     const el = scrollRef.current;
     if (!el) return;
@@ -71,6 +84,7 @@ function useScrollFollow(itemCount: number) {
 interface RunChatLogProps {
   items: readonly ChatItem[];
   groups: StageGroup[];
+  attempts?: readonly Attempt[] | undefined;
   openStages: ReadonlySet<WorkflowStage>;
   onToggleStage: (stage: WorkflowStage) => void;
   now: number;
@@ -86,6 +100,7 @@ interface RunChatLogProps {
 export function RunChatLog({
   items,
   groups,
+  attempts,
   openStages,
   onToggleStage,
   now,
@@ -114,6 +129,7 @@ export function RunChatLog({
         )}
         <RunStageTimeline
           groups={groups}
+          attempts={attempts}
           open={openStages}
           onToggle={onToggleStage}
           now={now}

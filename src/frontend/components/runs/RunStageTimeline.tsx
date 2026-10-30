@@ -10,6 +10,7 @@ import type { WorkflowStage } from "../../../shared/types.js";
 import type { ChatItem } from "../../lib/run-chat-items.js";
 import { groupRows } from "../../lib/run-chat-rows.js";
 import {
+  type Attempt,
   formatTook,
   type StageGroup,
   type StageState,
@@ -22,7 +23,13 @@ import { RunChatRow } from "./RunChatItem.js";
 import { RunDisclosure } from "./RunDisclosure.js";
 
 export interface RunStageTimelineProps {
+  /** The stages of the latest attempt: the ones `open` and `onToggle` speak of. */
   groups: StageGroup[];
+  /**
+   * Every attempt, oldest first. With more than one, each sits under a disclosure: the latest is
+   * open and uses `groups`; earlier ones are folded and keep their own open stages.
+   */
+  attempts?: readonly Attempt[] | undefined;
   /** The stages whose bodies are open. */
   open: ReadonlySet<WorkflowStage>;
   onToggle: (stage: WorkflowStage) => void;
@@ -133,7 +140,73 @@ function StageRows({
   );
 }
 
+interface StageListProps {
+  groups: StageGroup[];
+  open: ReadonlySet<WorkflowStage>;
+  onToggle: (stage: WorkflowStage) => void;
+  now: number;
+  retryFor?: ((item: ChatItem) => (() => void) | undefined) | undefined;
+  decision?: ReactNode;
+  decisionStage?: WorkflowStage | undefined;
+  label?: string;
+}
+
+/** An earlier attempt: its stages are read on their own, apart from the live open state. */
+function EarlierStages({
+  groups,
+  ...rest
+}: Omit<StageListProps, "open" | "onToggle">) {
+  const [open, setOpen] = useState<ReadonlySet<WorkflowStage>>(new Set());
+  return (
+    <StageList
+      groups={groups}
+      open={open}
+      onToggle={(stage) =>
+        setOpen((current) => {
+          const next = new Set(current);
+          if (!next.delete(stage)) next.add(stage);
+          return next;
+        })
+      }
+      {...rest}
+    />
+  );
+}
+
+/** One attempt of a reworked run, under its disclosure header. */
+function AttemptSection({
+  attempt,
+  isLatest,
+  children,
+}: {
+  attempt: Attempt;
+  isLatest: boolean;
+  children: ReactNode;
+}) {
+  const [isOpen, setOpen] = useState(isLatest);
+  const id = useId();
+  return (
+    <section className="run-attempt" data-latest={isLatest ? "true" : "false"}>
+      <h3 className="run-attempt-heading">
+        <RunDisclosure
+          id={`${id}-head`}
+          controls={`${id}-body`}
+          isOpen={isOpen}
+          onToggle={() => setOpen((value) => !value)}
+          className="run-attempt-header"
+        >
+          <span className="text-subhead">{attempt.label}</span>
+        </RunDisclosure>
+      </h3>
+      <div id={`${id}-body`} className="run-attempt-body" hidden={!isOpen}>
+        {children}
+      </div>
+    </section>
+  );
+}
+
 export function RunStageTimeline({
+  attempts,
   groups,
   open,
   onToggle,
@@ -142,11 +215,69 @@ export function RunStageTimeline({
   decision,
   decisionStage,
 }: RunStageTimelineProps) {
+  if (!attempts || attempts.length < 2) {
+    return (
+      <StageList
+        groups={groups}
+        open={open}
+        onToggle={onToggle}
+        now={now}
+        retryFor={retryFor}
+        decision={decision}
+        decisionStage={decisionStage}
+      />
+    );
+  }
+  return (
+    <div className="run-attempts">
+      {attempts.map((attempt, index) => {
+        const isLatest = index === attempts.length - 1;
+        return (
+          <AttemptSection
+            key={attempt.number}
+            attempt={attempt}
+            isLatest={isLatest}
+          >
+            {isLatest ? (
+              <StageList
+                label={attempt.label}
+                groups={groups}
+                open={open}
+                onToggle={onToggle}
+                now={now}
+                retryFor={retryFor}
+                decision={decision}
+                decisionStage={decisionStage}
+              />
+            ) : (
+              <EarlierStages
+                label={attempt.label}
+                groups={attempt.groups}
+                now={now}
+              />
+            )}
+          </AttemptSection>
+        );
+      })}
+    </div>
+  );
+}
+
+function StageList({
+  groups,
+  open,
+  onToggle,
+  now,
+  retryFor,
+  decision,
+  decisionStage,
+  label,
+}: StageListProps) {
   const idBase = useId();
   const decisionAt = decisionStage ?? defaultDecisionStage(groups);
 
   return (
-    <ol className="run-stage-list" aria-label="Run stages">
+    <ol className="run-stage-list" aria-label={label ? `Run stages, ${label}` : "Run stages"}>
       {groups.map((group) => {
         const isOpen = open.has(group.stage);
         const headId = `${idBase}-${group.stage}-head`;

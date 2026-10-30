@@ -16,7 +16,11 @@ import {
   type RunStageTimelineProps,
 } from "../src/frontend/components/runs/RunStageTimeline.js";
 import type { ChatItem } from "../src/frontend/lib/run-chat-items.js";
-import type { StageGroup, StageState } from "../src/frontend/lib/run-stages.js";
+import type {
+  Attempt,
+  StageGroup,
+  StageState,
+} from "../src/frontend/lib/run-stages.js";
 import {
   STAGE_LABELS,
   STAGE_ORDER,
@@ -300,5 +304,66 @@ describe("defaultOpenStages", () => {
   it("opens nothing when no stage has items", () => {
     const groups = STAGE_ORDER.map((stage) => group(stage, "upcoming"));
     expect(defaultOpenStages(groups).size).toBe(0);
+  });
+});
+
+describe("RunStageTimeline: attempts", () => {
+  function twoAttempts(): Attempt[] {
+    return [
+      {
+        number: 1,
+        reworkedFrom: null,
+        label: "Attempt 1",
+        groups: [
+          group("execute", "done", [message("m1", "First try coding")], 60_000),
+          group("review", "done", [message("m2", "First review")], 30_000),
+        ],
+      },
+      {
+        number: 2,
+        reworkedFrom: "review",
+        label: "Attempt 2 · Reworked from Review",
+        groups: [
+          group("execute", "done", [message("m3", "Second try coding")]),
+          group("review", "current", [message("m4", "Second review")]),
+          group("deliver", "upcoming"),
+        ],
+      },
+    ];
+  }
+
+  it("shows no attempt header for a run with one attempt", () => {
+    const { container } = renderTimeline({
+      attempts: [
+        { number: 1, reworkedFrom: null, label: "Attempt 1", groups: sampleGroups() },
+      ],
+    });
+    expect(container.querySelector(".run-attempt")).toBeNull();
+  });
+
+  it("folds the earlier attempt and opens the latest", () => {
+    const attempts = twoAttempts();
+    const { getByRole, getByText } = renderTimeline({
+      attempts,
+      groups: attempts[1]?.groups ?? [],
+      open: new Set<WorkflowStage>(["review"]),
+    });
+    const first = getByRole("button", { name: /Attempt 1/ });
+    const second = getByRole("button", { name: /Attempt 2 · Reworked from Review/ });
+    expect(first.getAttribute("aria-expanded")).toBe("false");
+    expect(second.getAttribute("aria-expanded")).toBe("true");
+    expect(getByText("Second review")).toBeTruthy();
+    fireEvent.click(first);
+    expect(first.getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("puts the decision in the latest attempt only", () => {
+    const attempts = twoAttempts();
+    const { getAllByText } = renderTimeline({
+      attempts,
+      groups: attempts[1]?.groups ?? [],
+      decision: <p>Decision card</p>,
+    });
+    expect(getAllByText("Decision card")).toHaveLength(1);
   });
 });

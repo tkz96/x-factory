@@ -37,6 +37,7 @@ export const DEMO_PROJECT_ID = "demo-app";
 
 export interface DemoRun {
   readonly id: string;
+  readonly key: string;
   readonly status: RunStatus;
 }
 
@@ -47,6 +48,8 @@ export interface IsolatedInstance {
   readonly runId: string;
   /** The failed run, whose status event carries a failure cause. */
   readonly failedRunId: string;
+  /** The run with a rework: two attempts, the second awaiting review. */
+  readonly reworkedRunId: string;
   readonly projectId: string;
   readonly runs: readonly DemoRun[];
   stop(): Promise<void>;
@@ -77,6 +80,8 @@ const DEMO_RUNS: ReadonlyArray<{
   title: string;
   status: RunStatus;
   minutesAgo: number;
+  /** The run was sent back from review once: it has two attempts. */
+  reworked?: boolean;
 }> = [
   {
     key: "DEMO-101",
@@ -95,6 +100,13 @@ const DEMO_RUNS: ReadonlyArray<{
     title: "Rate-limit the public search endpoint",
     status: "executing",
     minutesAgo: 9,
+  },
+  {
+    key: "DEMO-104",
+    title: "Show build status on the dashboard",
+    status: "awaiting_review",
+    minutesAgo: 45,
+    reworked: true,
   },
   {
     key: "DEMO-090",
@@ -196,6 +208,17 @@ function seedRuns(dataDir: string): DemoRun[] {
           }
         : { status: spec.status },
     );
+    if (spec.reworked) {
+      // Attempt 1 ran to review; the reader sent it back; attempt 2 is awaiting review again.
+      repos.events.appendEvent(id, "chat_agent", {
+        text: "The change is ready for review.",
+      });
+      repos.events.appendEvent(id, "status", { status: "executing" });
+      repos.events.appendEvent(id, "chat_agent", {
+        text: "Reworking the build status badge as the review asked.",
+      });
+      repos.events.appendEvent(id, "status", { status: "awaiting_review" });
+    }
     if (running) {
       repos.events.appendEvent(id, "ralph_progress", {
         text: "Writing the change and running tests.",
@@ -226,7 +249,7 @@ function seedRuns(dataDir: string): DemoRun[] {
         mergedBy: "octocat",
       });
     }
-    created.push({ id, status: spec.status });
+    created.push({ id, key: spec.key, status: spec.status });
   }
   return created;
 }
@@ -348,11 +371,15 @@ export async function startIsolatedInstance(
     const failedRun = (runs.find((run) => run.status === "failed") ??
       runs[0]) as DemoRun;
 
+    const reworkedRun = (runs.find((run) => run.key === "DEMO-104") ??
+      runs[0]) as DemoRun;
+
     return {
       url: `http://127.0.0.1:${running.port}`,
       dataDir,
       runId: runId.id,
       failedRunId: failedRun.id,
+      reworkedRunId: reworkedRun.id,
       projectId: DEMO_PROJECT_ID,
       runs,
       async stop() {

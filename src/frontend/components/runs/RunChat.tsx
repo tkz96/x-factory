@@ -16,7 +16,12 @@ import {
   mapEventsToChatItems,
 } from "../../lib/run-chat-items.js";
 import { runNow } from "../../lib/run-now.js";
-import { groupItemsByStage, type StageGroup } from "../../lib/run-stages.js";
+import {
+  type Attempt,
+  groupAttempts,
+  groupItemsByStage,
+  type StageGroup,
+} from "../../lib/run-stages.js";
 import { NEEDS_YOU_STATUSES, runStatusUi } from "../../lib/run-status-ui.js";
 import { AlertDialog } from "../overlays/AlertDialog.js";
 import { useMediaQuery } from "../ui/useMediaQuery.js";
@@ -144,6 +149,18 @@ export function RunChat({
     run.status,
   );
   const stages = useStageOpenState(groups);
+  // After a rework the timeline shows one disclosure per attempt; the header and open state read
+  // the whole run's stages above.
+  const attempts: Attempt[] = groupAttempts(items, run, events).map(
+    (attempt, index, all) =>
+      index === all.length - 1
+        ? {
+            ...attempt,
+            groups: withoutRepeatedStatus(attempt.groups, run.status),
+          }
+        : attempt,
+  );
+  const latestGroups = attempts.at(-1)?.groups ?? groups;
 
   // Return and Mod-Enter send; Shift-Return is a new line (see RunChatComposer).
   const submitInput = () => {
@@ -217,7 +234,8 @@ export function RunChat({
       />
       <RunChatLog
         items={items}
-        groups={groups}
+        groups={latestGroups}
+        attempts={attempts}
         openStages={stages.openStages}
         onToggleStage={stages.toggleStage}
         now={now}
