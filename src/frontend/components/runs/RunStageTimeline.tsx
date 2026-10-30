@@ -187,7 +187,7 @@ function AttemptSection({
   const id = useId();
   return (
     <section className="run-attempt" data-latest={isLatest ? "true" : "false"}>
-      <h3 className="run-attempt-heading">
+      <h3 className="run-attempt-heading text-subhead">
         <RunDisclosure
           id={`${id}-head`}
           controls={`${id}-body`}
@@ -195,7 +195,7 @@ function AttemptSection({
           onToggle={() => setOpen((value) => !value)}
           className="run-attempt-header"
         >
-          <span className="text-subhead">{attempt.label}</span>
+          <span>{attempt.label}</span>
         </RunDisclosure>
       </h3>
       <div id={`${id}-body`} className="run-attempt-body" hidden={!isOpen}>
@@ -277,7 +277,10 @@ function StageList({
   const decisionAt = decisionStage ?? defaultDecisionStage(groups);
 
   return (
-    <ol className="run-stage-list" aria-label={label ? `Run stages, ${label}` : "Run stages"}>
+    <ol
+      className="run-stage-list"
+      aria-label={label ? `Run stages, ${label}` : "Run stages"}
+    >
       {groups.map((group) => {
         const isOpen = open.has(group.stage);
         const headId = `${idBase}-${group.stage}-head`;

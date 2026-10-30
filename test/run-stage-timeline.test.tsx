@@ -335,7 +335,12 @@ describe("RunStageTimeline: attempts", () => {
   it("shows no attempt header for a run with one attempt", () => {
     const { container } = renderTimeline({
       attempts: [
-        { number: 1, reworkedFrom: null, label: "Attempt 1", groups: sampleGroups() },
+        {
+          number: 1,
+          reworkedFrom: null,
+          label: "Attempt 1",
+          groups: sampleGroups(),
+        },
       ],
     });
     expect(container.querySelector(".run-attempt")).toBeNull();
@@ -349,7 +354,9 @@ describe("RunStageTimeline: attempts", () => {
       open: new Set<WorkflowStage>(["review"]),
     });
     const first = getByRole("button", { name: /Attempt 1/ });
-    const second = getByRole("button", { name: /Attempt 2 · Reworked from Review/ });
+    const second = getByRole("button", {
+      name: /Attempt 2 · Reworked from Review/,
+    });
     expect(first.getAttribute("aria-expanded")).toBe("false");
     expect(second.getAttribute("aria-expanded")).toBe("true");
     expect(getByText("Second review")).toBeTruthy();
