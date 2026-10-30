@@ -10,6 +10,7 @@ import type { WorkflowStage } from "../../../shared/types.js";
 import type { ChatItem } from "../../lib/run-chat-items.js";
 import { groupRows } from "../../lib/run-chat-rows.js";
 import {
+  focusStage,
   formatTook,
   type StageGroup,
   type StageState,
@@ -33,40 +34,10 @@ export interface RunStageTimelineProps {
   retryFor?: (item: ChatItem) => (() => void) | undefined;
   /** Rendered after the header of the decision stage (see `defaultDecisionStage`), outside the collapsible body. */
   decision?: ReactNode;
-  /** The stage the decision renders in; defaults to `defaultDecisionStage(groups)`. */
-  decisionStage?: WorkflowStage | undefined;
   /** True once the stream has opened or any event has arrived (#313). Defaults to true. */
   eventsLoaded?: boolean | undefined;
   /** The note shown when the current stage is empty and events are loaded (#313). */
   emptyNote?: string | undefined;
-}
-
-/**
- * The stage a reader is looking at: the current stage, else the failed or stopped one, else the
- * last stage that has any items. Null when no stage qualifies.
- */
-export function focusStage(
-  groups: readonly StageGroup[],
-): WorkflowStage | null {
-  const focus =
-    groups.find((group) => group.state === "current") ??
-    groups.find((group) => group.state === "failed") ??
-    groups.find((group) => group.state === "stopped");
-  if (focus) return focus.stage;
-  const lastWithItems = [...groups]
-    .reverse()
-    .find((group) => group.items.length > 0);
-  return lastWithItems?.stage ?? null;
-}
-
-/**
- * The stages a reader sees open at first: the focus stage (see `focusStage`).
- */
-export function defaultOpenStages(
-  groups: readonly StageGroup[],
-): Set<WorkflowStage> {
-  const stage = focusStage(groups);
-  return new Set(stage ? [stage] : []);
 }
 
 /**
@@ -145,12 +116,11 @@ export function RunStageTimeline({
   now,
   retryFor,
   decision,
-  decisionStage,
   eventsLoaded = true,
   emptyNote,
 }: RunStageTimelineProps) {
   const idBase = useId();
-  const decisionAt = decisionStage ?? defaultDecisionStage(groups);
+  const decisionAt = defaultDecisionStage(groups);
 
   return (
     <ol className="run-stage-list" aria-label="Run stages">

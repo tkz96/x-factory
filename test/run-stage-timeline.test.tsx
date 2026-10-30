@@ -11,12 +11,15 @@ import { afterAll, afterEach, describe, expect, it, mock } from "bun:test";
 import { cleanup, fireEvent, render, within } from "@testing-library/react";
 import {
   defaultDecisionStage,
-  defaultOpenStages,
   RunStageTimeline,
   type RunStageTimelineProps,
 } from "../src/frontend/components/runs/RunStageTimeline.js";
 import type { ChatItem } from "../src/frontend/lib/run-chat-items.js";
-import type { StageGroup, StageState } from "../src/frontend/lib/run-stages.js";
+import {
+  defaultOpenStages,
+  type StageGroup,
+  type StageState,
+} from "../src/frontend/lib/run-stages.js";
 import {
   STAGE_LABELS,
   STAGE_ORDER,
@@ -187,21 +190,6 @@ describe("RunStageTimeline", () => {
     );
     expect(holders).toHaveLength(1);
     expect(holders[0]?.getAttribute("data-state")).toBe("current");
-  });
-
-  it("renders the decision in the stage it is given, wherever that stage is", () => {
-    const { container } = renderTimeline({
-      decision: <p>Decision card</p>,
-      decisionStage: "review",
-      open: new Set<WorkflowStage>(["review"]),
-    });
-    const holders = Array.from(
-      container.querySelectorAll("li.run-stage"),
-    ).filter((li) => li.textContent?.includes("Decision card"));
-    expect(holders).toHaveLength(1);
-    expect(holders[0]?.querySelector(".run-stage-label")?.textContent).toBe(
-      "Review",
-    );
   });
 
   it("renders the decision in the failed stage of a run that has no current stage", () => {

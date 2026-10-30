@@ -15,13 +15,13 @@ import { DiffModal } from "../src/frontend/components/runs/DiffModal.js";
 import { RawLog } from "../src/frontend/components/runs/RawLog.js";
 import { RunCheckpointBar } from "../src/frontend/components/runs/RunCheckpointBar.js";
 import { RunInspector } from "../src/frontend/components/runs/RunInspector.js";
-import {
-  defaultOpenStages,
-  RunStageTimeline,
-} from "../src/frontend/components/runs/RunStageTimeline.js";
+import { RunStageTimeline } from "../src/frontend/components/runs/RunStageTimeline.js";
 import { ModalProvider } from "../src/frontend/context/ModalContext.js";
 import { ProjectProvider } from "../src/frontend/context/ProjectContext.js";
-import { groupItemsByStage } from "../src/frontend/lib/run-stages.js";
+import {
+  defaultOpenStages,
+  groupItemsByStage,
+} from "../src/frontend/lib/run-stages.js";
 import { routeDefinitions, router } from "../src/frontend/routes.js";
 import { DocsView } from "../src/frontend/views/DocsView.js";
 import { RunDetailView } from "../src/frontend/views/RunDetailView.js";
