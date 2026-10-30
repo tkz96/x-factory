@@ -149,6 +149,7 @@ describe("the now header says what the run is doing", () => {
       }),
     ]);
     expect(now.failure).toEqual({
+      category: "verification",
       message: "The change did not pass deterministic verification.",
       recovery: "Read the failing tests, then restart the run.",
     });

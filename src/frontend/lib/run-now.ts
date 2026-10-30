@@ -4,11 +4,14 @@
 // pull request, and the failure with its recovery.
 
 import { type DiffSummary, summarizeDiff } from "../../shared/diff-summary.js";
+import type { FailureCategory } from "../../shared/failure-reason.js";
 import type { PullRequestOutcome, Run, RunEvent } from "../../shared/types.js";
 import { STATUS_COPY } from "../components/feedback/copy-map.js";
 import { runStatusUi } from "./run-status-ui.js";
 
 export interface RunNowFailure {
+  /** What kind of failure it was, or null when the status event does not say. */
+  category: FailureCategory | null;
   message: string;
   recovery: string;
 }
@@ -38,7 +41,22 @@ export interface RunNow {
   pullRequestUrl: string | null;
   pullRequestOutcome: PullRequestOutcome | null;
   failure: RunNowFailure | null;
+  /** When the run was stopped (the stopped status event's time), or null. */
+  stoppedAt: string | null;
 }
+
+/** The plain name of a failure category, for the terminal card. */
+export const FAILURE_CATEGORY_LABEL: Record<FailureCategory, string> = {
+  model: "Model failure",
+  sandbox: "Sandbox failure",
+  timeout: "Timed out",
+  verification: "Verification failure",
+  review: "Review failure",
+  git: "Git failure",
+  project: "Project failure",
+  operator: "Operator action",
+  unknown: "Run failed",
+};
 
 /** The newest event of one type, read as the payload shape the caller expects. */
 function latest<T>(events: readonly RunEvent[], type: string): T | null {
@@ -60,11 +78,13 @@ function failureFor(
     }>(events, "status");
     if (payload?.failure) {
       return {
+        category: payload.failure.category,
         message: payload.failure.message,
         recovery: payload.failure.recovery,
       };
     }
     return {
+      category: null,
       message: "This run failed and can't continue.",
       recovery: "Start a new run for this ticket to try again.",
     };
@@ -73,6 +93,7 @@ function failureFor(
     // The last model error is the status event's reason; the code is kept.
     const payload = latest<{ reason?: string }>(events, "status");
     return {
+      category: null,
       message:
         payload?.reason ??
         "The reviewer model failed three times in a row, so the review did not finish.",
@@ -86,6 +107,7 @@ function failureFor(
       text?: string;
     }>(events, "status");
     return {
+      category: null,
       message:
         payload?.reason ??
         payload?.text ??
@@ -165,5 +187,12 @@ export function runNow(run: Run, events: readonly RunEvent[]): RunNow {
     pullRequestUrl: run.pullRequest?.url ?? outcome?.url ?? null,
     pullRequestOutcome: outcome,
     failure: failureFor(run, events),
+    stoppedAt:
+      run.status === "stopped"
+        ? (events.findLast(
+            (event) =>
+              event.type === "status" && event.payload.status === "stopped",
+          )?.timestamp ?? run.updatedAt)
+        : null,
   };
 }
