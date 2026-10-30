@@ -135,12 +135,12 @@ describe("the header strip", () => {
     expect(elapsed?.textContent).toMatch(/\d+s$|\d+m \d+s$|\dh \d+m$/);
   });
 
-  it("counts the stages done, in muted words", () => {
+  it("does not count the stages done: the nodes show the progress", () => {
     const { container } = render(
       <RunChat run={makeRun("executing")} events={executingEvents()} />,
     );
-    const count = container.querySelector(".run-chat-progress-count");
-    expect(count?.textContent).toBe("3 of 6 stages done");
+    expect(container.querySelector(".run-chat-progress-count")).toBeNull();
+    expect(container.textContent).not.toContain("stages done");
   });
 
   it("opens every stage with Expand all, then closes every stage with Collapse all", () => {
@@ -242,13 +242,13 @@ describe("the header strip at phone width", () => {
     expect(strip.lastElementChild).toBe(details);
   });
 
-  it("keeps the full Expand all text and the count above the phone width", () => {
+  it("keeps the full Expand all text above the phone width", () => {
     const { container } = render(
       <RunChat run={makeRun("executing")} events={executingEvents()} />,
     );
     expect(
-      container.querySelector(".run-chat-progress-count")?.textContent,
-    ).toBe("3 of 6 stages done");
+      within(container).getByRole("button", { name: "Expand all" }),
+    ).toBeTruthy();
     expect(container.querySelector("button.run-chat-expand-icon")).toBeNull();
   });
 });

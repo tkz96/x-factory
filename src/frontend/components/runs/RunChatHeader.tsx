@@ -13,11 +13,7 @@ import {
   isWaitingForWorker,
   WAITING_FOR_WORKER_TITLE,
 } from "../../lib/run-now.js";
-import {
-  formatTook,
-  type StageGroup,
-  stagesDoneCount,
-} from "../../lib/run-stages.js";
+import { formatTook } from "../../lib/run-stages.js";
 import {
   NEEDS_YOU_STATUSES,
   runStatusTone,
@@ -31,10 +27,9 @@ import { IconButton } from "../ui/IconButton.js";
 interface RunChatHeaderProps {
   run: Run;
   events: RunEvent[];
-  groups: StageGroup[];
   /** The pull request's outcome, so the header says what the card and Run details say. */
   pullRequestOutcome?: PullRequestOutcome | null;
-  /** Phone width: the count is left out and the expand control is an icon. */
+  /** Phone width: the expand control is an icon. */
   narrow: boolean;
   allOpen: boolean;
   onToggleAll: () => void;
@@ -68,7 +63,6 @@ function RunElapsed({
 export function RunChatHeader({
   run,
   events,
-  groups,
   pullRequestOutcome = null,
   narrow,
   allOpen,
@@ -111,12 +105,6 @@ export function RunChatHeader({
         </span>
       </Badge>
       <RunElapsed startedAt={run.startedAt} endedAt={live ? null : endedAt} />
-      {/* At phone width the count is left out: the stage list says the same per stage. */}
-      {!narrow && (
-        <span className="run-chat-progress-count text-caption-1">
-          {`${stagesDoneCount(groups)} of ${groups.length} stages done`}
-        </span>
-      )}
       {narrow ? (
         <IconButton
           label={expandLabel}
@@ -124,13 +112,18 @@ export function RunChatHeader({
           variant="plain"
           className={
             allOpen
-              ? "run-chat-expand-icon run-chat-expand-open"
-              : "run-chat-expand-icon"
+              ? "run-chat-expand run-chat-expand-icon run-chat-expand-open"
+              : "run-chat-expand run-chat-expand-icon"
           }
           onPress={onToggleAll}
         />
       ) : (
-        <Button variant="quiet" size="sm" onPress={onToggleAll}>
+        <Button
+          variant="quiet"
+          size="sm"
+          className="run-chat-expand"
+          onPress={onToggleAll}
+        >
           {expandLabel}
         </Button>
       )}

@@ -82,7 +82,7 @@ const BUILDER_USE = {
 } as Run["stageModels"] extends (infer U)[] | undefined ? U : never;
 
 describe("the Run details pane names its sections", () => {
-  it("is labelled Run details and holds the five sections", () => {
+  it("is labelled Run details and holds its sections that have content", () => {
     const { container } = render(
       <RunInspector run={makeRun("executing")} events={[]} connected={false} />,
     );
@@ -92,7 +92,8 @@ describe("the Run details pane names its sections", () => {
     expect(
       within(pane).getByRole("heading", { level: 2, name: "Run details" }),
     ).toBeTruthy();
-    for (const name of ["Run", "Ticket", "Models", "Files", "Evidence"]) {
+    // Models and Files have nothing to show yet, so they are not drawn (spec #312).
+    for (const name of ["Run", "Ticket", "Evidence"]) {
       expect(
         within(pane).getByRole("heading", { level: 3, name: new RegExp(name) }),
       ).toBeTruthy();
@@ -132,7 +133,7 @@ describe("the Run details pane names its sections", () => {
     );
   });
 
-  it("shows the model each role last ran on, and None yet for a role that has not run", () => {
+  it("shows the model of a role that ran, and leaves out a role that has not run", () => {
     const { container } = render(
       <RunInspector
         run={makeRun("awaiting_review", { stageModels: [BUILDER_USE] })}
@@ -142,8 +143,7 @@ describe("the Run details pane names its sections", () => {
     );
     expect(within(container).getByText("gemini-x")).toBeTruthy();
     expect(container.textContent).toContain("Builder");
-    expect(container.textContent).toContain("Reviewer");
-    expect(container.textContent).toContain("None yet");
+    expect(container.textContent).not.toContain("Reviewer");
   });
 });
 
@@ -203,11 +203,14 @@ describe("the Files section lists each changed file as a button", () => {
     expect(row.tagName).toBe("BUTTON");
   });
 
-  it("says no changes exist yet when the run has no diff", () => {
+  it("leaves the Files section out when the run has no diff", () => {
     const { container } = render(
       <RunInspector run={makeRun("planning")} events={[]} connected={false} />,
     );
-    expect(container.textContent).toContain("No changes yet.");
+    expect(
+      within(container).queryByRole("heading", { name: "Files" }),
+    ).toBeNull();
+    expect(container.textContent).not.toContain("No changes yet.");
   });
 
   it("opens the diff for a file when its row is pressed", () => {

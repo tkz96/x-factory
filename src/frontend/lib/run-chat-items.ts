@@ -18,6 +18,9 @@ interface ItemBase {
   at: string;
 }
 
+/** The text of the notice for a pull request step that carries only a link. */
+export const PULL_REQUEST_LINK_TEXT = "Pull request link";
+
 export type ChatItem =
   | (ItemBase & {
       kind: "status";
@@ -39,7 +42,13 @@ export type ChatItem =
       passed: boolean;
       summary: string;
     })
-  | (ItemBase & { kind: "progress"; iteration: number; text: string })
+  | (ItemBase & {
+      kind: "progress";
+      iteration: number;
+      text: string;
+      /** True when the line before it was in the same iteration, so the number is not said again. */
+      sameIteration?: boolean;
+    })
   | (ItemBase & {
       kind: "output";
       speaker: "builder" | "reviewer";
@@ -167,7 +176,7 @@ function mapEvent(event: RunEvent): ChatItem[] {
     }
     case "pr_step": {
       const { url, text, step } = event.payload;
-      const label = text ?? (url ? "Pull request link" : step);
+      const label = text ?? (url ? PULL_REQUEST_LINK_TEXT : step);
       return [
         {
           ...common,
@@ -205,12 +214,21 @@ function withoutRepeats(items: readonly ChatItem[]): ChatItem[] {
   let lastStatus: RunStatus | undefined;
   let lastProgress: string | undefined;
   let lastResult: string | undefined;
+  let lastIteration: number | undefined;
   for (const item of items) {
     if (item.kind === "status") {
       if (item.status === lastStatus && !item.failure) continue;
       lastStatus = item.status;
     }
-    if (item.kind === "progress") lastProgress = item.text.trim();
+    if (item.kind === "progress") {
+      lastProgress = item.text.trim();
+      const same = item.iteration === lastIteration;
+      lastIteration = item.iteration;
+      if (same) {
+        kept.push({ ...item, sameIteration: true });
+        continue;
+      }
+    }
     if (item.kind === "output" && item.text.trim() === lastProgress) continue;
     if (item.kind === "result") lastResult = item.summary.trim();
     if (

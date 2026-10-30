@@ -103,10 +103,9 @@
   white-space: nowrap;
 }
 
-.run-chat-progress-count {
+/* The expand control sits at the end of the strip. */
+.run-chat-expand {
   margin-inline-start: auto;
-  color: var(--text-muted);
-  white-space: nowrap;
 }
 
 /* The tips tooltip is a sentence or two: it wraps rather than running across the panel. */
@@ -364,6 +363,11 @@
 
 .run-chat-remove {
   color: var(--red);
+}
+
+.run-chat-add.run-chat-zero,
+.run-chat-remove.run-chat-zero {
+  color: var(--text-secondary);
 }
 
 .run-chat-progress {

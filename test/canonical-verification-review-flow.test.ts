@@ -427,8 +427,8 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
         ),
       ),
     );
-    // The Files section lists the diff's files; without a diff it names none.
-    expect(withoutDiff).toContain("Files");
+    // The Files section lists the diff's files; without a diff there is no section.
+    expect(withoutDiff).not.toContain(">Files<");
     expect(withoutDiff).not.toContain("src/app.ts");
   });
 

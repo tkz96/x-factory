@@ -30,7 +30,7 @@ export function RunNowHeader({ run, now }: RunNowHeaderProps) {
 
       {now.plan && (
         <div className="run-now-plan text-callout">
-          <MarkdownBlock content={now.plan} compact />
+          <MarkdownBlock content={now.plan} label="Plan" compact foldable />
         </div>
       )}
 

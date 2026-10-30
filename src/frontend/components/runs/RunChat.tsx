@@ -14,6 +14,7 @@ import { useNow } from "../../hooks/useNow.js";
 import {
   type ChatItem,
   mapEventsToChatItems,
+  PULL_REQUEST_LINK_TEXT,
 } from "../../lib/run-chat-items.js";
 import { runNow } from "../../lib/run-now.js";
 import { groupItemsByStage, type StageGroup } from "../../lib/run-stages.js";
@@ -107,6 +108,30 @@ function withoutRepeatedStatus(
   );
 }
 
+/**
+ * The groups without what Deliver says a second time: the pull request card names the pull request,
+ * so the bare "Pull request link" notice and the evidence line of Deliver are dropped. The stages
+ * stay as they were.
+ */
+function withoutRepeatedDeliver(
+  groups: StageGroup[],
+  namedByCard: boolean,
+): StageGroup[] {
+  if (!namedByCard) return groups;
+  return groups.map((group) =>
+    group.stage === "deliver"
+      ? {
+          ...group,
+          items: group.items.filter(
+            (item) =>
+              item.kind !== "evidence" &&
+              !(item.kind === "notice" && item.text === PULL_REQUEST_LINK_TEXT),
+          ),
+        }
+      : group,
+  );
+}
+
 /** The label of the stage a failed run failed in, or null. */
 function failedStageLabel(groups: readonly StageGroup[]): string | null {
   return groups.find((group) => group.state === "failed")?.label ?? null;
@@ -139,9 +164,9 @@ export function RunChat({
   const items = chatItemsFor(realItems, chat.localItems, run.status);
 
   // The six stages, and which of them are open.
-  const groups = withoutRepeatedStatus(
-    groupItemsByStage(items, run, events),
-    run.status,
+  const groups = withoutRepeatedDeliver(
+    withoutRepeatedStatus(groupItemsByStage(items, run, events), run.status),
+    run.status === "pr_created",
   );
   const stages = useStageOpenState(groups);
 
@@ -208,7 +233,6 @@ export function RunChat({
       <RunChatHeader
         run={run}
         events={events}
-        groups={groups}
         pullRequestOutcome={facts.pullRequestOutcome}
         narrow={narrow}
         allOpen={stages.allOpen}
