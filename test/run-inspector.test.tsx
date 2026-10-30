@@ -377,7 +377,9 @@ describe("at phone width the same pane is a sheet", () => {
     expect(
       within(container).queryByRole("button", { name: "Inspector" }),
     ).toBeNull();
-    fireEvent.click(within(container).getByRole("button", { name: "Details" }));
+    const trigger = within(container).getByRole("button", { name: "Details" });
+    expect(trigger.textContent?.trim()).toBe("Details");
+    fireEvent.click(trigger);
     const sheet = within(document.body).getByRole("dialog", {
       name: "Run details",
     });
