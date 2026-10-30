@@ -5,6 +5,7 @@ import { describe, expect, it } from "bun:test";
 import { mapEventsToChatItems } from "../src/frontend/lib/run-chat-items.js";
 import {
   formatTook,
+  groupAttempts,
   groupItemsByStage,
   stagesDoneCount,
 } from "../src/frontend/lib/run-stages.js";
@@ -400,5 +401,66 @@ describe("groupItemsByStage: the end of a finished run", () => {
     const code = groupsFor("failed", events)[3];
     expect(code?.state).toBe("failed");
     expect(code?.endedAt).toBe(at(5));
+  });
+});
+
+describe("groupAttempts: a rework starts a new attempt", () => {
+  const reworked = (final: RunStatus = "awaiting_review") => [
+    status(1, "executing", 0),
+    ev(2, "chat_agent", { text: "Coding." }, 1),
+    status(3, "awaiting_review", 5),
+    status(4, "executing", 8),
+    ev(5, "chat_agent", { text: "Fixing the review notes." }, 9),
+    status(6, final, 12),
+  ];
+  const attemptsFor = (final: RunStatus = "awaiting_review") => {
+    const events = reworked(final);
+    return groupAttempts(mapEventsToChatItems(events), run(final), events);
+  };
+
+  it("gives a run with no rework one attempt with all six stages", () => {
+    const events = [status(1, "executing", 0)];
+    const attempts = groupAttempts(
+      mapEventsToChatItems(events),
+      run("executing"),
+      events,
+    );
+    expect(attempts).toHaveLength(1);
+    expect(attempts[0]?.number).toBe(1);
+    expect(attempts[0]?.reworkedFrom).toBeNull();
+    expect(attempts[0]?.groups.map((g) => g.stage)).toEqual([...STAGE_ORDER]);
+  });
+
+  it("starts attempt 2 at the stage the status moved back to", () => {
+    const attempts = attemptsFor();
+    expect(attempts.map((a) => a.number)).toEqual([1, 2]);
+    expect(attempts[1]?.reworkedFrom).toBe("review");
+    expect(attempts[1]?.groups.map((g) => g.stage)).toEqual([
+      "execute",
+      "review",
+      "deliver",
+    ]);
+    expect(attempts[1]?.label).toBe("Attempt 2 · Reworked from Review");
+  });
+
+  it("keeps each attempt's own rows, and ends the earlier attempt at the rework", () => {
+    const [first, second] = attemptsFor();
+    const code1 = first?.groups.find((g) => g.stage === "execute");
+    const code2 = second?.groups.find((g) => g.stage === "execute");
+    expect(JSON.stringify(code1?.items)).toContain("Coding.");
+    expect(JSON.stringify(code1?.items)).not.toContain("Fixing");
+    expect(JSON.stringify(code2?.items)).toContain("Fixing");
+    expect(first?.groups.every((g) => g.state === "done")).toBe(true);
+    expect(first?.groups.map((g) => g.stage)).toEqual(["execute", "review"]);
+    expect(code1?.tookMs).toBe(5 * 60_000);
+  });
+
+  it("gives the latest attempt the run's state", () => {
+    const second = attemptsFor("awaiting_review")[1];
+    expect(second?.groups.map((g) => g.state)).toEqual([
+      "done",
+      "current",
+      "upcoming",
+    ]);
   });
 });

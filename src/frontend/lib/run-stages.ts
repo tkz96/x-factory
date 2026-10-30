@@ -52,6 +52,95 @@ export function groupItemsByStage(
   run: Pick<Run, "status">,
   _events: readonly RunEvent[],
 ): StageGroup[] {
+  return buildGroups(items, run, null);
+}
+
+/** One try at the work: the first run through the stages, or the stages after a rework. */
+export interface Attempt {
+  /** 1 for the first attempt. */
+  number: number;
+  /** The stage whose status moved the run back; null for attempt 1. */
+  reworkedFrom: WorkflowStage | null;
+  /** "Attempt 2 · Reworked from Review", or "Attempt 1". */
+  label: string;
+  /** The stages of this attempt. Earlier attempts show only stages with items. */
+  groups: StageGroup[];
+}
+
+/**
+ * Splits a run's items into attempts. A status that moves the run back to an earlier stage (a
+ * rework) starts a new attempt at that stage. Earlier attempts are settled: every stage is done
+ * and the last one ends where the next attempt starts. The latest attempt carries the run's state.
+ */
+export function groupAttempts(
+  items: readonly ChatItem[],
+  run: Pick<Run, "status">,
+  events: readonly RunEvent[],
+): Attempt[] {
+  const segments: { from: WorkflowStage | null; items: ChatItem[] }[] = [
+    { from: null, items: [] },
+  ];
+  let walked: WorkflowStage = "prepare";
+  for (const item of items) {
+    if (item.kind === "status") {
+      const stage = STATUS_TO_STAGE[item.status];
+      if (stage && STAGE_ORDER.indexOf(stage) < STAGE_ORDER.indexOf(walked)) {
+        segments.push({ from: walked, items: [] });
+      }
+      walked = stage ?? walked;
+    } else if (item.kind === "stage" && item.stage) {
+      walked = item.stage;
+    }
+    segments.at(-1)?.items.push(item);
+  }
+
+  if (segments.length === 1) {
+    return [
+      {
+        number: 1,
+        reworkedFrom: null,
+        label: "Attempt 1",
+        groups: groupItemsByStage(items, run, events),
+      },
+    ];
+  }
+
+  return segments.map((segment, index) => {
+    const isLatest = index === segments.length - 1;
+    const next = segments[index + 1];
+    let groups = isLatest
+      ? buildGroups(segment.items, run, null)
+      : buildGroups(segment.items, run, { endAt: next?.items[0]?.at ?? null });
+    if (isLatest) {
+      const first = segment.items.find((i) => i.kind === "status");
+      const start =
+        first?.kind === "status" ? STATUS_TO_STAGE[first.status] : null;
+      const startIdx = start ? STAGE_ORDER.indexOf(start) : 0;
+      groups = groups.filter((g) => STAGE_ORDER.indexOf(g.stage) >= startIdx);
+    } else {
+      groups = groups.filter((g) => g.items.length > 0);
+    }
+    const reworkedFrom = segment.from;
+    return {
+      number: index + 1,
+      reworkedFrom,
+      label: reworkedFrom
+        ? `Attempt ${index + 1} · Reworked from ${STAGE_LABELS[reworkedFrom]}`
+        : `Attempt ${index + 1}`,
+      groups,
+    };
+  });
+}
+
+/**
+ * The stage groups of one run of items. With `settled`, the items are an earlier attempt: every
+ * stage is done and the last one ends at `endAt`.
+ */
+function buildGroups(
+  items: readonly ChatItem[],
+  run: Pick<Run, "status">,
+  settled: { endAt: string | null } | null,
+): StageGroup[] {
   // 1. Assign each item to a stage, walking in order.
   const buckets = new Map<WorkflowStage, ChatItem[]>(
     STAGE_ORDER.map((stage) => [stage, []]),
@@ -74,8 +163,8 @@ export function groupItemsByStage(
 
   // 2. Where the run stands. A failed or stopped run stands in the stage it left.
   const { status } = run;
-  const terminal = TERMINAL_RUN_STATUSES.has(status);
-  const delivered = status === "pr_created";
+  const terminal = settled !== null || TERMINAL_RUN_STATUSES.has(status);
+  const delivered = settled !== null || status === "pr_created";
   const endState: StageState | null =
     status === "failed" ? "failed" : status === "stopped" ? "stopped" : null;
   // Where the run stands: the stage its items reached, or its status's stage when that is
@@ -99,9 +188,11 @@ export function groupItemsByStage(
   const terminalStatusItem = items.findLast(
     (item) => item.kind === "status" && TERMINAL_RUN_STATUSES.has(item.status),
   );
-  const terminalEnd = terminal
-    ? (terminalStatusItem?.at ?? items.at(-1)?.at ?? null)
-    : null;
+  const terminalEnd = settled
+    ? (settled.endAt ?? items.at(-1)?.at ?? null)
+    : terminal
+      ? (terminalStatusItem?.at ?? items.at(-1)?.at ?? null)
+      : null;
 
   return STAGE_ORDER.map((stage, idx) => {
     let state: StageState;
