@@ -9,7 +9,7 @@ bun run screenshots <screen|all> [--variant a,b|all] [--label before|after] [--o
 bun run screenshots --themes --label after
 ```
 
-- `<screen>` is one of `welcome`, `shell`, `tickets`, `runs`, `history`, `run`, `projects`, `project`, `settings`, `docs`, `reference`, or `all`. The list lives in `scripts/screenshots/matrix.ts`. Add a row there when a screen is added or renamed.
+- `<screen>` is one of `welcome`, `shell`, `tickets`, `runs`, `history`, `run`, `run-failed` (a failed run with its failure cause), `projects`, `project`, `settings`, `docs`, `reference`, or `all`. The list lives in `scripts/screenshots/matrix.ts`. Add a row there when a screen is added or renamed.
 - `--variant` picks the conditions. The default is all of them:
 
 | Variant | What it shows |

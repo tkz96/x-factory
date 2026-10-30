@@ -11,7 +11,6 @@ import type { ChatItem } from "../../lib/run-chat-items.js";
 import type { StageGroup } from "../../lib/run-stages.js";
 import { STATUS_COPY } from "../feedback/copy-map.js";
 import { Button } from "../ui/Button.js";
-import { EmptyState } from "../ui/EmptyState.js";
 import { RunStageTimeline } from "./RunStageTimeline.js";
 
 /** How close to the bottom still counts as following the chat. */
@@ -77,12 +76,17 @@ interface RunChatLogProps {
   now: number;
   retryFor: (item: ChatItem) => (() => void) | undefined;
   decision: ReactNode;
-  waiting: boolean;
   /** A failed send to show; `onRetry` is set only while a retry is allowed. */
   failure: { message: string; onRetry?: (() => void) | undefined } | null;
   /** The line for a button just pressed, or null. */
   resolved: string | null;
   sending: boolean;
+  /** The run waits on the reader; feeds the status node's "needs you" (US19, #319). */
+  waiting: boolean;
+  /** True once the stream has opened or any event has arrived (#313). Defaults to true. */
+  eventsLoaded?: boolean | undefined;
+  /** The note shown when the current stage is empty and events are loaded (#313). */
+  emptyStageNote?: string | undefined;
 }
 
 /**
@@ -122,10 +126,12 @@ export function RunChatLog({
   now,
   retryFor,
   decision,
-  waiting,
   failure,
   resolved,
   sending,
+  waiting,
+  eventsLoaded = true,
+  emptyStageNote,
 }: RunChatLogProps) {
   const scroll = useScrollFollow(items.length);
 
@@ -141,11 +147,6 @@ export function RunChatLog({
         ref={scroll.scrollRef}
         onScroll={scroll.onScroll}
       >
-        {items.length === 0 && (
-          <div className="run-chat-note">
-            <EmptyState message="Waiting for the first update…" />
-          </div>
-        )}
         <RunStageTimeline
           groups={groups}
           open={openStages}
@@ -153,7 +154,8 @@ export function RunChatLog({
           now={now}
           retryFor={retryFor}
           decision={decision}
-          waiting={waiting}
+          eventsLoaded={eventsLoaded}
+          emptyNote={emptyStageNote}
         />
         {failure && (
           <div className="run-chat-system run-chat-system-error" role="alert">

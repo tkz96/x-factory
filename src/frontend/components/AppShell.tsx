@@ -403,12 +403,15 @@ function AppShellHeader({
             >
               {headingTitle}
             </h1>
-            <span
-              id="toolbar-subtitle"
-              className="toolbar-subtitle text-caption-1"
-            >
-              {headingSubtitle}
-            </span>
+            {/* At phone width the branch moves to Run details: the toolbar keeps the title only. */}
+            {!phoneWidth && (
+              <span
+                id="toolbar-subtitle"
+                className="toolbar-subtitle text-caption-1"
+              >
+                {headingSubtitle}
+              </span>
+            )}
           </div>
         ) : (
           // The screen's large title is the one h1 here. This copy is for the

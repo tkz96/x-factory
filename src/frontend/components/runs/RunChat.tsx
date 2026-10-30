@@ -5,7 +5,10 @@
 import "./RunChat.css";
 
 import { type ReactNode, useMemo, useRef, useState } from "react";
-import { canRunAction } from "../../../shared/run-status-policy.js";
+import {
+  canRunAction,
+  TERMINAL_RUN_STATUSES,
+} from "../../../shared/run-status-policy.js";
 import type { Run, RunEvent, RunStatus } from "../../../shared/types.js";
 import { useNow } from "../../hooks/useNow.js";
 import {
@@ -13,7 +16,7 @@ import {
   mapEventsToChatItems,
 } from "../../lib/run-chat-items.js";
 import { runNow } from "../../lib/run-now.js";
-import { groupItemsByStage } from "../../lib/run-stages.js";
+import { groupItemsByStage, type StageGroup } from "../../lib/run-stages.js";
 import { NEEDS_YOU_STATUSES, runStatusUi } from "../../lib/run-status-ui.js";
 import { AlertDialog } from "../overlays/AlertDialog.js";
 import { useMediaQuery } from "../ui/useMediaQuery.js";
@@ -37,6 +40,8 @@ export interface RunChatProps {
   conflict?: boolean;
   /** At phone width, the control that opens the run details, shown at the end of the header strip. */
   detailsTrigger?: ReactNode;
+  /** True once the stream has opened or any event has arrived (#313). Defaults to true. */
+  eventsLoaded?: boolean | undefined;
 }
 
 /** Below the phone breakpoint (768px, as the app shell's) the header strip shows only what fits. */
@@ -84,6 +89,31 @@ function chatItemsFor(
   ];
 }
 
+/**
+ * The groups without the closing status row that only repeats the decision card's title: the card
+ * says what the run asks once. The row is dropped after grouping, so the stages stay as they were.
+ */
+function withoutRepeatedStatus(
+  groups: StageGroup[],
+  status: RunStatus,
+): StageGroup[] {
+  if (!NEEDS_YOU_STATUSES.has(status)) return groups;
+  const last = groups
+    .flatMap((group) => group.items)
+    .findLast((item) => item.kind === "status");
+  if (last?.kind !== "status" || last.status !== status) return groups;
+  return groups.map((group) =>
+    group.items.includes(last)
+      ? { ...group, items: group.items.filter((item) => item !== last) }
+      : group,
+  );
+}
+
+/** The label of the stage a failed run failed in, or null. */
+function failedStageLabel(groups: readonly StageGroup[]): string | null {
+  return groups.find((group) => group.state === "failed")?.label ?? null;
+}
+
 export function RunChat({
   run,
   events,
@@ -91,6 +121,7 @@ export function RunChat({
   pending = null,
   conflict = false,
   detailsTrigger,
+  eventsLoaded = true,
 }: RunChatProps) {
   const now = useNow();
   const narrow = useMediaQuery(PHONE_QUERY);
@@ -107,10 +138,14 @@ export function RunChat({
   const [input, setInput] = useState("");
 
   const isApprovalGate = canRunAction(run.status, "chat");
+  const finished = TERMINAL_RUN_STATUSES.has(run.status);
   const items = chatItemsFor(realItems, chat.localItems, run.status);
 
   // The six stages, and which of them are open.
-  const groups = groupItemsByStage(items, run, events);
+  const groups = withoutRepeatedStatus(
+    groupItemsByStage(items, run, events),
+    run.status,
+  );
   const stages = useStageOpenState(groups);
 
   // Return and Mod-Enter send; Shift-Return is a new line (see RunChatComposer).
@@ -158,11 +193,15 @@ export function RunChat({
 
   const failure = chat.shownFailure;
   const facts = runNow(run, events);
+  const emptyStageNote = run.waitingForWorker
+    ? "Waiting for a worker"
+    : facts.title;
   const reworkReady = flow.pendingRework !== null;
   const decision = decisionShows(run, facts, conflict, reworkReady) ? (
     <RunDecisionCard
       run={run}
       facts={facts}
+      failedStage={failedStageLabel(groups)}
       pending={pending}
       conflict={conflict}
       reworkReady={reworkReady}
@@ -176,6 +215,7 @@ export function RunChat({
         run={run}
         events={events}
         groups={groups}
+        pullRequestOutcome={facts.pullRequestOutcome}
         narrow={narrow}
         allOpen={stages.allOpen}
         onToggleAll={stages.toggleAllStages}
@@ -189,7 +229,6 @@ export function RunChat({
         now={now}
         retryFor={retryFor}
         decision={decision}
-        waiting={NEEDS_YOU_STATUSES.has(run.status)}
         failure={
           failure
             ? {
@@ -202,18 +241,24 @@ export function RunChat({
         }
         resolved={flow.resolved}
         sending={chat.sending}
+        waiting={NEEDS_YOU_STATUSES.has(run.status)}
+        eventsLoaded={eventsLoaded}
+        emptyStageNote={emptyStageNote}
       />
-      <RunChatComposer
-        inputRef={inputRef}
-        value={input}
-        onChange={setInput}
-        onSend={submitInput}
-        placeholder={placeholderText}
-        inputDisabled={!isApprovalGate || pending !== null}
-        sendDisabled={
-          !isApprovalGate || !input.trim() || chat.sending || pending !== null
-        }
-      />
+      {/* A finished run takes no more messages: its card offers Start New Run instead. */}
+      {!finished && (
+        <RunChatComposer
+          inputRef={inputRef}
+          value={input}
+          onChange={setInput}
+          onSend={submitInput}
+          placeholder={placeholderText}
+          inputDisabled={!isApprovalGate || pending !== null}
+          sendDisabled={
+            !isApprovalGate || !input.trim() || chat.sending || pending !== null
+          }
+        />
+      )}
 
       <AlertDialog
         id="alert-abandon-run"

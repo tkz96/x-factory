@@ -45,6 +45,8 @@ export interface IsolatedInstance {
   readonly dataDir: string;
   /** The run that needs the user (a plan is ready), for the run page. */
   readonly runId: string;
+  /** The failed run, whose status event carries a failure cause. */
+  readonly failedRunId: string;
   readonly projectId: string;
   readonly runs: readonly DemoRun[];
   stop(): Promise<void>;
@@ -178,7 +180,22 @@ function seedRuns(dataDir: string): DemoRun[] {
     repos.events.appendEvent(id, "chat_agent", {
       text: `I read ${spec.key} and drafted a plan for it.`,
     });
-    repos.events.appendEvent(id, "status", { status: spec.status });
+    repos.events.appendEvent(
+      id,
+      "status",
+      spec.status === "failed"
+        ? {
+            status: spec.status,
+            text: "Run failed during stage 'execute': verification failed",
+            failure: {
+              category: "verification",
+              message: "Tests still failed after 3 repair attempts.",
+              recovery:
+                "Read the failing tests, then start a new run for this ticket.",
+            },
+          }
+        : { status: spec.status },
+    );
     if (running) {
       repos.events.appendEvent(id, "ralph_progress", {
         text: "Writing the change and running tests.",
@@ -328,10 +345,14 @@ export async function startIsolatedInstance(
       (run) => run.status === "awaiting_plan_approval",
     ) ?? runs[0]) as DemoRun;
 
+    const failedRun = (runs.find((run) => run.status === "failed") ??
+      runs[0]) as DemoRun;
+
     return {
       url: `http://127.0.0.1:${running.port}`,
       dataDir,
       runId: runId.id,
+      failedRunId: failedRun.id,
       projectId: DEMO_PROJECT_ID,
       runs,
       async stop() {

@@ -377,7 +377,9 @@ describe("at phone width the same pane is a sheet", () => {
     expect(
       within(container).queryByRole("button", { name: "Inspector" }),
     ).toBeNull();
-    fireEvent.click(within(container).getByRole("button", { name: "Details" }));
+    const trigger = within(container).getByRole("button", { name: "Details" });
+    expect(trigger.textContent?.trim()).toBe("Details");
+    fireEvent.click(trigger);
     const sheet = within(document.body).getByRole("dialog", {
       name: "Run details",
     });
@@ -550,5 +552,25 @@ describe("Run details rows: a fill only where a row does something (run page pla
     expect(rowOf(container, "Ticket")?.classList.contains("ui-row-hover")).toBe(
       false,
     );
+  });
+});
+
+describe("the Evidence section of a finished run", () => {
+  it("says Not run, not Awaiting, for a check a finished run never reached", () => {
+    for (const status of ["failed", "stopped"] as const) {
+      const { container, unmount } = render(
+        <RunInspector run={makeRun(status)} events={[]} connected={false} />,
+      );
+      expect(within(container).getAllByText("Not run").length).toBe(2);
+      expect(within(container).queryByText("Awaiting")).toBeNull();
+      unmount();
+    }
+  });
+
+  it("still says Awaiting on a run that has not got there yet", () => {
+    const { container } = render(
+      <RunInspector run={makeRun("executing")} events={[]} connected={false} />,
+    );
+    expect(within(container).getAllByText("Awaiting").length).toBe(2);
   });
 });

@@ -18,6 +18,7 @@ import { STATUS_COPY } from "../feedback/copy-map.js";
 import { Badge, type BadgeTone } from "../ui/Badge.js";
 import { EmptyState } from "../ui/EmptyState.js";
 import { Icon } from "../ui/Icon.js";
+import { Spinner } from "../ui/Spinner.js";
 import { RunChatRow } from "./RunChatItem.js";
 import { RunDisclosure } from "./RunDisclosure.js";
 
@@ -30,12 +31,14 @@ export interface RunStageTimelineProps {
   now: number;
   /** The retry offered for a trailing error row, if any. */
   retryFor?: (item: ChatItem) => (() => void) | undefined;
-  /** Rendered at the end of the body of the decision stage (see `defaultDecisionStage`). */
+  /** Rendered after the header of the decision stage (see `defaultDecisionStage`), outside the collapsible body. */
   decision?: ReactNode;
   /** The stage the decision renders in; defaults to `defaultDecisionStage(groups)`. */
   decisionStage?: WorkflowStage | undefined;
-  /** The run waits on the user: the current stage shows a "Waiting for you" pill. */
-  waiting: boolean;
+  /** True once the stream has opened or any event has arrived (#313). Defaults to true. */
+  eventsLoaded?: boolean | undefined;
+  /** The note shown when the current stage is empty and events are loaded (#313). */
+  emptyNote?: string | undefined;
 }
 
 /**
@@ -143,7 +146,8 @@ export function RunStageTimeline({
   retryFor,
   decision,
   decisionStage,
-  waiting,
+  eventsLoaded = true,
+  emptyNote,
 }: RunStageTimelineProps) {
   const idBase = useId();
   const decisionAt = decisionStage ?? defaultDecisionStage(groups);
@@ -157,6 +161,7 @@ export function RunStageTimeline({
         const bodyId = `${idBase}-${group.stage}-body`;
         const statusText = STATE_STATUS[group.state];
         const holdsDecision = Boolean(decision) && group.stage === decisionAt;
+        const showSpinner = !eventsLoaded && isCurrent;
         return (
           <li key={group.stage} className="run-stage" data-state={group.state}>
             <span className="run-stage-node" aria-hidden="true">
@@ -187,17 +192,13 @@ export function RunStageTimeline({
                 {statusText && (
                   <Badge tone={statusText.tone}>{statusText.text}</Badge>
                 )}
-                {isCurrent && waiting && (
-                  <Badge tone="warning">
-                    <span
-                      className="run-stage-waiting-dot"
-                      aria-hidden="true"
-                    />
-                    {STATUS_COPY.waitingForYou}
-                  </Badge>
-                )}
               </RunDisclosure>
             </h3>
+            {/* The decision card sits directly after the stage's header, outside
+                the collapsible body (#312 ticket 3). */}
+            {holdsDecision && (
+              <div className="run-stage-decision">{decision}</div>
+            )}
             {/* Plain content under the heading: a labelled <section> would be a
                 region, and six landmarks drown the heading path (#319, US20). */}
             <div
@@ -207,13 +208,28 @@ export function RunStageTimeline({
               inert={!isOpen}
             >
               <div className="run-stage-panel">
-                {group.items.length === 0 && !holdsDecision && (
+                {showSpinner ? (
                   <div className="run-stage-note">
-                    <EmptyState message="Nothing yet." />
+                    <Spinner label="Loading events…" />
                   </div>
+                ) : (
+                  <>
+                    {group.items.length === 0 && !holdsDecision && (
+                      <div className="run-stage-note">
+                        <EmptyState
+                          message={
+                            isCurrent && emptyNote ? emptyNote : "Nothing yet."
+                          }
+                        />
+                      </div>
+                    )}
+                    <StageRows
+                      items={group.items}
+                      now={now}
+                      retryFor={retryFor}
+                    />
+                  </>
                 )}
-                <StageRows items={group.items} now={now} retryFor={retryFor} />
-                {holdsDecision && decision}
               </div>
             </div>
           </li>

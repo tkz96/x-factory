@@ -11,7 +11,12 @@ import { afterAll, afterEach, describe, expect, it } from "bun:test";
 import { cleanup, render, within } from "@testing-library/react";
 import { RunDecisionCard } from "../src/frontend/components/runs/RunDecisionCard.js";
 import { runNow } from "../src/frontend/lib/run-now.js";
-import type { ReviewResult, Run, RunStatus } from "../src/shared/types.js";
+import type {
+  ReviewResult,
+  Run,
+  RunEvent,
+  RunStatus,
+} from "../src/shared/types.js";
 
 afterEach(() => {
   cleanup();
@@ -135,5 +140,98 @@ describe("the decision card at the review checkpoint", () => {
     );
     expect(within(container).queryByText("Reviewer judgement")).toBeNull();
     expect(within(container).queryByText(REVIEW.summary)).toBeNull();
+  });
+});
+
+function renderTerminal(
+  run: Run,
+  events: RunEvent[] = [],
+  failedStage: string | null = null,
+) {
+  return render(
+    <RunDecisionCard
+      run={run}
+      facts={runNow(run, events)}
+      failedStage={failedStage}
+      pending={null}
+      conflict={false}
+      reworkReady={false}
+      onAction={() => {}}
+    />,
+  );
+}
+
+function statusEvent(
+  status: RunStatus,
+  payload: Record<string, unknown> = {},
+  timestamp = AT,
+): RunEvent {
+  return {
+    id: 1,
+    type: "status",
+    payload: { status, ...payload },
+    timestamp,
+  } as unknown as RunEvent;
+}
+
+describe("the terminal card", () => {
+  it("states a failure once: its category, the failing stage, the message and the recovery, with Start New Run", () => {
+    const failure = {
+      category: "model",
+      message: "The model call failed.",
+      recovery: "Check the model connection in Settings.",
+    };
+    const { container } = renderTerminal(
+      makeRun("failed"),
+      [statusEvent("failed", { failure })],
+      "Code",
+    );
+    const card = within(container);
+    expect(card.getByText("Model failure")).toBeTruthy();
+    expect(card.getByText(/Code/)).toBeTruthy();
+    expect(card.getAllByText(failure.message)).toHaveLength(1);
+    expect(card.getByText(failure.recovery)).toBeTruthy();
+    expect(card.getByRole("button", { name: "Start New Run" })).toBeTruthy();
+    expect(container.querySelector(".run-now-failure")).toBeNull();
+    // Calm: the default card, not the orange decision style.
+    expect(container.querySelector(".ui-card--default")).not.toBeNull();
+  });
+
+  it("says who stopped a stopped run and when, with Start New Run", () => {
+    const { container } = renderTerminal(makeRun("stopped"), [
+      statusEvent("stopped", { text: "Run stopped by user." }),
+    ]);
+    const card = within(container);
+    expect(card.getByText(/Stopped by you/)).toBeTruthy();
+    expect(container.querySelector("time")?.getAttribute("datetime")).toBe(AT);
+    expect(card.getByRole("button", { name: "Start New Run" })).toBeTruthy();
+  });
+
+  it("names the outcome of a merged pull request and links to it", () => {
+    const run = makeRun("pr_created", {
+      pullRequest: { url: "https://gh/pr/1" } as Run["pullRequest"],
+      pullRequestOutcome: {
+        status: "merged",
+        state: "merged",
+        url: "https://gh/pr/1",
+        mergedAt: AT,
+      } as Run["pullRequestOutcome"],
+    });
+    const { container } = renderTerminal(run);
+    const card = within(container);
+    expect(card.getByText("Merged")).toBeTruthy();
+    expect(
+      card
+        .getByRole("link", { name: /Open Pull Request/ })
+        .getAttribute("href"),
+    ).toBe("https://gh/pr/1");
+  });
+
+  it("calls an open pull request open", () => {
+    const run = makeRun("pr_created", {
+      pullRequest: { url: "https://gh/pr/1" } as Run["pullRequest"],
+    });
+    const { container } = renderTerminal(run);
+    expect(within(container).getByText("Pull request open")).toBeTruthy();
   });
 });

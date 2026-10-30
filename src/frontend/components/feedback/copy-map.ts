@@ -54,7 +54,6 @@ export const STATUS_COPY = {
   unavailable: "Unavailable",
   stageFailed: "Failed",
   stageStopped: "Stopped",
-  waitingForYou: "Waiting for you",
   /** The header badge and the announcer's word for a run that waits on the reader (US19, #319). */
   needsYou: "Needs you",
   prMerged: "Merged",
@@ -76,6 +75,15 @@ export const STATE_COPY = {
   refresh: "Refresh",
   /** Fallback for any error that is not a normalized envelope. */
   errorFallback: "The request failed. Try again.",
+} as const;
+
+/**
+ * The run page's connection line: shown while the server cannot be reached. The page keeps its
+ * snapshot, draft and open stages, and says so beside the banner.
+ */
+export const RUN_CONNECTION_COPY = {
+  lost: "Connection lost",
+  retrying: "X-Factory is retrying. Your draft and the open stages are kept.",
 } as const;
 
 /**

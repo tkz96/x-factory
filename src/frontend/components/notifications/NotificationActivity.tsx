@@ -20,12 +20,10 @@ export function NotificationActivity() {
       <Link
         to={`/runs/${encodeURIComponent(only.runId)}`}
         className="toolbar-activity text-footnote"
-        aria-label={`${only.ticketId}: ${status}`}
+        aria-label={`Running: ${only.ticketId}, ${status}`}
       >
         <Icon name="icon-loader-2" size="sm" className="icon-spin" />
-        <span className="toolbar-activity-text">
-          {only.ticketId} · {status}
-        </span>
+        <span className="toolbar-activity-text">{`Running: ${only.ticketId}`}</span>
       </Link>
     );
   }
