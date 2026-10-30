@@ -209,7 +209,7 @@ export function RunStageTimeline({
                   </div>
                 ) : (
                   <>
-                    {group.items.length === 0 && (
+                    {group.items.length === 0 && !holdsDecision && (
                       <div className="run-stage-note">
                         <EmptyState
                           message={
