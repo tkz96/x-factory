@@ -77,6 +77,15 @@ export const STATE_COPY = {
 } as const;
 
 /**
+ * The run page's connection line: shown while the server cannot be reached. The page keeps its
+ * snapshot, draft and open stages, and says so beside the banner.
+ */
+export const RUN_CONNECTION_COPY = {
+  lost: "Connection lost",
+  retrying: "X-Factory is retrying. Your draft and the open stages are kept.",
+} as const;
+
+/**
  * The not-found screen: an address no screen claims. It says so in place
  * instead of silently redirecting, and offers the one way back into the app.
  */
