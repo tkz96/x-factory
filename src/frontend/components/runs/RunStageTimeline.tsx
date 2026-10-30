@@ -168,34 +168,37 @@ export function RunStageTimeline({
                 />
               )}
             </span>
-            <RunDisclosure
-              id={headId}
-              controls={bodyId}
-              isOpen={isOpen}
-              onToggle={() => onToggle(group.stage)}
-              className="run-stage-header"
-            >
-              <span className="run-stage-label text-headline">
-                {group.label}
-              </span>
-              {group.tookMs !== null && (
-                <span className="run-stage-took text-footnote">
-                  {`Took ${formatTook(group.tookMs)}`}
+            <h3 className="run-stage-heading">
+              <RunDisclosure
+                id={headId}
+                controls={bodyId}
+                isOpen={isOpen}
+                onToggle={() => onToggle(group.stage)}
+                className="run-stage-header"
+              >
+                <span className="run-stage-label text-headline">
+                  {group.label}
                 </span>
-              )}
-              {statusText && (
-                <Badge tone={statusText.tone}>{statusText.text}</Badge>
-              )}
-              {isCurrent && waiting && (
-                <Badge tone="warning">
-                  <span className="run-stage-waiting-dot" aria-hidden="true" />
-                  {STATUS_COPY.waitingForYou}
-                </Badge>
-              )}
-            </RunDisclosure>
-            <section
+                {group.tookMs !== null && (
+                  <span className="run-stage-took text-footnote">
+                    {`Took ${formatTook(group.tookMs)}`}
+                  </span>
+                )}
+                {statusText && (
+                  <Badge tone={statusText.tone}>{statusText.text}</Badge>
+                )}
+                {isCurrent && waiting && (
+                  <Badge tone="warning">
+                    <span className="run-stage-waiting-dot" aria-hidden="true" />
+                    {STATUS_COPY.waitingForYou}
+                  </Badge>
+                )}
+              </RunDisclosure>
+            </h3>
+            {/* Plain content under the heading: a labelled <section> would be a
+                region, and six landmarks drown the heading path (#319, US20). */}
+            <div
               id={bodyId}
-              aria-labelledby={headId}
               className="run-stage-body"
               data-open={isOpen ? "true" : "false"}
               inert={!isOpen}
@@ -209,7 +212,7 @@ export function RunStageTimeline({
                 <StageRows items={group.items} now={now} retryFor={retryFor} />
                 {holdsDecision && decision}
               </div>
-            </section>
+            </div>
           </li>
         );
       })}
