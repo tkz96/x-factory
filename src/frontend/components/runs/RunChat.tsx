@@ -10,7 +10,6 @@ import {
   TERMINAL_RUN_STATUSES,
 } from "../../../shared/run-status-policy.js";
 import type { Run, RunEvent, RunStatus } from "../../../shared/types.js";
-import { useNow } from "../../hooks/useNow.js";
 import {
   type ChatItem,
   mapEventsToChatItems,
@@ -103,11 +102,23 @@ function chatItemsFor(
       item === lastStatus &&
       item.kind === "status" &&
       item.failure
-        ? { ...item, failure: undefined }
+        ? withoutFailure(item)
         : item,
     ),
     ...visibleLocalItems,
   ];
+}
+
+/** A status item without its failure, kept per item so the row's identity is stable (#321). */
+const withoutFailureOf = new WeakMap<ChatItem, ChatItem>();
+
+function withoutFailure(item: ChatItem): ChatItem {
+  let copy = withoutFailureOf.get(item);
+  if (!copy) {
+    copy = { ...item, failure: undefined } as ChatItem;
+    withoutFailureOf.set(item, copy);
+  }
+  return copy;
 }
 
 /**
@@ -168,10 +179,12 @@ export function RunChat({
   detailsTrigger,
   eventsLoaded = true,
 }: RunChatProps) {
-  const now = useNow();
   const narrow = useMediaQuery(PHONE_QUERY);
   const realItems = useMemo(() => mapEventsToChatItems(events), [events]);
-  const errorCount = realItems.filter((i) => i.kind === "error").length;
+  const errorCount = useMemo(
+    () => realItems.filter((i) => i.kind === "error").length,
+    [realItems],
+  );
   const chat = useRunChatSend(
     run.id,
     errorCount,
@@ -199,17 +212,24 @@ export function RunChat({
     }
   }, [run.status, chat]);
 
-  const items = chatItemsFor(
-    realItems,
-    chat.localItems,
-    run.status,
-    chat.baselines,
+  // Everything below is memoised on its inputs (#321): a new event rebuilds the lists once, and a
+  // re-render for any other reason (typing, a toggle) reuses them.
+  const items = useMemo(
+    () => chatItemsFor(realItems, chat.localItems, run.status, chat.baselines),
+    [realItems, chat.localItems, run.status, chat.baselines],
   );
 
   // The six stages, and which of them are open.
-  const groups = withoutRepeatedDeliver(
-    withoutRepeatedStatus(groupItemsByStage(items, run, events), run.status),
-    run.status === "pr_created",
+  const groups = useMemo(
+    () =>
+      withoutRepeatedDeliver(
+        withoutRepeatedStatus(
+          groupItemsByStage(items, run, events),
+          run.status,
+        ),
+        run.status === "pr_created",
+      ),
+    [items, run, events],
   );
   const stages = useStageOpenState(groups);
 
@@ -257,7 +277,7 @@ export function RunChat({
   };
 
   const failure = chat.shownFailure;
-  const facts = runNow(run, events);
+  const facts = useMemo(() => runNow(run, events), [run, events]);
   const emptyStageNote = run.waitingForWorker
     ? "Waiting for a worker"
     : facts.title;
@@ -290,7 +310,6 @@ export function RunChat({
         groups={groups}
         openStages={stages.openStages}
         onToggleStage={stages.toggleStage}
-        now={now}
         retryFor={retryFor}
         decision={decision}
         failure={

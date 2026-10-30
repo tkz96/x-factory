@@ -16,6 +16,7 @@ import {
 } from "../../lib/run-stages.js";
 import { STATUS_COPY } from "../feedback/copy-map.js";
 import { Badge, type BadgeTone } from "../ui/Badge.js";
+import { Button } from "../ui/Button.js";
 import { EmptyState } from "../ui/EmptyState.js";
 import { Icon } from "../ui/Icon.js";
 import { Spinner } from "../ui/Spinner.js";
@@ -27,8 +28,8 @@ export interface RunStageTimelineProps {
   /** The stages whose bodies are open. */
   open: ReadonlySet<WorkflowStage>;
   onToggle: (stage: WorkflowStage) => void;
-  /** The clock the chat rows' relative times read from. */
-  now: number;
+  /** Pins the clock the rows' relative times read from; by default they read the shared minute ticker. */
+  now?: number | undefined;
   /** The retry offered for a trailing error row, if any. */
   retryFor?: (item: ChatItem) => (() => void) | undefined;
   /** Rendered after the header of the decision stage (see `defaultDecisionStage`), outside the collapsible body. */
@@ -88,7 +89,13 @@ const STATE_STATUS: Partial<
 };
 
 /** A folded run of agent updates: one disclosure row, closed until the reader opens it. */
-function ActivityGroup({ items, now }: { items: ChatItem[]; now: number }) {
+function ActivityGroup({
+  items,
+  now,
+}: {
+  items: ChatItem[];
+  now?: number | undefined;
+}) {
   const [isOpen, setOpen] = useState(false);
   const id = useId();
   return (
@@ -103,13 +110,18 @@ function ActivityGroup({ items, now }: { items: ChatItem[]; now: number }) {
         <span className="text-subhead">{`${items.length} agent updates`}</span>
       </RunDisclosure>
       <div id={`${id}-body`} className="run-chat-group-body" hidden={!isOpen}>
-        {items.map((item) => (
-          <RunChatRow key={item.id} item={item} now={now} />
-        ))}
+        {/* A folded group renders nothing until it is opened (#321). */}
+        {isOpen &&
+          items.map((item) => (
+            <RunChatRow key={item.id} item={item} now={now} />
+          ))}
       </div>
     </div>
   );
 }
+
+/** How many of a stage's latest items show at first, and how many each "Show Earlier" adds (#321). */
+const STAGE_PAGE = 50;
 
 function StageRows({
   items,
@@ -117,12 +129,24 @@ function StageRows({
   retryFor,
 }: {
   items: ChatItem[];
-  now: number;
+  now?: number | undefined;
   retryFor?: ((item: ChatItem) => (() => void) | undefined) | undefined;
 }) {
+  const [shown, setShown] = useState(STAGE_PAGE);
+  const hidden = Math.max(0, items.length - shown);
+  const visible = hidden > 0 ? items.slice(hidden) : items;
   return (
     <>
-      {groupRows(items).map((row) =>
+      {hidden > 0 && (
+        <Button
+          variant="secondary"
+          size="sm"
+          onPress={() => setShown((count) => count + STAGE_PAGE)}
+        >
+          Show Earlier
+        </Button>
+      )}
+      {groupRows(visible).map((row) =>
         row.kind === "item" ? (
           <RunChatRow
             key={row.item.id}
@@ -208,7 +232,8 @@ export function RunStageTimeline({
               inert={!isOpen}
             >
               <div className="run-stage-panel">
-                {showSpinner ? (
+                {/* A closed stage renders nothing: its rows mount when it opens (#321). */}
+                {!isOpen ? null : showSpinner ? (
                   <div className="run-stage-note">
                     <Spinner label="Loading events…" />
                   </div>
