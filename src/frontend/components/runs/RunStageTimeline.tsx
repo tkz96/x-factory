@@ -173,7 +173,7 @@ export function RunStageTimeline({
                 />
               )}
             </span>
-            <h3 className="run-stage-heading">
+            <h3 className="run-stage-heading text-headline">
               <RunDisclosure
                 id={headId}
                 controls={bodyId}
