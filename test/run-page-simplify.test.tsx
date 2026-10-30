@@ -239,6 +239,11 @@ describe("the run chat", () => {
     const { container } = render(
       <RunChat run={makeRun("executing")} events={events} />,
     );
+    // The three lines fold into one group, which renders its rows once opened.
+    const group = container.querySelector<HTMLElement>(
+      ".run-chat-group .run-disclosure",
+    );
+    if (group) fireEvent.click(group);
     expect(within(container).getAllByText("Iteration 2").length).toBe(1);
     expect(within(container).getAllByText("Iteration 3").length).toBe(1);
   });

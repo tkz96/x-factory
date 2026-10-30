@@ -216,6 +216,12 @@ describe("a run-state line carries its own event's time (#242)", () => {
     const planAt = "2026-11-01T09:00:00.000Z";
     const events: RunEvent[] = [
       {
+        id: 0,
+        timestamp: planAt,
+        type: "status",
+        payload: { status: "awaiting_plan_approval" },
+      } as RunEvent,
+      {
         id: 1,
         timestamp: planAt,
         type: "plan_ready",

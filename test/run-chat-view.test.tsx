@@ -28,7 +28,10 @@ import {
   MemoryRouter,
   RouterProvider,
 } from "react-router-dom";
-import { RunChat } from "../src/frontend/components/runs/RunChat.js";
+import {
+  RunChat as RealRunChat,
+  type RunChatProps,
+} from "../src/frontend/components/runs/RunChat.js";
 import { RunDetailsProvider } from "../src/frontend/components/runs/RunDetailsContext.js";
 import { ModalProvider } from "../src/frontend/context/ModalContext.js";
 import {
@@ -75,6 +78,19 @@ function makeRun(status: RunStatus, overrides: Partial<Run> = {}): Run {
     worktreePath: "/tmp/w",
     ...overrides,
   } as Run;
+}
+
+/**
+ * The chat for a run that stands in the stage its status names. A closed stage renders no rows
+ * (#321), so events that carry no status of their own get the run's status first, as a real run's
+ * history does.
+ */
+function RunChat(props: RunChatProps) {
+  const hasStatus = props.events.some((event) => event.type === "status");
+  const events = hasStatus
+    ? props.events
+    : [ev(0, "status", { status: props.run.status }), ...props.events];
+  return <RealRunChat {...props} events={events} />;
 }
 
 function ev(id: number, type: string, payload: unknown, timestamp = AT) {
@@ -188,6 +204,8 @@ describe("the run chat shows real events and nothing invented", () => {
         ]}
       />,
     );
+    // The failure sits in the stage it happened in, which the run has left: open it to read it.
+    fireEvent.click(within(container).getByRole("button", { name: /Prepare/ }));
     const chat = within(log(container));
     expect(chat.getByText("The model call failed.")).toBeTruthy();
     expect(chat.getByText(failure.recovery)).toBeTruthy();
@@ -504,6 +522,11 @@ describe("every kind of run event reads as its own line", () => {
     const { container } = render(
       <RunChat run={makeRun("awaiting_plan_approval")} events={events} />,
     );
+    // The agent updates are folded into one group until it is opened.
+    const group = container.querySelector<HTMLElement>(
+      ".run-chat-group .run-disclosure",
+    );
+    if (group) fireEvent.click(group);
     const chat = within(log(container));
     expect(chat.getByText("The tests cover the change.")).toBeTruthy();
     // The Builder's output and the Builder's chat reply each name the speaker above their text.

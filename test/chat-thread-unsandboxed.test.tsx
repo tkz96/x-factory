@@ -105,7 +105,16 @@ describe("RunChat unsandboxed warning line (#275)", () => {
     const { container } = render(
       React.createElement(RunChat, {
         run: dummyRun,
-        events: [unsandboxedEvent],
+        // The run's first status puts the notice in the stage the run stands in; a closed stage shows no rows.
+        events: [
+          {
+            id: 9,
+            type: "status",
+            payload: { status: "executing" },
+            timestamp: unsandboxedEvent.timestamp,
+          } as RunEvent,
+          unsandboxedEvent,
+        ],
       }),
     );
 
