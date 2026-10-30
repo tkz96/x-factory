@@ -8,6 +8,7 @@ import "./RunDetailView.css";
 import { type CSSProperties, useMemo, useRef } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { AsyncRegion } from "../components/feedback/AsyncRegion.js";
+import { RUN_CONNECTION_COPY } from "../components/feedback/copy-map.js";
 import { deriveAsyncState } from "../components/feedback/derive-async-state.js";
 import { FeedbackBanner } from "../components/feedback/FeedbackBanner.js";
 import { RunChat } from "../components/runs/RunChat.js";
@@ -27,6 +28,7 @@ import { EmptyState } from "../components/ui/EmptyState.js";
 import { useMediaQuery } from "../components/ui/useMediaQuery.js";
 import { usePageHeader } from "../context/PageHeaderContext.js";
 import { useRunDetail } from "../hooks/useRunDetail.js";
+import { ApiError } from "../lib/api-client.js";
 
 /** What a screen that opens this run may pass along in its navigation state. */
 interface RunPageState {
@@ -61,12 +63,27 @@ function runPageHeader(
   };
 }
 
-function RunLoadingState() {
+/** The page's line while the server cannot be reached: the page keeps what it has. */
+function ConnectionBanner() {
+  return (
+    <FeedbackBanner tone="warning" message={RUN_CONNECTION_COPY.lost}>
+      {RUN_CONNECTION_COPY.retrying}
+    </FeedbackBanner>
+  );
+}
+
+function RunLoadingState({ connectionLost }: { connectionLost: boolean }) {
   return (
     <section id="area-runs" className="area-view active">
+      {connectionLost && <ConnectionBanner />}
       <AsyncRegion derived={LOADING} />
     </section>
   );
+}
+
+/** Only the server saying the run is not there is "Run Not Found"; an unreachable server is not. */
+function isRunMissing(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 404;
 }
 
 function RunNotFoundState({ runId }: { runId: string | undefined }) {
@@ -100,6 +117,7 @@ function RunDetailPage({
   connected,
   eventsLoaded,
   notice,
+  connectionLost,
 }: {
   runId: string | undefined;
   run: LoadedRun;
@@ -107,6 +125,7 @@ function RunDetailPage({
   connected: boolean;
   eventsLoaded: boolean;
   notice: string | undefined;
+  connectionLost: boolean;
 }) {
   const { actionError, conflict, pending, onAction } = useRunCheckpointActions(
     runId,
@@ -120,6 +139,7 @@ function RunDetailPage({
       connected={connected}
       eventsLoaded={eventsLoaded}
       notice={notice}
+      connectionLost={connectionLost}
       actionError={actionError}
       conflict={conflict}
       pending={pending}
@@ -135,6 +155,7 @@ function RunDetailLayout({
   connected,
   eventsLoaded,
   notice,
+  connectionLost,
   actionError,
   conflict,
   pending,
@@ -145,6 +166,7 @@ function RunDetailLayout({
   connected: boolean;
   eventsLoaded: boolean;
   notice: string | undefined;
+  connectionLost: boolean;
   actionError: string | null;
   conflict: boolean;
   pending: CheckpointAction | null;
@@ -172,6 +194,7 @@ function RunDetailLayout({
           }
         >
           <div className="run-detail-main">
+            {connectionLost && <ConnectionBanner />}
             {notice && <FeedbackBanner tone="info" message={notice} />}
             {actionError && (
               <div id="run-error">
@@ -215,15 +238,26 @@ function RunDetailLayout({
 export function RunDetailView() {
   // The run page's heading is the shell's toolbar title: the view claims it, and draws none of its own.
   const { runId } = useParams<{ runId: string }>();
-  const { run, isLoading, error, events, connected, eventsLoaded } =
-    useRunDetail(runId);
+  const {
+    run,
+    isLoading,
+    error,
+    events,
+    connected,
+    eventsLoaded,
+    reconnecting,
+  } = useRunDetail(runId);
   const header = useMemo(() => runPageHeader(run), [run]);
   usePageHeader(header);
   const location = useLocation();
   const notice = (location.state as RunPageState | null)?.notice;
 
-  if (isLoading) return <RunLoadingState />;
-  if (error || !run) return <RunNotFoundState runId={runId} />;
+  const connectionLost = Boolean(error) || reconnecting;
+
+  if (isRunMissing(error)) return <RunNotFoundState runId={runId} />;
+  if (isLoading || !run) {
+    return <RunLoadingState connectionLost={connectionLost} />;
+  }
 
   return (
     <RunDetailPage
@@ -233,6 +267,7 @@ export function RunDetailView() {
       connected={connected}
       eventsLoaded={eventsLoaded}
       notice={notice}
+      connectionLost={connectionLost}
     />
   );
 }

@@ -4,7 +4,7 @@
 
 import "./RunChat.css";
 
-import { type ReactNode, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import {
   canRunAction,
   TERMINAL_RUN_STATUSES,
@@ -59,6 +59,12 @@ function messageBefore(
   return null;
 }
 
+type MessageItem = Extract<ChatItem, { kind: "message" }>;
+
+function isUserMessage(item: ChatItem): item is MessageItem & { role: "user" } {
+  return item.kind === "message" && item.role === "user";
+}
+
 /**
  * The chat's rows: the run's events, with the reader's own lines from this view (dropped once the
  * worker's copy arrives), and a failed run's last status line without its failure (the header states it).
@@ -68,11 +74,26 @@ function chatItemsFor(
   localItems: ChatItem[],
   status: RunStatus,
 ): ChatItem[] {
-  const realUserTexts = new Set(
-    realItems.flatMap((i) =>
-      i.kind === "message" && i.role === "user" ? [i.text] : [],
-    ),
-  );
+  // A real message matches at most one local echo created before it (#317).
+  const unmatchedRealUserMessages = realItems.filter(isUserMessage);
+  const matchedRealIds = new Set<string>();
+
+  const visibleLocalItems = localItems.filter((local) => {
+    if (!isUserMessage(local)) return true;
+    const matchIndex = unmatchedRealUserMessages.findIndex(
+      (real) =>
+        !matchedRealIds.has(real.id) &&
+        real.text === local.text &&
+        new Date(real.at).getTime() >= new Date(local.at).getTime(),
+    );
+    if (matchIndex !== -1) {
+      const matched = unmatchedRealUserMessages[matchIndex];
+      if (matched) matchedRealIds.add(matched.id);
+      return false;
+    }
+    return true;
+  });
+
   const lastStatus = realItems.findLast((i) => i.kind === "status");
   return [
     ...realItems.map((item) =>
@@ -83,9 +104,7 @@ function chatItemsFor(
         ? { ...item, failure: undefined }
         : item,
     ),
-    ...localItems.filter(
-      (i) => !(i.kind === "message" && realUserTexts.has(i.text)),
-    ),
+    ...visibleLocalItems,
   ];
 }
 
@@ -139,6 +158,16 @@ export function RunChat({
 
   const isApprovalGate = canRunAction(run.status, "chat");
   const finished = TERMINAL_RUN_STATUSES.has(run.status);
+
+  // The rework hint clears when the status changes (#317).
+  const lastStatusRef = useRef(run.status);
+  useEffect(() => {
+    if (lastStatusRef.current !== run.status) {
+      lastStatusRef.current = run.status;
+      chat.clearReworkHint();
+    }
+  }, [run.status, chat]);
+
   const items = chatItemsFor(realItems, chat.localItems, run.status);
 
   // The six stages, and which of them are open.

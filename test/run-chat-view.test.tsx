@@ -779,6 +779,93 @@ describe("the composer: multi-line, keyboard-first, honest about failures (#263)
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
+
+  it("keeps each message until the server confirms it, even when sending the same text twice (#317, user story 15)", async () => {
+    let confirmSend: (() => void) | null = null;
+
+    respond = () =>
+      new Promise((resolve) => {
+        confirmSend = () =>
+          resolve(
+            new Response(JSON.stringify({ ok: true, message: "OK" }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+      });
+
+    // The first message is already in events (from previous send)
+    const run = makeRun("awaiting_plan_approval");
+    const { container, rerender } = render(
+      <RunChat
+        run={run}
+        events={[
+          ev(1, "status", { status: "awaiting_plan_approval" }),
+          ev(2, "chat_user", { text: "Same message" }),
+        ]}
+      />,
+    );
+    const form = composer(container).closest("form") as HTMLFormElement;
+
+    // Send the second message with the exact same text
+    typeInto(composer(container), "Same message");
+    await act(async () => {
+      fireEvent.submit(form);
+    });
+
+    // The second message MUST be visible as a local echo while awaiting confirmation
+    const messages = within(log(container)).getAllByText("Same message");
+    expect(messages).toHaveLength(2);
+
+    // Now server confirms the second message
+    await act(async () => {
+      confirmSend?.();
+    });
+
+    // And second event arrives in events
+    rerender(
+      <RunChat
+        run={run}
+        events={[
+          ev(1, "status", { status: "awaiting_plan_approval" }),
+          ev(2, "chat_user", { text: "Same message" }),
+          ev(3, "chat_user", { text: "Same message" }),
+        ]}
+      />,
+    );
+    const confirmedMessages = within(log(container)).getAllByText(
+      "Same message",
+    );
+    expect(confirmedMessages).toHaveLength(2);
+  });
+
+  it("clears the rework hint when the run status changes (#317)", async () => {
+    const run = makeRun("awaiting_review");
+    const { container, rerender } = render(
+      <RunChat run={run} events={[]} onAction={() => {}} />,
+    );
+
+    const reworkButton = within(container).getByRole("button", {
+      name: /request changes/i,
+    });
+    fireEvent.click(reworkButton);
+
+    expect(
+      within(container).getByText(
+        "Describe the changes needed. Your next message goes back to planning.",
+      ),
+    ).toBeTruthy();
+
+    rerender(
+      <RunChat run={makeRun("planning")} events={[]} onAction={() => {}} />,
+    );
+
+    expect(
+      within(container).queryByText(
+        "Describe the changes needed. Your next message goes back to planning.",
+      ),
+    ).toBeNull();
+  });
 });
 
 describe("run chat text reads as Markdown and sits at the start of a stage", () => {

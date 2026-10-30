@@ -39,6 +39,18 @@ const INVALIDATING_EVENT_TYPES = new Set<RunEventType>([
 
 // ─── Pure reducer ────────────────────────────────────────────────────────────
 
+/** A replayed historical event older than the snapshot's updatedAt is ignored. */
+function isEventStale(run: Run, event: RunEvent): boolean {
+  if (run.updatedAt && event.timestamp) {
+    const eventTime = new Date(event.timestamp).getTime();
+    const runTime = new Date(run.updatedAt).getTime();
+    if (eventTime < runTime) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /**
  * Applies one event to a run snapshot. A status event is applied only when the
  * transition matrix allows it from the current status, so replayed history can
@@ -53,13 +65,7 @@ export function reduceRun(run: Run, event: RunEvent): Run {
           ? { ...run, pullRequest }
           : run;
       }
-      if (run.updatedAt && event.timestamp) {
-        const eventTime = new Date(event.timestamp).getTime();
-        const runTime = new Date(run.updatedAt).getTime();
-        if (eventTime < runTime) {
-          return run;
-        }
-      }
+      if (isEventStale(run, event)) return run;
       if (!canTransition(run.status, status)) return run;
       const nextUpdatedAt = event.timestamp || run.updatedAt;
       return status === "pr_created"
@@ -76,6 +82,7 @@ export function reduceRun(run: Run, event: RunEvent): Run {
           };
     }
     case "verification": {
+      if (isEventStale(run, event)) return run;
       const { result } = event.payload;
       return {
         ...run,
@@ -85,6 +92,7 @@ export function reduceRun(run: Run, event: RunEvent): Run {
       };
     }
     case "review":
+      if (isEventStale(run, event)) return run;
       return { ...run, review: event.payload.result };
     case "pr_merged":
       return {
@@ -153,6 +161,13 @@ export function insertRunEvent(
   log: readonly RunEvent[],
   event: RunEvent,
 ): readonly RunEvent[] {
+  if (log.length === 0) return [event];
+  const last = log[log.length - 1];
+  if (!last) return [event];
+  if (event.id > last.id) {
+    return [...log, event];
+  }
+  if (event.id === last.id) return log;
   if (log.some((existing) => existing.id === event.id)) return log;
   const index = log.findIndex((existing) => existing.id > event.id);
   return index === -1
@@ -268,6 +283,8 @@ export interface RunEventSubscription {
   replayOnly: boolean;
   transport?: RunEventTransport | undefined;
   onConnectionChange?: ((connected: boolean) => void) | undefined;
+  /** Called when reconnecting state changes: true when disconnected and retrying, false when connected or when stream ends normally (#317). */
+  onReconnectingChange?: ((reconnecting: boolean) => void) | undefined;
   /** Delay before the reopen after a permanent failure, by attempt (0-based). */
   retryDelayMs?: ((attempt: number) => number) | undefined;
   timers?: RetryTimers | undefined;
@@ -362,6 +379,7 @@ export function subscribeRunEvents({
   replayOnly,
   transport = eventSourceTransport,
   onConnectionChange,
+  onReconnectingChange,
   retryDelayMs = defaultRetryDelayMs,
   timers = systemTimers,
 }: RunEventSubscription): () => void {
@@ -371,11 +389,26 @@ export function subscribeRunEvents({
   // Drops the open connection, if there is one.
   let dropOpen: (() => void) | null = null;
 
+  const isTerminalRun = (): boolean => {
+    if (replayOnly) return true;
+    const currentRun = queryClient.getQueryData<Run>(queryKeys.run(runId));
+    return Boolean(currentRun && TERMINAL_RUN_STATUSES.has(currentRun.status));
+  };
+
   const scheduleReconnect = () => {
+    if (isTerminalRun()) {
+      stop();
+      return;
+    }
+    onReconnectingChange?.(true);
     const delay = retryDelayMs(attempt);
     attempt += 1;
     retryTimer = timers.setTimeout(() => {
       retryTimer = null;
+      if (isTerminalRun()) {
+        stop();
+        return;
+      }
       connect(lastAppliedId(queryClient, runId));
     }, delay);
   };
@@ -398,6 +431,7 @@ export function subscribeRunEvents({
         if (!active || stopped) return;
         attempt = 0;
         onConnectionChange?.(true);
+        onReconnectingChange?.(false);
       },
       onMessage: (data) => {
         if (!active || stopped) return;
@@ -406,10 +440,11 @@ export function subscribeRunEvents({
       onError: (permanent) => {
         if (!active || stopped) return;
         onConnectionChange?.(false);
-        if (replayOnly) {
+        if (isTerminalRun()) {
           stop();
           return;
         }
+        onReconnectingChange?.(true);
         if (!permanent) return; // the browser is retrying by itself
         drop();
         scheduleReconnect();
@@ -439,8 +474,9 @@ export function subscribeRunEvents({
     dropOpen?.();
     dropOpen = null;
     onConnectionChange?.(false);
+    onReconnectingChange?.(false);
   };
 
-  connect(0);
+  connect(lastAppliedId(queryClient, runId));
   return stop;
 }

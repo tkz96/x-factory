@@ -2,7 +2,7 @@
 // Every decision lives in lib/run-state.ts; this hook only binds it to React.
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { RunEvent } from "../../shared/types.js";
 import { queryKeys } from "../lib/query-policies.js";
 import {
@@ -17,6 +17,7 @@ const NO_EVENTS: RunEvent[] = [];
 export function useRunDetail(runId: string | null | undefined) {
   const queryClient = useQueryClient();
   const [connected, setConnected] = useState(false);
+  const [reconnecting, setReconnecting] = useState(false);
   const [openedRunId, setOpenedRunId] = useState<string | null>(null);
 
   const runQuery = useRun(runId, { refetchInterval: runRefetchInterval });
@@ -31,21 +32,31 @@ export function useRunDetail(runId: string | null | undefined) {
 
   const events = eventsQuery.data ?? NO_EVENTS;
 
-  // The subscription depends only on the run's id, whether the snapshot is loaded, and replayOnly.
+  // The subscription depends on the run's id and whether the snapshot is loaded.
+  // It does not restart when the run becomes terminal (#317).
   const loaded = plan !== null;
-  const replayOnly = plan?.replayOnly ?? false;
+  const initialReplayOnlyRef = useRef(false);
+  const replayCapturedRef = useRef(false);
+  if (loaded && !replayCapturedRef.current && plan) {
+    replayCapturedRef.current = true;
+    initialReplayOnlyRef.current = plan.replayOnly;
+  }
+
   useEffect(() => {
     if (!runId || !loaded) return;
     return subscribeRunEvents({
       queryClient,
       runId,
-      replayOnly,
+      replayOnly: initialReplayOnlyRef.current,
       onConnectionChange: (live) => {
         setConnected(live);
         if (live) setOpenedRunId(runId);
       },
+      onReconnectingChange: (isReconnecting) => {
+        setReconnecting(isReconnecting);
+      },
     });
-  }, [runId, loaded, replayOnly, queryClient]);
+  }, [runId, loaded, queryClient]);
 
   const eventsLoaded =
     (Boolean(runId) && openedRunId === runId) || events.length > 0;
@@ -56,6 +67,7 @@ export function useRunDetail(runId: string | null | undefined) {
     error: runQuery.error,
     events,
     connected,
+    reconnecting,
     eventsLoaded,
   };
 }

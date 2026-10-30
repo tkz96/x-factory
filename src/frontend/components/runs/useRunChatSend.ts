@@ -21,7 +21,8 @@ interface SendFailure {
 interface RunChatSend {
   /** Lines the reader made in this view, before the worker's own events arrive. */
   localItems: ChatItem[];
-  addLocal: (make: (id: string, at: string) => ChatItem) => void;
+  addLocal: (make: (id: string, at: string) => ChatItem) => string;
+  clearReworkHint: () => void;
   sending: boolean;
   /** The failure to show now, or null: it hides once the run records its own error. */
   shownFailure: SendFailure | null;
@@ -40,17 +41,39 @@ export function useRunChatSend(runId: string, errorCount: number): RunChatSend {
   errorCountRef.current = errorCount;
   const lastSentRef = useRef<string | null>(null);
 
-  const addLocal = (make: (id: string, at: string) => ChatItem) => {
+  const addLocal = (make: (id: string, at: string) => ChatItem): string => {
     localCount.current += 1;
-    const item = make(`local-${localCount.current}`, new Date().toISOString());
+    const clientId = `local-${localCount.current}`;
+    const item = make(clientId, new Date().toISOString());
     setLocalItems((prev) => [...prev, item]);
+    return clientId;
+  };
+
+  const clearReworkHint = () => {
+    setLocalItems((prev) =>
+      prev.filter(
+        (item) =>
+          !(
+            item.kind === "notice" &&
+            item.text.includes("Describe the changes needed")
+          ),
+      ),
+    );
   };
 
   // A refused or unreachable reply stays a system line with Retry.
   const send = async (text: string, echo: boolean) => {
     lastSentRef.current = text;
-    if (echo)
-      addLocal((id, at) => ({ id, at, kind: "message", role: "user", text }));
+    let clientId: string | null = null;
+    if (echo) {
+      clientId = addLocal((id, at) => ({
+        id,
+        at,
+        kind: "message",
+        role: "user",
+        text,
+      }));
+    }
     setFailure(null);
     const errorsBefore = errorCountRef.current;
     setSending(true);
@@ -58,6 +81,9 @@ export function useRunChatSend(runId: string, errorCount: number): RunChatSend {
       const reply = await api.chatWithRun(runId, text);
       if (!reply.ok) {
         setFailure({ text, message: reply.message, errorsBefore });
+      } else if (clientId) {
+        // Local echoes carry a client id, and they clear only when the server confirms that id (#317).
+        setLocalItems((prev) => prev.filter((item) => item.id !== clientId));
       }
     } catch {
       setFailure({ text, message: UNREACHABLE_LINE, errorsBefore });
@@ -72,6 +98,7 @@ export function useRunChatSend(runId: string, errorCount: number): RunChatSend {
   return {
     localItems,
     addLocal,
+    clearReworkHint,
     sending,
     shownFailure,
     send,
