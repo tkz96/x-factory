@@ -10,7 +10,6 @@ import type { WorkflowStage } from "../../../shared/types.js";
 import type { ChatItem } from "../../lib/run-chat-items.js";
 import type { StageGroup } from "../../lib/run-stages.js";
 import { Button } from "../ui/Button.js";
-import { EmptyState } from "../ui/EmptyState.js";
 import { RunStageTimeline } from "./RunStageTimeline.js";
 
 /** How close to the bottom still counts as following the chat. */
@@ -82,6 +81,10 @@ interface RunChatLogProps {
   /** The line for a button just pressed, or null. */
   resolved: string | null;
   sending: boolean;
+  /** True once the stream has opened or any event has arrived (#313). Defaults to true. */
+  eventsLoaded?: boolean | undefined;
+  /** The note shown when the current stage is empty and events are loaded (#313). */
+  emptyStageNote?: string | undefined;
 }
 
 export function RunChatLog({
@@ -96,6 +99,8 @@ export function RunChatLog({
   failure,
   resolved,
   sending,
+  eventsLoaded = true,
+  emptyStageNote,
 }: RunChatLogProps) {
   const scroll = useScrollFollow(items.length);
 
@@ -109,11 +114,6 @@ export function RunChatLog({
         ref={scroll.scrollRef}
         onScroll={scroll.onScroll}
       >
-        {items.length === 0 && (
-          <div className="run-chat-note">
-            <EmptyState message="Waiting for the first update…" />
-          </div>
-        )}
         <RunStageTimeline
           groups={groups}
           open={openStages}
@@ -122,6 +122,8 @@ export function RunChatLog({
           retryFor={retryFor}
           decision={decision}
           waiting={waiting}
+          eventsLoaded={eventsLoaded}
+          emptyNote={emptyStageNote}
         />
         {failure && (
           <div className="run-chat-system run-chat-system-error" role="alert">

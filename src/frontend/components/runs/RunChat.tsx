@@ -37,6 +37,8 @@ export interface RunChatProps {
   conflict?: boolean;
   /** At phone width, the control that opens the run details, shown at the end of the header strip. */
   detailsTrigger?: ReactNode;
+  /** True once the stream has opened or any event has arrived (#313). Defaults to true. */
+  eventsLoaded?: boolean | undefined;
 }
 
 /** Below the phone breakpoint (768px, as the app shell's) the header strip shows only what fits. */
@@ -91,6 +93,7 @@ export function RunChat({
   pending = null,
   conflict = false,
   detailsTrigger,
+  eventsLoaded = true,
 }: RunChatProps) {
   const now = useNow();
   const narrow = useMediaQuery(PHONE_QUERY);
@@ -158,6 +161,9 @@ export function RunChat({
 
   const failure = chat.shownFailure;
   const facts = runNow(run, events);
+  const emptyStageNote = run.waitingForWorker
+    ? "Waiting for a worker"
+    : facts.title;
   const reworkReady = flow.pendingRework !== null;
   const decision = decisionShows(run, facts, conflict, reworkReady) ? (
     <RunDecisionCard
@@ -202,6 +208,8 @@ export function RunChat({
         }
         resolved={flow.resolved}
         sending={chat.sending}
+        eventsLoaded={eventsLoaded}
+        emptyStageNote={emptyStageNote}
       />
       <RunChatComposer
         inputRef={inputRef}
