@@ -7,8 +7,8 @@ import "./RunNowHeader.css";
 
 import type { Run } from "../../../shared/types.js";
 import { formatRelativeTime } from "../../lib/format-timestamp.js";
-import type { RunNow } from "../../lib/run-now.js";
 import { plural } from "../../lib/plural.js";
+import type { RunNow } from "../../lib/run-now.js";
 import { MarkdownBlock } from "../MarkdownBlock.js";
 
 export interface RunNowHeaderProps {
