@@ -31,12 +31,10 @@ export interface RunStageTimelineProps {
   now: number;
   /** The retry offered for a trailing error row, if any. */
   retryFor?: (item: ChatItem) => (() => void) | undefined;
-  /** Rendered at the end of the body of the decision stage (see `defaultDecisionStage`). */
+  /** Rendered after the header of the decision stage (see `defaultDecisionStage`), outside the collapsible body. */
   decision?: ReactNode;
   /** The stage the decision renders in; defaults to `defaultDecisionStage(groups)`. */
   decisionStage?: WorkflowStage | undefined;
-  /** The run waits on the user: the current stage shows a "Waiting for you" pill. */
-  waiting: boolean;
   /** True once the stream has opened or any event has arrived (#313). Defaults to true. */
   eventsLoaded?: boolean | undefined;
   /** The note shown when the current stage is empty and events are loaded (#313). */
@@ -148,7 +146,6 @@ export function RunStageTimeline({
   retryFor,
   decision,
   decisionStage,
-  waiting,
   eventsLoaded = true,
   emptyNote,
 }: RunStageTimelineProps) {
@@ -194,13 +191,10 @@ export function RunStageTimeline({
               {statusText && (
                 <Badge tone={statusText.tone}>{statusText.text}</Badge>
               )}
-              {isCurrent && waiting && (
-                <Badge tone="warning">
-                  <span className="run-stage-waiting-dot" aria-hidden="true" />
-                  {STATUS_COPY.waitingForYou}
-                </Badge>
-              )}
             </RunDisclosure>
+            {holdsDecision && (
+              <div className="run-stage-decision">{decision}</div>
+            )}
             <section
               id={bodyId}
               aria-labelledby={headId}
@@ -215,7 +209,7 @@ export function RunStageTimeline({
                   </div>
                 ) : (
                   <>
-                    {group.items.length === 0 && !holdsDecision && (
+                    {group.items.length === 0 && (
                       <div className="run-stage-note">
                         <EmptyState
                           message={
@@ -229,7 +223,6 @@ export function RunStageTimeline({
                       now={now}
                       retryFor={retryFor}
                     />
-                    {holdsDecision && decision}
                   </>
                 )}
               </div>

@@ -106,14 +106,11 @@ describe("the run chat shows real events and nothing invented", () => {
   it("shows a status change as a system line with the map's label", () => {
     const { container } = render(
       <RunChat
-        run={makeRun("awaiting_plan_approval")}
-        events={[
-          ev(1, "status", { status: "awaiting_plan_approval", text: "raw" }),
-        ]}
+        run={makeRun("executing")}
+        events={[ev(1, "status", { status: "executing", text: "raw" })]}
       />,
     );
-    // The decision card repeats the plan's title, so the chat line is found in its own row.
-    const system = within(log(container)).getByText("Review the plan", {
+    const system = within(log(container)).getByText("Writing code", {
       selector: "[data-kind] > span",
     });
     expect(system.closest("[data-kind]")?.getAttribute("data-kind")).toBe(

@@ -341,3 +341,98 @@ describe("the message box's tips button", () => {
     expect(within(form).getByRole("button", { name: "Send" })).toBeTruthy();
   });
 });
+
+describe("a finished run", () => {
+  const FAILED_AT = "2026-10-20T10:05:00.000Z";
+  function failedEvents(): RunEvent[] {
+    return [
+      executingEvents()[2] as RunEvent,
+      {
+        id: 9,
+        type: "status",
+        payload: {
+          status: "failed",
+          failure: {
+            category: "model",
+            message: "The model call failed.",
+            recovery: "Check the model connection.",
+          },
+        },
+        timestamp: FAILED_AT,
+      } as unknown as RunEvent,
+    ];
+  }
+
+  it("hides the message composer on failed, stopped and pull request runs", () => {
+    for (const status of ["failed", "stopped", "pr_created"] as const) {
+      const { container, unmount } = render(
+        <RunChat run={makeRun(status)} events={[]} />,
+      );
+      expect(container.querySelector("textarea")).toBeNull();
+      unmount();
+    }
+  });
+
+  it("keeps the composer on a run that waits for the reader", () => {
+    const { container } = render(
+      <RunChat run={makeRun("awaiting_plan_approval")} events={[]} />,
+    );
+    expect(container.querySelector("textarea")).not.toBeNull();
+  });
+
+  it("names the stage a failed run failed in", () => {
+    const { container } = render(
+      <RunChat run={makeRun("failed")} events={failedEvents()} />,
+    );
+    const card = container.querySelector(".run-decision") as HTMLElement;
+    expect(within(card).getByText("Model failure")).toBeTruthy();
+    expect(within(card).getByText("Failed in Code")).toBeTruthy();
+  });
+
+  it("reads the pull request outcome in the header, as the card does", () => {
+    const run = makeRun("pr_created", {
+      pullRequest: { url: "https://gh/pr/1" } as Run["pullRequest"],
+      pullRequestOutcome: {
+        status: "merged",
+        state: "merged",
+        url: "https://gh/pr/1",
+        mergedAt: AT,
+      } as Run["pullRequestOutcome"],
+    });
+    const { container } = render(<RunChat run={run} events={[]} />);
+    const strip = container.querySelector(
+      "header.run-chat-header",
+    ) as HTMLElement;
+    expect(within(strip).getByText("Merged")).toBeTruthy();
+  });
+
+  it("stops the header clock at the terminal status, not at a later merge", () => {
+    const run = makeRun("pr_created", { startedAt: AT });
+    const events = [
+      statusEvent(1, "pr_created", "2026-10-20T10:02:00.000Z"),
+      {
+        id: 2,
+        type: "pr_merged",
+        payload: { url: "u", mergedAt: "2026-10-20T14:00:00.000Z" },
+        timestamp: "2026-10-20T14:00:00.000Z",
+      } as unknown as RunEvent,
+    ];
+    const { container } = render(<RunChat run={run} events={events} />);
+    expect(container.querySelector(".run-chat-elapsed")?.textContent).toBe(
+      "2m 0s",
+    );
+  });
+});
+
+describe("a run that waits for the reader", () => {
+  it("says what it asks once in the log: the status row that repeats the card title is dropped", () => {
+    const { container } = render(
+      <RunChat
+        run={makeRun("awaiting_plan_approval")}
+        events={[statusEvent(1, "awaiting_plan_approval", AT)]}
+      />,
+    );
+    const body = container.querySelector(".run-chat-messages") as HTMLElement;
+    expect(within(body).getAllByText("Review the plan")).toHaveLength(1);
+  });
+});

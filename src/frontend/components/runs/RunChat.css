@@ -135,6 +135,33 @@
   border-bottom: 0;
 }
 
+/* A finished run's card is the calm default card: no orange, nothing waits on the reader. */
+.run-decision.run-decision--terminal {
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: var(--hairline) solid var(--separator);
+  background: var(--bg-card);
+  animation: none;
+}
+
+.run-terminal-title,
+.run-terminal-meta,
+.run-terminal-message,
+.run-terminal-recovery {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.run-terminal-meta,
+.run-terminal-recovery {
+  color: var(--text-muted);
+}
+
+.run-terminal-link {
+  align-self: flex-start;
+  text-decoration: none;
+}
+
 @keyframes runDecisionRise {
   from {
     opacity: 0;

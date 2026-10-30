@@ -16,7 +16,11 @@ import {
   formatTimestamp,
 } from "../src/frontend/lib/format-timestamp.js";
 import { runStatusUi } from "../src/frontend/lib/run-status-ui.js";
-import { canRunAction, TRANSITIONS } from "../src/shared/run-status-policy.js";
+import {
+  canRunAction,
+  TERMINAL_RUN_STATUSES,
+  TRANSITIONS,
+} from "../src/shared/run-status-policy.js";
 import type { Run, RunEvent, RunStatus } from "../src/shared/types.js";
 
 afterEach(cleanup);
@@ -128,6 +132,11 @@ describe("run chat words come from the one status map (#253)", () => {
       const decisionExpected =
         ui.filter === "Needs you" || checkpointBarEntries(status).length > 0;
       expect(card !== null).toBe(decisionExpected);
+      // A finished run has its own calm card (see the terminal card tests) and no message box.
+      if (TERMINAL_RUN_STATUSES.has(status)) {
+        expect(container.querySelector("textarea")).toBeNull();
+        return;
+      }
       if (card) {
         expect(within(card).getByText(ui.header)).toBeTruthy();
         expect(card.textContent).toContain(ui.now);

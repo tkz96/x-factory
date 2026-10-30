@@ -542,3 +542,23 @@ describe("Run details rows: a fill only where a row does something (run page pla
     );
   });
 });
+
+describe("the Evidence section of a finished run", () => {
+  it("says Not run, not Awaiting, for a check a finished run never reached", () => {
+    for (const status of ["failed", "stopped"] as const) {
+      const { container, unmount } = render(
+        <RunInspector run={makeRun(status)} events={[]} connected={false} />,
+      );
+      expect(within(container).getAllByText("Not run").length).toBe(2);
+      expect(within(container).queryByText("Awaiting")).toBeNull();
+      unmount();
+    }
+  });
+
+  it("still says Awaiting on a run that has not got there yet", () => {
+    const { container } = render(
+      <RunInspector run={makeRun("executing")} events={[]} connected={false} />,
+    );
+    expect(within(container).getAllByText("Awaiting").length).toBe(2);
+  });
+});

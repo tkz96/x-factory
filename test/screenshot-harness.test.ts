@@ -19,6 +19,10 @@ import {
   UsageError,
   VARIANTS,
 } from "../scripts/screenshots/matrix.js";
+import {
+  createRepositories,
+  openProcessDatabase,
+} from "../src/composition-root.js";
 
 describe("evidence matrix", () => {
   test("covers light, dark, 390 px, increased contrast, reduced motion and forced colours", () => {
@@ -100,8 +104,22 @@ describe("parseArgs", () => {
     );
     const run = SCREENS.find((s) => s.name === "run");
     expect(
-      run && resolveScreenPath(run, { runId: "r1", projectId: "p1" }),
+      run &&
+        resolveScreenPath(run, {
+          runId: "r1",
+          projectId: "p1",
+          failedRunId: "f1",
+        }),
     ).toBe("/runs/r1");
+    const failed = SCREENS.find((s) => s.name === "run-failed");
+    expect(
+      failed &&
+        resolveScreenPath(failed, {
+          runId: "r1",
+          projectId: "p1",
+          failedRunId: "f1",
+        }),
+    ).toBe("/runs/f1");
   });
 });
 
@@ -149,6 +167,17 @@ describe("isolated instance", () => {
     ).json()) as Array<{ id: string; status: string }>;
     expect(runs.length).toBe(instance.runs.length);
     expect(runs.some((r) => r.status === "awaiting_plan_approval")).toBe(true);
+
+    // The failed run's status event carries a failure cause, for the terminal card.
+    const failedRun = runs.find((r) => r.id === instance?.failedRunId);
+    expect(failedRun?.status).toBe("failed");
+    const failedStatus = createRepositories(openProcessDatabase())
+      .events.getEventsForRun(instance.failedRunId)
+      .find((e) => e.type === "status");
+    const payload = failedStatus?.payload as
+      | { failure?: { category?: string } }
+      | undefined;
+    expect(payload?.failure?.category).toBe("verification");
 
     const tickets = (await (
       await fetch(`${instance.url}/api/projects/${instance.projectId}/tickets`)
