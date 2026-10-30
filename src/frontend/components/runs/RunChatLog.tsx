@@ -9,6 +9,7 @@ import { Link } from "react-router-dom";
 import type { WorkflowStage } from "../../../shared/types.js";
 import type { ChatItem } from "../../lib/run-chat-items.js";
 import type { StageGroup } from "../../lib/run-stages.js";
+import { STATUS_COPY } from "../feedback/copy-map.js";
 import { Button } from "../ui/Button.js";
 import { EmptyState } from "../ui/EmptyState.js";
 import { RunStageTimeline } from "./RunStageTimeline.js";
@@ -84,6 +85,35 @@ interface RunChatLogProps {
   sending: boolean;
 }
 
+/**
+ * What the one status node says: the current stage, the stages that ended the run, the latest
+ * result, the latest error, a failed send and "needs you". Progress lines are not announced —
+ * the reader sees them in the log (US19, #319).
+ */
+function announceText(
+  items: readonly ChatItem[],
+  groups: readonly StageGroup[],
+  waiting: boolean,
+  failure: { message: string } | null,
+): string {
+  const parts: string[] = [];
+  const current = groups.find((g) => g.state === "current");
+  if (current) parts.push(current.label);
+  for (const g of groups) {
+    if (g.state === "failed") parts.push(`${g.label} failed`);
+    if (g.state === "stopped") parts.push(`${g.label} stopped`);
+  }
+  const result = items.findLast((i) => i.kind === "result");
+  if (result?.kind === "result") {
+    parts.push(`${result.title} ${result.passed ? "passed" : "did not pass"}`);
+  }
+  const error = items.findLast((i) => i.kind === "error");
+  if (error) parts.push(error.text);
+  if (failure) parts.push(failure.message);
+  if (waiting) parts.push(STATUS_COPY.needsYou);
+  return parts.join(". ");
+}
+
 export function RunChatLog({
   items,
   groups,
@@ -101,11 +131,13 @@ export function RunChatLog({
 
   return (
     <div className="run-chat-timeline">
+      {/* One small status node announces what changed; the log itself is not a
+          live region, so progress lines are read, not announced (US19, #319). */}
+      <div className="sr-only" role="status">
+        {announceText(items, groups, waiting, failure)}
+      </div>
       <div
         className="run-chat-messages run-panel-scroll text-subhead"
-        role="log"
-        aria-live="polite"
-        aria-relevant="additions"
         ref={scroll.scrollRef}
         onScroll={scroll.onScroll}
       >

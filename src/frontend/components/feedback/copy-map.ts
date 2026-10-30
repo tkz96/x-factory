@@ -55,6 +55,8 @@ export const STATUS_COPY = {
   stageFailed: "Failed",
   stageStopped: "Stopped",
   waitingForYou: "Waiting for you",
+  /** The header badge and the announcer's word for a run that waits on the reader (US19, #319). */
+  needsYou: "Needs you",
   prMerged: "Merged",
   prClosedUnmerged: "Closed without merging",
 } as const;
