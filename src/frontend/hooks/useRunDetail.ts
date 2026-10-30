@@ -17,6 +17,7 @@ const NO_EVENTS: RunEvent[] = [];
 export function useRunDetail(runId: string | null | undefined) {
   const queryClient = useQueryClient();
   const [connected, setConnected] = useState(false);
+  const [openedRunId, setOpenedRunId] = useState<string | null>(null);
 
   const runQuery = useRun(runId, { refetchInterval: runRefetchInterval });
   const plan = runStreamPlan(runQuery.data);
@@ -28,6 +29,8 @@ export function useRunDetail(runId: string | null | undefined) {
     staleTime: Number.POSITIVE_INFINITY,
   });
 
+  const events = eventsQuery.data ?? NO_EVENTS;
+
   // The subscription depends only on the run's id, whether the snapshot is loaded, and replayOnly.
   const loaded = plan !== null;
   const replayOnly = plan?.replayOnly ?? false;
@@ -37,15 +40,22 @@ export function useRunDetail(runId: string | null | undefined) {
       queryClient,
       runId,
       replayOnly,
-      onConnectionChange: setConnected,
+      onConnectionChange: (live) => {
+        setConnected(live);
+        if (live) setOpenedRunId(runId);
+      },
     });
   }, [runId, loaded, replayOnly, queryClient]);
+
+  const eventsLoaded =
+    (Boolean(runId) && openedRunId === runId) || events.length > 0;
 
   return {
     run: runQuery.data,
     isLoading: runQuery.isLoading,
     error: runQuery.error,
-    events: eventsQuery.data ?? NO_EVENTS,
+    events,
     connected,
+    eventsLoaded,
   };
 }

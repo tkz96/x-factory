@@ -8,7 +8,7 @@ registerHappyDom();
 
 import { afterAll, describe, expect, it } from "bun:test";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render } from "@testing-library/react";
+import { act, cleanup, render } from "@testing-library/react";
 import React from "react";
 import { useRunDetail } from "../src/frontend/hooks/useRunDetail.js";
 import { queryKeys } from "../src/frontend/lib/query-policies.js";
@@ -64,11 +64,11 @@ function runSnapshot(id: string, status: RunStatus): Run {
 }
 
 function Probe({ runId }: { runId: string }) {
-  const { run, events, connected } = useRunDetail(runId);
+  const { run, events, connected, eventsLoaded } = useRunDetail(runId);
   return React.createElement(
     "div",
     { "data-testid": "probe" },
-    `${run?.status ?? "none"}|${events.length}|${connected ? "live" : "down"}`,
+    `${run?.status ?? "none"}|${events.length}|${connected ? "live" : "down"}|${eventsLoaded ? "loaded" : "loading"}`,
   );
 }
 
@@ -126,7 +126,9 @@ describe("useRunDetail (#191)", () => {
     client.setQueryData(queryKeys.runEvents(runId), seeded);
 
     const view = mountProbe(client, runId);
-    expect(view.getByTestId("probe").textContent).toBe("executing|1|down");
+    expect(view.getByTestId("probe").textContent).toBe(
+      "executing|1|down|loaded",
+    );
     expect(FakeEventSource.instances.map((s) => s.url)).toEqual([
       `/api/runs/${runId}/events`,
     ]);
@@ -149,6 +151,37 @@ describe("useRunDetail (#191)", () => {
     expect(source?.closed).toBe(true);
     // The error closed the replay, so it is not reopened.
     expect(FakeEventSource.instances).toHaveLength(1);
+    view.unmount();
+    cleanup();
+  });
+
+  it("exposes eventsLoaded as false initially, and true once the stream has opened or events arrive (#313)", () => {
+    FakeEventSource.instances = [];
+    const runId = "run-hook-loading";
+    const client = new QueryClient();
+    client.setQueryData(queryKeys.run(runId), runSnapshot(runId, "executing"));
+
+    const view = mountProbe(client, runId);
+    expect(view.getByTestId("probe").textContent).toBe(
+      "executing|0|down|loading",
+    );
+
+    const source = FakeEventSource.instances[0];
+    act(() => {
+      source?.onopen?.();
+    });
+    expect(view.getByTestId("probe").textContent).toBe(
+      "executing|0|live|loaded",
+    );
+
+    // Even if the connection temporarily drops, eventsLoaded stays true
+    act(() => {
+      source?.onerror?.();
+    });
+    expect(view.getByTestId("probe").textContent).toBe(
+      "executing|0|down|loaded",
+    );
+
     view.unmount();
     cleanup();
   });
