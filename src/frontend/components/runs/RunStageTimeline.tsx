@@ -18,6 +18,7 @@ import { STATUS_COPY } from "../feedback/copy-map.js";
 import { Badge, type BadgeTone } from "../ui/Badge.js";
 import { EmptyState } from "../ui/EmptyState.js";
 import { Icon } from "../ui/Icon.js";
+import { Spinner } from "../ui/Spinner.js";
 import { RunChatRow } from "./RunChatItem.js";
 import { RunDisclosure } from "./RunDisclosure.js";
 
@@ -34,6 +35,10 @@ export interface RunStageTimelineProps {
   decision?: ReactNode;
   /** The stage the decision renders in; defaults to `defaultDecisionStage(groups)`. */
   decisionStage?: WorkflowStage | undefined;
+  /** True once the stream has opened or any event has arrived (#313). Defaults to true. */
+  eventsLoaded?: boolean | undefined;
+  /** The note shown when the current stage is empty and events are loaded (#313). */
+  emptyNote?: string | undefined;
 }
 
 /**
@@ -141,6 +146,8 @@ export function RunStageTimeline({
   retryFor,
   decision,
   decisionStage,
+  eventsLoaded = true,
+  emptyNote,
 }: RunStageTimelineProps) {
   const idBase = useId();
   const decisionAt = decisionStage ?? defaultDecisionStage(groups);
@@ -149,10 +156,12 @@ export function RunStageTimeline({
     <ol className="run-stage-list" aria-label="Run stages">
       {groups.map((group) => {
         const isOpen = open.has(group.stage);
+        const isCurrent = group.state === "current";
         const headId = `${idBase}-${group.stage}-head`;
         const bodyId = `${idBase}-${group.stage}-body`;
         const statusText = STATE_STATUS[group.state];
         const holdsDecision = Boolean(decision) && group.stage === decisionAt;
+        const showSpinner = !eventsLoaded && isCurrent;
         return (
           <li key={group.stage} className="run-stage" data-state={group.state}>
             <span className="run-stage-node" aria-hidden="true">
@@ -194,12 +203,28 @@ export function RunStageTimeline({
               inert={!isOpen}
             >
               <div className="run-stage-panel">
-                {group.items.length === 0 && (
+                {showSpinner ? (
                   <div className="run-stage-note">
-                    <EmptyState message="Nothing yet." />
+                    <Spinner label="Loading events…" />
                   </div>
+                ) : (
+                  <>
+                    {group.items.length === 0 && (
+                      <div className="run-stage-note">
+                        <EmptyState
+                          message={
+                            isCurrent && emptyNote ? emptyNote : "Nothing yet."
+                          }
+                        />
+                      </div>
+                    )}
+                    <StageRows
+                      items={group.items}
+                      now={now}
+                      retryFor={retryFor}
+                    />
+                  </>
                 )}
-                <StageRows items={group.items} now={now} retryFor={retryFor} />
               </div>
             </section>
           </li>

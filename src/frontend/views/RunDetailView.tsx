@@ -115,6 +115,7 @@ function RunDetailPage({
   run,
   events,
   connected,
+  eventsLoaded,
   notice,
   connectionLost,
 }: {
@@ -122,6 +123,7 @@ function RunDetailPage({
   run: LoadedRun;
   events: RunData["events"];
   connected: boolean;
+  eventsLoaded: boolean;
   notice: string | undefined;
   connectionLost: boolean;
 }) {
@@ -135,6 +137,7 @@ function RunDetailPage({
       run={run}
       events={events}
       connected={connected}
+      eventsLoaded={eventsLoaded}
       notice={notice}
       connectionLost={connectionLost}
       actionError={actionError}
@@ -150,6 +153,7 @@ function RunDetailLayout({
   run,
   events,
   connected,
+  eventsLoaded,
   notice,
   connectionLost,
   actionError,
@@ -160,6 +164,7 @@ function RunDetailLayout({
   run: LoadedRun;
   events: RunData["events"];
   connected: boolean;
+  eventsLoaded: boolean;
   notice: string | undefined;
   connectionLost: boolean;
   actionError: string | null;
@@ -206,6 +211,7 @@ function RunDetailLayout({
               onAction={onAction}
               pending={pending}
               conflict={conflict}
+              eventsLoaded={eventsLoaded}
               detailsTrigger={
                 isPhone ? <RunInspectorSheet {...inspectorProps} /> : undefined
               }
@@ -232,7 +238,8 @@ function RunDetailLayout({
 export function RunDetailView() {
   // The run page's heading is the shell's toolbar title: the view claims it, and draws none of its own.
   const { runId } = useParams<{ runId: string }>();
-  const { run, isLoading, error, events, connected } = useRunDetail(runId);
+  const { run, isLoading, error, events, connected, eventsLoaded } =
+    useRunDetail(runId);
   const header = useMemo(() => runPageHeader(run), [run]);
   usePageHeader(header);
   const location = useLocation();
@@ -249,6 +256,7 @@ export function RunDetailView() {
       run={run}
       events={events}
       connected={connected}
+      eventsLoaded={eventsLoaded}
       notice={notice}
       connectionLost={Boolean(error)}
     />
