@@ -6,6 +6,10 @@ import "./RunPanel.css";
 import "./RunInspector.css";
 
 import { type ReactNode, useState } from "react";
+import {
+  type ParsedDiffFile,
+  parseDiffToFiles,
+} from "../../../shared/diff-summary.js";
 import { reviewCriterionStatus } from "../../../shared/review-criterion-status.js";
 import { TERMINAL_RUN_STATUSES } from "../../../shared/run-status-policy.js";
 import type {
@@ -15,10 +19,6 @@ import type {
   RunEvent,
   VerificationResult,
 } from "../../../shared/types.js";
-import {
-  type ParsedDiffFile,
-  parseDiffToFiles,
-} from "../../lib/diff-parser.js";
 import { formatRunDate } from "../../lib/format-timestamp.js";
 import { usageFor } from "../../lib/run-models.js";
 import {
