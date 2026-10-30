@@ -679,17 +679,17 @@
 
 .ui-badge--success {
   background: var(--green-dim);
-  color: var(--green);
+  color: var(--green-text);
 }
 
 .ui-badge--warning {
   background: var(--orange-dim);
-  color: var(--orange);
+  color: var(--orange-text);
 }
 
 .ui-badge--error {
   background: var(--red-dim);
-  color: var(--red);
+  color: var(--red-text);
 }
 
 .ui-badge--id {

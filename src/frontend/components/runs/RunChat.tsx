@@ -265,6 +265,7 @@ export function RunChat({
         }
         resolved={flow.resolved}
         sending={chat.sending}
+        waiting={NEEDS_YOU_STATUSES.has(run.status)}
         eventsLoaded={eventsLoaded}
         emptyStageNote={emptyStageNote}
       />

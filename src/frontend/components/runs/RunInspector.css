@@ -119,11 +119,11 @@
 }
 
 .run-inspector-value--pass {
-  color: var(--green);
+  color: var(--green-text);
 }
 
 .run-inspector-value--fail {
-  color: var(--red);
+  color: var(--red-text);
 }
 
 .run-inspector-link {
@@ -233,9 +233,19 @@
   transform: none;
 }
 
-/* A finger's target: the row keeps --tap-min under a touch pointer or a phone width. */
+/* A finger's target: the row keeps --tap-min under a touch pointer or a phone width.
+   The copy and link row actions zero their height to sit flush in the row, so they
+   grow back here, as the file rows do (US21, #319). */
 @media (any-pointer: coarse), (max-width: 768px) {
   .ui-button.run-inspector-file {
+    min-height: var(--tap-min);
+  }
+
+  .ui-button.run-inspector-copy {
+    min-height: var(--tap-min);
+  }
+
+  .run-inspector-link.run-inspector-stretch {
     min-height: var(--tap-min);
   }
 }
@@ -261,11 +271,11 @@
 }
 
 .run-inspector-add {
-  color: var(--green);
+  color: var(--green-text);
 }
 
 .run-inspector-remove {
-  color: var(--red);
+  color: var(--red-text);
 }
 
 /* A count of nothing is not a change: it reads in the secondary color. */
@@ -420,7 +430,7 @@
 }
 
 .token-usage-out {
-  color: var(--green);
+  color: var(--green-text);
 }
 
 .token-usage-cost,

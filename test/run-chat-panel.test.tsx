@@ -340,6 +340,20 @@ describe("the message box's tips button", () => {
     ).toBeTruthy();
     expect(within(form).getByRole("button", { name: "Send" })).toBeTruthy();
   });
+
+  it("keeps the key help in the textarea's own description (#319, US20)", () => {
+    const { container } = render(
+      <RunChat run={makeRun("awaiting_plan_approval")} events={[]} />,
+    );
+    const textarea = within(container).getByRole("textbox");
+    const describedBy = textarea.getAttribute("aria-describedby");
+    expect(describedBy).not.toBeNull();
+    const description = document.getElementById(describedBy ?? "");
+    expect(description).not.toBeNull();
+    expect(description?.textContent).toContain(
+      "Return sends. Shift-Return adds a line.",
+    );
+  });
 });
 
 describe("a finished run", () => {

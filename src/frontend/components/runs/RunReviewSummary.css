@@ -15,7 +15,7 @@
 }
 
 .run-review-summary--fail {
-  color: var(--red);
+  color: var(--red-text);
 }
 
 .run-review-group {
@@ -73,11 +73,11 @@
 }
 
 .run-review-verdict--pass {
-  color: var(--green);
+  color: var(--green-text);
 }
 
 .run-review-verdict--fail {
-  color: var(--red);
+  color: var(--red-text);
 }
 
 .run-review-verdict--muted {
