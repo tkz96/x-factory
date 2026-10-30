@@ -324,9 +324,9 @@ describe("notification bell (#264)", () => {
 
   it("the activity area shows runs in progress and hides when none are", () => {
     const { push } = renderCenter(snapshot({ runs: [run("r1", "executing")] }));
-    expect(view().getByRole("link", { name: /T-r1/ }).textContent).toContain(
-      "Writing code",
-    );
+    const link = view().getByRole("link", { name: /T-r1/ });
+    expect(link.textContent?.trim()).toBe("Running: T-r1");
+    expect(link.textContent).not.toContain("Writing code");
 
     push(envelope(150, "r1", "pr_created"));
     expect(view().queryByRole("link", { name: /T-r1/ })).toBeNull();
