@@ -21,13 +21,7 @@ import { Icon } from "../ui/Icon.js";
 import { type RunDetailsSection, useShowDetails } from "./RunDetailsContext.js";
 
 /** A time label. It reads the shared minute ticker; `now` pins the clock (tests, fixed views). */
-export function RunTime({
-  at,
-  now,
-}: {
-  at: string;
-  now?: number | undefined;
-}) {
+export function RunTime({ at, now }: { at: string; now?: number | undefined }) {
   const shared = useMinuteNow();
   now ??= shared;
   return (
