@@ -7,7 +7,7 @@
 //   2. Worker seam — a leftover steer command row is failed cleanly, never
 //      crash-looped or silently retried.
 //   3. Client run-state seam — a leftover steer event renders as a neutral
-//      fallback in ChatThread / EventLogViewer instead of crashing.
+//      fallback in the raw log / EventLogViewer instead of crashing.
 
 import { afterAll, describe, expect, it } from "bun:test";
 import React from "react";
@@ -21,7 +21,7 @@ import { createDatabase } from "../src/db/connection.js";
 import { EventRepository } from "../src/db/event-repository.js";
 import { runMigrations } from "../src/db/migrator.js";
 import { RunRepository } from "../src/db/run-repository.js";
-import { ChatThread } from "../src/frontend/components/runs/ChatThread.js";
+import { RawLog } from "../src/frontend/components/runs/RawLog.js";
 import { handleApi } from "../src/http/routes.js";
 import type { RunEvent } from "../src/shared/types.js";
 import { Worker } from "../src/worker.js";
@@ -181,7 +181,7 @@ describe("Steering removed (#167)", () => {
     })) as unknown as RunEvent[];
 
     const chatHtml = renderToString(
-      React.createElement(ChatThread, { events: wireEvents }),
+      React.createElement(RawLog, { events: wireEvents }),
     );
     expect(chatHtml).not.toContain("bubble-steer");
     expect(chatHtml).not.toContain("Steer Action");

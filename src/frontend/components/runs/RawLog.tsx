@@ -1,8 +1,10 @@
-// src/frontend/components/runs/ChatThread.tsx — Continuous chat thread streaming events and coding progress (Ticket 02, #191).
+// src/frontend/components/runs/RawLog.tsx — The raw event log, as chat bubbles (#191; renamed from
+// ChatThread, spec #312 ticket 10). It renders the chat items the one mapping gives it, so the raw
+// log and the run chat read events the same way.
 
 import { stageLabel, stageStartedText } from "../../lib/run-models.js";
 import { runStatusText } from "../../lib/run-status-ui.js";
-import "./ChatThread.css";
+import "./RawLog.css";
 
 import { useEffect, useRef } from "react";
 import type { RunEvent } from "../../../shared/types.js";
@@ -10,7 +12,7 @@ import { formatTimestamp } from "../../lib/format-timestamp.js";
 import { Badge } from "../ui/Badge.js";
 import { EmptyState } from "../ui/EmptyState.js";
 
-export interface ChatThreadProps {
+export interface RawLogProps {
   events: RunEvent[];
 }
 
@@ -256,7 +258,7 @@ function renderBubble(item: RunEvent) {
   }
 }
 
-export function ChatThread({ events }: ChatThreadProps) {
+export function RawLog({ events }: RawLogProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom on new events

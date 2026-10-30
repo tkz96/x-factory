@@ -1,4 +1,4 @@
-/* src/frontend/components/runs/ChatThread.css — Apple HIG compliant ChatThread styles */
+/* src/frontend/components/runs/RawLog.css — the raw log's chat bubbles (#191). */
 
 .chat-thread-container {
   display: flex;

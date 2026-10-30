@@ -14,7 +14,7 @@ import { cleanup, render, waitFor } from "@testing-library/react";
 import React from "react";
 import { MemoryRouter } from "react-router-dom";
 import { AppShell } from "../src/frontend/components/AppShell.js";
-import { ChatThread } from "../src/frontend/components/runs/ChatThread.js";
+import { RawLog } from "../src/frontend/components/runs/RawLog.js";
 import { RunChat } from "../src/frontend/components/runs/RunChat.js";
 import { RunCheckpointBar } from "../src/frontend/components/runs/RunCheckpointBar.js";
 import { ModalProvider } from "../src/frontend/context/ModalContext.js";
@@ -103,7 +103,7 @@ describe("RunChat wording", () => {
   });
 });
 
-describe("ChatThread wording", () => {
+describe("RawLog wording", () => {
   it("shows a status event's plain label, never the raw status string", () => {
     const events: RunEvent[] = [
       {
@@ -113,7 +113,7 @@ describe("ChatThread wording", () => {
         payload: { status: "awaiting_plan_approval", text: "Plan ready" },
       } as RunEvent,
     ];
-    const { container } = render(<ChatThread events={events} />);
+    const { container } = render(<RawLog events={events} />);
     const text = container.textContent ?? "";
     expect(text).toContain("Review the plan");
     expect(text).not.toContain("AWAITING_PLAN_APPROVAL");
@@ -129,7 +129,7 @@ describe("ChatThread wording", () => {
         payload: { stage: "execute", evidence: "bun test passed" },
       } as RunEvent,
     ];
-    const { container } = render(<ChatThread events={events} />);
+    const { container } = render(<RawLog events={events} />);
     const text = container.textContent ?? "";
     expect(text).toContain("Coding");
     expect(text).not.toContain("EXECUTE");
@@ -156,7 +156,7 @@ describe("ChatThread wording", () => {
         payload: { role: "reviewer", text: "looks fine" },
       } as RunEvent,
     ];
-    const { container } = render(<ChatThread events={events} />);
+    const { container } = render(<RawLog events={events} />);
     const text = container.textContent ?? "";
     expect(text).not.toMatch(INTERNAL_VOCABULARY);
     expect(text).toContain("Builder");
@@ -165,7 +165,7 @@ describe("ChatThread wording", () => {
   });
 
   it("waits for the first update in plain words", () => {
-    const { container } = render(<ChatThread events={[]} />);
+    const { container } = render(<RawLog events={[]} />);
     const text = container.textContent ?? "";
     expect(text).not.toMatch(INTERNAL_VOCABULARY);
     expect(text).toContain("Waiting");

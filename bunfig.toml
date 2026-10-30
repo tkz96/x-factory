@@ -35,7 +35,7 @@ coveragePathIgnorePatterns = [
   "src/frontend/components/queue/TicketCard.tsx",
   "src/frontend/components/queue/TicketSearchToolbar.tsx",
   "src/frontend/components/runs/ActivitySidebar.tsx",
-  "src/frontend/components/runs/ChatThread.tsx",
+  "src/frontend/components/runs/RawLog.tsx",
   "src/frontend/components/runs/EventLogViewer.tsx",
   "src/frontend/components/runs/HumanCheckpointSection.tsx",
   "src/frontend/components/runs/RunChat.tsx",

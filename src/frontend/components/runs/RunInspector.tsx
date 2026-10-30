@@ -31,7 +31,7 @@ import {
 import { Button } from "../ui/Button.js";
 import { Icon } from "../ui/Icon.js";
 import { useCopyToClipboard } from "../ui/useCopyToClipboard.js";
-import { ChatThread } from "./ChatThread.js";
+import { RawLog } from "./RawLog.js";
 import { DiffModal } from "./DiffModal.js";
 import { useDetailsSheet } from "./RunDetailsContext.js";
 import { RunTicket } from "./RunTicket.js";
@@ -457,7 +457,7 @@ function RunDetailsPane({ run, events, connected }: RunInspectorProps) {
           <DialogCloseButton onClose={() => setLogOpen(false)} />
         </DialogHeader>
         <DialogBody className="run-inspector-log">
-          <ChatThread events={events} />
+          <RawLog events={events} />
         </DialogBody>
       </Sheet>
     </>

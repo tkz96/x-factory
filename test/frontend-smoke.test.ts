@@ -11,8 +11,8 @@ import { App } from "../src/frontend/App.js";
 import { DocsSidebarNav } from "../src/frontend/components/docs/DocsSidebarNav.js";
 import { ModalContainer } from "../src/frontend/components/ModalContainer.js";
 import { ReadinessBanner } from "../src/frontend/components/projects/ReadinessBanner.js";
-import { ChatThread } from "../src/frontend/components/runs/ChatThread.js";
 import { DiffModal } from "../src/frontend/components/runs/DiffModal.js";
+import { RawLog } from "../src/frontend/components/runs/RawLog.js";
 import { RunCheckpointBar } from "../src/frontend/components/runs/RunCheckpointBar.js";
 import { RunInspector } from "../src/frontend/components/runs/RunInspector.js";
 import {
@@ -171,8 +171,8 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
       expect(typeof DocsSidebarNav).toBe("function");
     });
 
-    it("ChatThread exports a functional component", () => {
-      expect(typeof ChatThread).toBe("function");
+    it("RawLog exports a functional component", () => {
+      expect(typeof RawLog).toBe("function");
     });
 
     it("DiffModal renders its file and line counts (the run chat's behaviour is in run-chat-view)", () => {
