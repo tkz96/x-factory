@@ -341,8 +341,9 @@ describe("scroll position and Jump to Latest", () => {
         <RunChat
           run={makeRun("executing")}
           events={[
-            ev(1, "chat_agent", { text: "first" }),
-            ev(2, "chat_agent", { text: "newest row" }),
+            ev(1, "status", { status: "executing" }),
+            ev(2, "chat_agent", { text: "first" }),
+            ev(3, "chat_agent", { text: "newest row" }),
           ]}
         />,
       );
