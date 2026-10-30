@@ -19,7 +19,7 @@ export interface StageGroup {
   items: ChatItem[];
   /** The time of the stage's first item, or null when it has none. */
   startedAt: string | null;
-  /** Start of the next stage that has items; for a terminal run, the run's last event. Null while current. */
+  /** Start of the next stage that has items; for a terminal run, its terminal status. Null while current. */
   endedAt: string | null;
   /** endedAt - startedAt, or null when either is unknown. */
   tookMs: number | null;
@@ -50,7 +50,7 @@ export function stagesDoneCount(groups: readonly StageGroup[]): number {
 export function groupItemsByStage(
   items: readonly ChatItem[],
   run: Pick<Run, "status">,
-  events: readonly RunEvent[],
+  _events: readonly RunEvent[],
 ): StageGroup[] {
   // 1. Assign each item to a stage, walking in order.
   const buckets = new Map<WorkflowStage, ChatItem[]>(
@@ -95,8 +95,12 @@ export function groupItemsByStage(
   const starts = STAGE_ORDER.map(
     (stage) => buckets.get(stage)?.[0]?.at ?? null,
   );
+  // A terminal run ends at its terminal status. Later events (a merge, a close) do not extend it.
+  const terminalStatusItem = items.findLast(
+    (item) => item.kind === "status" && TERMINAL_RUN_STATUSES.has(item.status),
+  );
   const terminalEnd = terminal
-    ? (events.at(-1)?.timestamp ?? items.at(-1)?.at ?? null)
+    ? (terminalStatusItem?.at ?? items.at(-1)?.at ?? null)
     : null;
 
   return STAGE_ORDER.map((stage, idx) => {

@@ -377,3 +377,28 @@ describe("where a run stands when the review runs inside execute", () => {
     expect(groups.find((g) => g.stage === "review")?.state).toBe("current");
   });
 });
+
+describe("groupItemsByStage: the end of a finished run", () => {
+  it("ends Deliver at the pull request status, not at a later merge", () => {
+    const events = [
+      status(1, "executing", 0),
+      status(2, "ready_for_pr", 10),
+      status(3, "pr_created", 12),
+      ev(4, "pr_merged", { url: "u", mergedAt: at(600) }, 600),
+    ];
+    const deliver = groupsFor("pr_created", events)[5];
+    expect(deliver?.endedAt).toBe(at(12));
+    expect(deliver?.tookMs).toBe(2 * 60_000);
+  });
+
+  it("ends the failed stage at the failed status", () => {
+    const events = [
+      status(1, "executing", 0),
+      status(2, "failed", 5),
+      ev(3, "pr_closed", { url: "u", closedAt: at(900) }, 900),
+    ];
+    const code = groupsFor("failed", events)[3];
+    expect(code?.state).toBe("failed");
+    expect(code?.endedAt).toBe(at(5));
+  });
+});
