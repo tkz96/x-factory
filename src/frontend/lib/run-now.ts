@@ -136,34 +136,9 @@ export function runNow(run: Run, events: readonly RunEvent[]): RunNow {
     diff = summary.files.length > 0 ? summary : null;
   }
 
-  const mergedEvent = latest<{
-    url: string;
-    mergedAt: string;
-    mergedBy?: string;
-  }>(events, "pr_merged");
-  const closedEvent = latest<{ url: string; closedAt: string }>(
-    events,
-    "pr_closed",
-  );
-
-  const outcome: PullRequestOutcome | null =
-    run.pullRequestOutcome ??
-    (mergedEvent
-      ? {
-          status: "merged",
-          state: "merged",
-          url: mergedEvent.url,
-          mergedAt: mergedEvent.mergedAt,
-          mergedBy: mergedEvent.mergedBy,
-        }
-      : closedEvent
-        ? {
-            status: "closed",
-            state: "closed",
-            url: closedEvent.url,
-            closedAt: closedEvent.closedAt,
-          }
-        : null);
+  // The outcome the server recorded on the run (the PR checker writes it); the
+  // events that once rebuilt it here are its redundant shadow (#312 ticket 10).
+  const outcome: PullRequestOutcome | null = run.pullRequestOutcome ?? null;
 
   let title = ui.header;
   let sentence = ui.now;
