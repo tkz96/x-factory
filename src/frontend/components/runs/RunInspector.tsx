@@ -136,15 +136,22 @@ function RowActionControl({
     );
   }
   return (
-    <Button
-      variant="quiet"
-      className="run-inspector-stretch run-inspector-copy"
-      aria-label={copied ? `${label} copied` : `Copy ${label}`}
-      onPress={() => void copy(action.text)}
-    >
-      <span className="run-inspector-copy-text">{children}</span>
-      <Icon name={copied ? "icon-check" : "icon-copy"} size="xs" />
-    </Button>
+    <>
+      <Button
+        variant="quiet"
+        className="run-inspector-stretch run-inspector-copy"
+        aria-label={`Copy ${label} ${action.text}`}
+        onPress={() => void copy(action.text)}
+      >
+        <span className="run-inspector-copy-text">{children}</span>
+        <Icon name={copied ? "icon-check" : "icon-copy"} size="xs" />
+      </Button>
+      {/* The copy is announced through the CopyButton live node, so the button's
+          name can keep holding the visible value (#319, US22). */}
+      <span className="sr-only" aria-live="polite">
+        {copied ? "Copied" : ""}
+      </span>
+    </>
   );
 }
 

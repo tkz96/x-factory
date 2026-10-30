@@ -508,7 +508,7 @@ describe("Run details rows: a fill only where a row does something (run page pla
     expect(within(container).getByRole("link", { name: "#9" })).toBeTruthy();
   });
 
-  it("copies the branch when its row is pressed", async () => {
+  it("copies the branch when its row is pressed, naming the visible value (#319, US22)", async () => {
     let written = "";
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
@@ -522,15 +522,25 @@ describe("Run details rows: a fill only where a row does something (run page pla
     const { container } = render(
       <RunInspector run={makeRun("executing")} events={[]} connected={false} />,
     );
+    // The accessible name contains the visible text of the row's value.
+    const copy = within(container).getByRole("button", {
+      name: "Copy Branch factory/t-1",
+    });
+    expect(copy.textContent).toContain("factory/t-1");
     await act(async () => {
-      fireEvent.click(
-        within(container).getByRole("button", { name: "Copy Branch" }),
-      );
+      fireEvent.click(copy);
     });
     expect(written).toBe("factory/t-1");
+    // The copy itself is announced through the CopyButton live node, so the
+    // name can keep holding the visible text (#319, US22).
+    expect(container.querySelector('[aria-live="polite"]')?.textContent).toBe(
+      "Copied",
+    );
     expect(
-      within(container).getByRole("button", { name: "Branch copied" }),
-    ).toBeTruthy();
+      within(container).getAllByRole("button", {
+        name: "Copy Branch factory/t-1",
+      }).length,
+    ).toBe(1);
   });
 
   it("has no fill on a row without an action", () => {
