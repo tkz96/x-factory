@@ -115,11 +115,11 @@
 }
 
 .run-inspector-value--pass {
-  color: var(--green);
+  color: var(--green-text);
 }
 
 .run-inspector-value--fail {
-  color: var(--red);
+  color: var(--red-text);
 }
 
 .run-inspector-link {
@@ -258,11 +258,11 @@
 }
 
 .run-inspector-add {
-  color: var(--green);
+  color: var(--green-text);
 }
 
 .run-inspector-remove {
-  color: var(--red);
+  color: var(--red-text);
 }
 
 /* The empty note of a section: the EmptyState block, without its own air. */
@@ -398,7 +398,7 @@
 }
 
 .token-usage-out {
-  color: var(--green);
+  color: var(--green-text);
 }
 
 .token-usage-cost,

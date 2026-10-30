@@ -222,11 +222,11 @@
 }
 
 .run-chat-system-warning {
-  color: var(--orange);
+  color: var(--orange-text);
 }
 
 .run-chat-system-error {
-  color: var(--red);
+  color: var(--red-text);
 }
 
 .run-chat-failure {
@@ -332,11 +332,11 @@
 }
 
 .run-chat-add {
-  color: var(--green);
+  color: var(--green-text);
 }
 
 .run-chat-remove {
-  color: var(--red);
+  color: var(--red-text);
 }
 
 .run-chat-progress {
