@@ -30,7 +30,6 @@ import {
 } from "../overlays/index.js";
 import { Button } from "../ui/Button.js";
 import { Icon } from "../ui/Icon.js";
-import { IconButton } from "../ui/IconButton.js";
 import { useCopyToClipboard } from "../ui/useCopyToClipboard.js";
 import { ChatThread } from "./ChatThread.js";
 import { DiffModal } from "./DiffModal.js";
@@ -457,13 +456,15 @@ export function RunInspectorSheet(props: RunInspectorProps) {
   const { sheetOpen: open, setSheetOpen: setOpen } = useDetailsSheet();
   return (
     <>
-      {/* An icon button named "Details": it sits in the chat's header strip at phone width. */}
-      <IconButton
-        label="Details"
+      {/* A labelled button: it sits in the chat's header strip at phone width, and carries the branch. */}
+      <Button
+        variant="quiet"
+        size="sm"
         icon="icon-info"
-        variant="plain"
         onPress={() => setOpen(true)}
-      />
+      >
+        Details
+      </Button>
       <Sheet
         isOpen={open}
         onClose={() => setOpen(false)}

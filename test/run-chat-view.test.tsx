@@ -97,9 +97,10 @@ describe("the run chat shows real events and nothing invented", () => {
     );
     expect(container.textContent).not.toContain("Starting run for");
     expect(container.textContent).not.toContain("I'm");
-    expect(
-      within(log(container)).getByText("Waiting for the first update…"),
-    ).toBeTruthy();
+    expect(container.textContent).not.toContain(
+      "Waiting for the first update…",
+    );
+    expect(within(log(container)).getByText("Planning")).toBeTruthy();
   });
 
   it("shows a status change as a system line with the map's label", () => {
@@ -197,9 +198,10 @@ describe("the run chat shows real events and nothing invented", () => {
       />,
     );
     expect(container.textContent).not.toContain("old");
-    expect(
-      within(log(container)).getByText("Waiting for the first update…"),
-    ).toBeTruthy();
+    expect(container.textContent).not.toContain(
+      "Waiting for the first update…",
+    );
+    expect(within(log(container)).getByText("Writing code")).toBeTruthy();
   });
 });
 
