@@ -317,7 +317,7 @@ describe("scroll position and Jump to Latest", () => {
     ).toBeNull();
   });
 
-  it("keeps following when the content grows (a stage opens, an attempt starts) while at the bottom", () => {
+  it("brings the newest item into view when the content grows, while at the end", () => {
     const callbacks: Array<() => void> = [];
     const original = globalThis.ResizeObserver;
     globalThis.ResizeObserver = class {
@@ -328,11 +328,22 @@ describe("scroll position and Jump to Latest", () => {
       unobserve() {}
       disconnect() {}
     } as unknown as typeof ResizeObserver;
+    const shown: string[] = [];
+    const proto = HTMLElement.prototype as unknown as {
+      scrollIntoView?: (arg?: unknown) => void;
+    };
+    const originalScrollIntoView = proto.scrollIntoView;
+    proto.scrollIntoView = function (this: HTMLElement) {
+      shown.push(this.textContent ?? "");
+    };
     try {
       const { container } = render(
         <RunChat
           run={makeRun("executing")}
-          events={[ev(1, "chat_agent", { text: "first" })]}
+          events={[
+            ev(1, "chat_agent", { text: "first" }),
+            ev(2, "chat_agent", { text: "newest row" }),
+          ]}
         />,
       );
       const list = log(container);
@@ -344,16 +355,27 @@ describe("scroll position and Jump to Latest", () => {
         value: 200,
         configurable: true,
       });
+      shown.length = 0;
       for (const callback of callbacks) callback();
-      expect(list.scrollTop).toBe(1500);
+      // The newest item scrolls into view, not the bottom of the list.
+      expect(shown.at(-1)).toContain("newest row");
+      expect(list.scrollTop).toBe(0);
 
       // Up the chat, growth does not move the reader.
+      shown.length = 0;
+      fireEvent.scroll(list);
       list.scrollTop = 0;
+      Object.defineProperty(list, "scrollHeight", {
+        value: 3000,
+        configurable: true,
+      });
       fireEvent.scroll(list);
       for (const callback of callbacks) callback();
-      expect(list.scrollTop).toBe(0);
+      expect(shown).toEqual([]);
     } finally {
       globalThis.ResizeObserver = original;
+      if (originalScrollIntoView) proto.scrollIntoView = originalScrollIntoView;
+      else delete proto.scrollIntoView;
     }
   });
 

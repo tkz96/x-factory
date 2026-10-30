@@ -154,6 +154,8 @@ interface StageListProps {
   decision?: ReactNode;
   decisionStage?: WorkflowStage | undefined;
   label?: string;
+  eventsLoaded?: boolean | undefined;
+  emptyNote?: string | undefined;
 }
 
 /** An earlier attempt: its stages are read on their own, apart from the live open state. */
@@ -232,6 +234,8 @@ export function RunStageTimeline({
         retryFor={retryFor}
         decision={decision}
         decisionStage={decisionStage}
+        eventsLoaded={eventsLoaded}
+        emptyNote={emptyNote}
       />
     );
   }
@@ -255,6 +259,8 @@ export function RunStageTimeline({
                 retryFor={retryFor}
                 decision={decision}
                 decisionStage={decisionStage}
+                eventsLoaded={eventsLoaded}
+                emptyNote={emptyNote}
               />
             ) : (
               <EarlierStages
@@ -279,6 +285,8 @@ function StageList({
   decision,
   decisionStage,
   label,
+  eventsLoaded = true,
+  emptyNote,
 }: StageListProps) {
   const idBase = useId();
   const decisionAt = decisionStage ?? defaultDecisionStage(groups);

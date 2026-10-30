@@ -41,10 +41,25 @@ function useScrollFollow(itemCount: number) {
     if (el) el.scrollTop = el.scrollHeight;
   };
 
+  // Brings the newest item into view: the last row or decision card that is on screen (not in a
+  // folded stage or attempt). Falls back to the bottom when there is none.
+  const followNewest = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const visible = Array.from(
+      el.querySelectorAll<HTMLElement>(
+        ".run-stage-panel > :not(.run-stage-note), .run-stage-decision",
+      ),
+    ).filter((node) => !node.closest("[inert], [hidden]"));
+    const newest = visible.at(-1);
+    if (newest) newest.scrollIntoView({ block: "end" });
+    else scrollToBottom();
+  };
+
   // biome-ignore lint/correctness/useExhaustiveDependencies: follow new items when the count changes
   useEffect(() => {
     if (atBottomRef.current) {
-      scrollToBottom();
+      followNewest();
     } else {
       setUnseen(true);
     }
@@ -57,7 +72,7 @@ function useScrollFollow(itemCount: number) {
     const el = scrollRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(() => {
-      if (atBottomRef.current) scrollToBottom();
+      if (atBottomRef.current) followNewest();
     });
     for (const child of Array.from(el.children)) observer.observe(child);
     return () => observer.disconnect();
