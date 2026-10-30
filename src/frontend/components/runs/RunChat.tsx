@@ -4,13 +4,12 @@
 
 import "./RunChat.css";
 
-import { type ReactNode, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import {
   canRunAction,
   TERMINAL_RUN_STATUSES,
 } from "../../../shared/run-status-policy.js";
 import type { Run, RunEvent, RunStatus } from "../../../shared/types.js";
-import { useNow } from "../../hooks/useNow.js";
 import {
   type ChatItem,
   mapEventsToChatItems,
@@ -60,6 +59,12 @@ function messageBefore(
   return null;
 }
 
+type MessageItem = Extract<ChatItem, { kind: "message" }>;
+
+function isUserMessage(item: ChatItem): item is MessageItem & { role: "user" } {
+  return item.kind === "message" && item.role === "user";
+}
+
 /**
  * The chat's rows: the run's events, with the reader's own lines from this view (dropped once the
  * worker's copy arrives), and a failed run's last status line without its failure (the header states it).
@@ -68,12 +73,28 @@ function chatItemsFor(
   realItems: ChatItem[],
   localItems: ChatItem[],
   status: RunStatus,
+  baselines: ReadonlyMap<string, number>,
 ): ChatItem[] {
-  const realUserTexts = new Set(
-    realItems.flatMap((i) =>
-      i.kind === "message" && i.role === "user" ? [i.text] : [],
-    ),
-  );
+  // An echo clears only when the run's own copy of it arrives (#317): for each text, the copies
+  // beyond the count at send time confirm that text's echoes, oldest first, one copy for one echo.
+  const realCounts = new Map<string, number>();
+  for (const real of realItems.filter(isUserMessage)) {
+    realCounts.set(real.text, (realCounts.get(real.text) ?? 0) + 1);
+  }
+  const confirmedLeft = new Map<string, number>();
+  const visibleLocalItems = localItems.filter((local) => {
+    if (!isUserMessage(local)) return true;
+    let left = confirmedLeft.get(local.text);
+    if (left === undefined) {
+      left = Math.max(
+        0,
+        (realCounts.get(local.text) ?? 0) - (baselines.get(local.id) ?? 0),
+      );
+    }
+    confirmedLeft.set(local.text, Math.max(0, left - 1));
+    return left <= 0;
+  });
+
   const lastStatus = realItems.findLast((i) => i.kind === "status");
   return [
     ...realItems.map((item) =>
@@ -81,13 +102,23 @@ function chatItemsFor(
       item === lastStatus &&
       item.kind === "status" &&
       item.failure
-        ? { ...item, failure: undefined }
+        ? withoutFailure(item)
         : item,
     ),
-    ...localItems.filter(
-      (i) => !(i.kind === "message" && realUserTexts.has(i.text)),
-    ),
+    ...visibleLocalItems,
   ];
+}
+
+/** A status item without its failure, kept per item so the row's identity is stable (#321). */
+const withoutFailureOf = new WeakMap<ChatItem, ChatItem>();
+
+function withoutFailure(item: ChatItem): ChatItem {
+  let copy = withoutFailureOf.get(item);
+  if (!copy) {
+    copy = { ...item, failure: undefined } as ChatItem;
+    withoutFailureOf.set(item, copy);
+  }
+  return copy;
 }
 
 /**
@@ -148,11 +179,18 @@ export function RunChat({
   detailsTrigger,
   eventsLoaded = true,
 }: RunChatProps) {
-  const now = useNow();
   const narrow = useMediaQuery(PHONE_QUERY);
   const realItems = useMemo(() => mapEventsToChatItems(events), [events]);
-  const errorCount = realItems.filter((i) => i.kind === "error").length;
-  const chat = useRunChatSend(run.id, errorCount);
+  const errorCount = useMemo(
+    () => realItems.filter((i) => i.kind === "error").length,
+    [realItems],
+  );
+  const chat = useRunChatSend(
+    run.id,
+    errorCount,
+    (text) =>
+      realItems.filter((i) => isUserMessage(i) && i.text === text).length,
+  );
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const flow = useCheckpointFlow({
     status: run.status,
@@ -164,12 +202,34 @@ export function RunChat({
 
   const canChat = canRunAction(run.status, "chat");
   const finished = TERMINAL_RUN_STATUSES.has(run.status);
-  const items = chatItemsFor(realItems, chat.localItems, run.status);
+
+  // The rework hint clears when the status changes (#317).
+  const lastStatusRef = useRef(run.status);
+  useEffect(() => {
+    if (lastStatusRef.current !== run.status) {
+      lastStatusRef.current = run.status;
+      chat.clearReworkHint();
+    }
+  }, [run.status, chat]);
+
+  // Everything below is memoised on its inputs (#321): a new event rebuilds the lists once, and a
+  // re-render for any other reason (typing, a toggle) reuses them.
+  const items = useMemo(
+    () => chatItemsFor(realItems, chat.localItems, run.status, chat.baselines),
+    [realItems, chat.localItems, run.status, chat.baselines],
+  );
 
   // The six stages, and which of them are open.
-  const groups = withoutRepeatedDeliver(
-    withoutRepeatedStatus(groupItemsByStage(items, run, events), run.status),
-    run.status === "pr_created",
+  const groups = useMemo(
+    () =>
+      withoutRepeatedDeliver(
+        withoutRepeatedStatus(
+          groupItemsByStage(items, run, events),
+          run.status,
+        ),
+        run.status === "pr_created",
+      ),
+    [items, run, events],
   );
   const stages = useStageOpenState(groups);
 
@@ -217,16 +277,19 @@ export function RunChat({
   };
 
   const failure = chat.shownFailure;
-  const facts = runNow(run, events);
+  const facts = useMemo(() => runNow(run, events), [run, events]);
   // The header's clock stops at the terminal status; a later merge or close does not extend it.
-  const lastEventAt =
-    events.findLast(
-      (event) =>
-        event.type === "status" &&
-        TERMINAL_RUN_STATUSES.has(event.payload.status),
-    )?.timestamp ??
-    events.at(-1)?.timestamp ??
-    null;
+  const lastEventAt = useMemo(
+    () =>
+      events.findLast(
+        (event) =>
+          event.type === "status" &&
+          TERMINAL_RUN_STATUSES.has(event.payload.status),
+      )?.timestamp ??
+      events.at(-1)?.timestamp ??
+      null,
+    [events],
+  );
   const emptyStageNote = run.waitingForWorker
     ? "Waiting for a worker"
     : facts.title;
@@ -259,7 +322,6 @@ export function RunChat({
         groups={groups}
         openStages={stages.openStages}
         onToggleStage={stages.toggleStage}
-        now={now}
         retryFor={retryFor}
         decision={decision}
         failure={

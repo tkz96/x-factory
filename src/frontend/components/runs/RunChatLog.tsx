@@ -73,7 +73,6 @@ interface RunChatLogProps {
   groups: StageGroup[];
   openStages: ReadonlySet<WorkflowStage>;
   onToggleStage: (stage: WorkflowStage) => void;
-  now: number;
   retryFor: (item: ChatItem) => (() => void) | undefined;
   decision: ReactNode;
   /** A failed send to show; `onRetry` is set only while a retry is allowed. */
@@ -123,7 +122,6 @@ export function RunChatLog({
   groups,
   openStages,
   onToggleStage,
-  now,
   retryFor,
   decision,
   failure,
@@ -151,7 +149,6 @@ export function RunChatLog({
           groups={groups}
           open={openStages}
           onToggle={onToggleStage}
-          now={now}
           retryFor={retryFor}
           decision={decision}
           eventsLoaded={eventsLoaded}

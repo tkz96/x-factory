@@ -1,6 +1,7 @@
 // test/run-page-resilience.test.tsx — The run page through a server outage (spec #312, ticket 314,
 // user stories 3–4): the page stays with a connection banner while the server cannot be reached, and
 // "Run Not Found" appears only when the server says the run is not there.
+// Extended for #317: connection banner also shows when event stream is reconnecting.
 
 /// <reference lib="dom" />
 import { registerHappyDom, unregisterHappyDom } from "./setup-happy-dom.js";
@@ -10,6 +11,7 @@ registerHappyDom();
 import { afterAll, afterEach, describe, expect, it } from "bun:test";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
+  act,
   cleanup,
   render,
   waitForElementToBeRemoved,
@@ -24,15 +26,24 @@ const realFetch = globalThis.fetch;
 const RealEventSource = (globalThis as { EventSource?: unknown }).EventSource;
 
 class FakeEventSource {
-  constructor(public url: string) {}
-  addEventListener() {}
-  removeEventListener() {}
-  close() {}
+  static instances: FakeEventSource[] = [];
+  onopen: (() => void) | null = null;
+  onmessage: ((e: { data: string }) => void) | null = null;
+  onerror: (() => void) | null = null;
+  closed = false;
+  readyState = 0;
+  constructor(public url: string) {
+    FakeEventSource.instances.push(this);
+  }
+  close() {
+    this.closed = true;
+  }
 }
 
 afterEach(() => {
   cleanup();
   globalThis.fetch = realFetch;
+  FakeEventSource.instances = [];
 });
 afterAll(async () => {
   (globalThis as unknown as { EventSource: unknown }).EventSource =
@@ -162,5 +173,50 @@ describe("the run page through a short server outage", () => {
     reachable = true;
     await client.refetchQueries({ queryKey: queryKeys.run("run-1") });
     await waitForElementToBeRemoved(() => view.queryByText("Connection lost"));
+  });
+
+  it("shows the connection banner when the event stream is reconnecting on an active run (#317)", async () => {
+    const { view } = renderRunPage(
+      () => json(makeRun("run-1", "executing")),
+      makeRun("run-1", "executing"),
+    );
+
+    expect(FakeEventSource.instances).toHaveLength(1);
+    const source = FakeEventSource.instances[0];
+
+    // Stream opens initially
+    act(() => {
+      source?.onopen?.();
+    });
+    expect(view.queryByText("Connection lost")).toBeNull();
+
+    // Event stream drops on active run -> reconnecting banner appears
+    act(() => {
+      source?.onerror?.();
+    });
+    await view.findByText("Connection lost");
+    expect(view.getByText(/is retrying/i)).toBeTruthy();
+
+    // Event stream reconnects -> banner disappears
+    act(() => {
+      source?.onopen?.();
+    });
+    expect(view.queryByText("Connection lost")).toBeNull();
+  });
+
+  it("does not show the connection banner when a finished run's stream ends normally (#317)", async () => {
+    const { view } = renderRunPage(
+      () => json(makeRun("run-1", "pr_created")),
+      makeRun("run-1", "pr_created"),
+    );
+
+    expect(FakeEventSource.instances).toHaveLength(1);
+    const source = FakeEventSource.instances[0];
+
+    // Finished run stream ends normally (replay ended)
+    act(() => {
+      source?.onerror?.();
+    });
+    expect(view.queryByText("Connection lost")).toBeNull();
   });
 });

@@ -64,11 +64,12 @@ function runSnapshot(id: string, status: RunStatus): Run {
 }
 
 function Probe({ runId }: { runId: string }) {
-  const { run, events, connected, eventsLoaded } = useRunDetail(runId);
+  const { run, events, connected, eventsLoaded, reconnecting } =
+    useRunDetail(runId);
   return React.createElement(
     "div",
     { "data-testid": "probe" },
-    `${run?.status ?? "none"}|${events.length}|${connected ? "live" : "down"}|${eventsLoaded ? "loaded" : "loading"}`,
+    `${run?.status ?? "none"}|${events.length}|${connected ? "live" : "down"}|${eventsLoaded ? "loaded" : "loading"}|${reconnecting ? "reconnecting" : "steady"}`,
   );
 }
 
@@ -102,7 +103,9 @@ describe("useRunDetail (#191)", () => {
     const source = FakeEventSource.instances[0];
     expect(effectiveRefetchInterval(client, runId)).toBe(2000);
 
-    source?.onerror?.();
+    act(() => {
+      source?.onerror?.();
+    });
 
     expect(source?.closed).toBe(false);
     expect(effectiveRefetchInterval(client, runId)).toBe(2000);
@@ -127,10 +130,10 @@ describe("useRunDetail (#191)", () => {
 
     const view = mountProbe(client, runId);
     expect(view.getByTestId("probe").textContent).toBe(
-      "executing|1|down|loaded",
+      "executing|1|down|loaded|steady",
     );
     expect(FakeEventSource.instances.map((s) => s.url)).toEqual([
-      `/api/runs/${runId}/events`,
+      `/api/runs/${runId}/events?last_event_id=1`,
     ]);
 
     view.unmount();
@@ -147,7 +150,9 @@ describe("useRunDetail (#191)", () => {
     const view = mountProbe(client, runId);
     expect(FakeEventSource.instances).toHaveLength(1);
     const source = FakeEventSource.instances[0];
-    source?.onerror?.();
+    act(() => {
+      source?.onerror?.();
+    });
     expect(source?.closed).toBe(true);
     // The error closed the replay, so it is not reopened.
     expect(FakeEventSource.instances).toHaveLength(1);
@@ -163,7 +168,7 @@ describe("useRunDetail (#191)", () => {
 
     const view = mountProbe(client, runId);
     expect(view.getByTestId("probe").textContent).toBe(
-      "executing|0|down|loading",
+      "executing|0|down|loading|steady",
     );
 
     const source = FakeEventSource.instances[0];
@@ -171,15 +176,151 @@ describe("useRunDetail (#191)", () => {
       source?.onopen?.();
     });
     expect(view.getByTestId("probe").textContent).toBe(
-      "executing|0|live|loaded",
+      "executing|0|live|loaded|steady",
     );
 
     // Even if the connection temporarily drops, eventsLoaded stays true
     act(() => {
-      source?.onerror?.();
+      act(() => {
+        source?.onerror?.();
+      });
     });
     expect(view.getByTestId("probe").textContent).toBe(
-      "executing|0|down|loaded",
+      "executing|0|down|loaded|reconnecting",
+    );
+
+    view.unmount();
+    cleanup();
+  });
+
+  it("does not restart the subscription when an active run becomes terminal while watching (#317)", () => {
+    FakeEventSource.instances = [];
+    const runId = "run-terminal-transition";
+    const client = new QueryClient();
+    client.setQueryData(queryKeys.run(runId), runSnapshot(runId, "executing"));
+
+    const view = mountProbe(client, runId);
+    expect(FakeEventSource.instances).toHaveLength(1);
+    const initialSource = FakeEventSource.instances[0];
+
+    act(() => {
+      initialSource?.onopen?.();
+    });
+    expect(view.getByTestId("probe").textContent).toBe(
+      "executing|0|live|loaded|steady",
+    );
+
+    // The run transitions to terminal (e.g. pr_created)
+    act(() => {
+      client.setQueryData(
+        queryKeys.run(runId),
+        runSnapshot(runId, "pr_created"),
+      );
+    });
+
+    // The subscription must NOT restart: no new EventSource instance created
+    expect(FakeEventSource.instances).toHaveLength(1);
+
+    // When the server closes the stream, the stream closes and is not reconnecting
+    act(() => {
+      initialSource?.onerror?.();
+    });
+    expect(initialSource?.closed).toBe(true);
+    expect(FakeEventSource.instances).toHaveLength(1);
+    expect(view.getByTestId("probe").textContent).toBe(
+      "pr_created|0|down|loaded|steady",
+    );
+
+    view.unmount();
+    cleanup();
+  });
+
+  it("reports reconnecting when an active run's stream drops, and steady when reconnected (#317)", () => {
+    FakeEventSource.instances = [];
+    const runId = "run-reconnecting";
+    const client = new QueryClient();
+    client.setQueryData(queryKeys.run(runId), runSnapshot(runId, "executing"));
+
+    const view = mountProbe(client, runId);
+    const source = FakeEventSource.instances[0];
+    act(() => {
+      source?.onopen?.();
+    });
+    expect(view.getByTestId("probe").textContent).toBe(
+      "executing|0|live|loaded|steady",
+    );
+
+    act(() => {
+      act(() => {
+        source?.onerror?.();
+      });
+    });
+    expect(view.getByTestId("probe").textContent).toBe(
+      "executing|0|down|loaded|reconnecting",
+    );
+
+    act(() => {
+      source?.onopen?.();
+    });
+    expect(view.getByTestId("probe").textContent).toBe(
+      "executing|0|live|loaded|steady",
+    );
+
+    view.unmount();
+    cleanup();
+  });
+
+  it("judges each run's own stream by that run's status when the page moves to another run (#317)", () => {
+    FakeEventSource.instances = [];
+    const finishedId = "run-hook-prev-finished";
+    const activeId = "run-hook-next-active";
+    const client = new QueryClient();
+    client.setQueryData(
+      queryKeys.run(finishedId),
+      runSnapshot(finishedId, "pr_created"),
+    );
+    client.setQueryData(
+      queryKeys.run(activeId),
+      runSnapshot(activeId, "executing"),
+    );
+    const tree = (id: string) =>
+      React.createElement(
+        QueryClientProvider,
+        { client },
+        React.createElement(Probe, { runId: id }),
+      );
+    const view = render(tree(finishedId));
+    view.rerender(tree(activeId));
+    const source = FakeEventSource.instances.find((s) =>
+      s.url.includes(activeId),
+    );
+    act(() => {
+      source?.onerror?.();
+    });
+    // The active run keeps its stream and reports the retry; the earlier run's replay-only mode must not leak.
+    expect(source?.closed).toBe(false);
+    expect(view.getByTestId("probe").textContent).toContain("reconnecting");
+    view.unmount();
+    cleanup();
+  });
+
+  it("starts the stream from lastAppliedId when events are already in cache (#317)", () => {
+    FakeEventSource.instances = [];
+    const runId = "run-last-applied";
+    const client = new QueryClient();
+    client.setQueryData(queryKeys.run(runId), runSnapshot(runId, "executing"));
+    client.setQueryData(queryKeys.runEvents(runId), [
+      {
+        id: 42,
+        timestamp: "2026-10-01T10:00:00.000Z",
+        type: "info",
+        payload: { message: "cached" },
+      },
+    ]);
+
+    const view = mountProbe(client, runId);
+    expect(FakeEventSource.instances[0]?.url).toBe(
+      `/api/runs/${runId}/events?last_event_id=42`,
     );
 
     view.unmount();

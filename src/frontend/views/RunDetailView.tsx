@@ -238,16 +238,25 @@ function RunDetailLayout({
 export function RunDetailView() {
   // The run page's heading is the shell's toolbar title: the view claims it, and draws none of its own.
   const { runId } = useParams<{ runId: string }>();
-  const { run, isLoading, error, events, connected, eventsLoaded } =
-    useRunDetail(runId);
+  const {
+    run,
+    isLoading,
+    error,
+    events,
+    connected,
+    eventsLoaded,
+    reconnecting,
+  } = useRunDetail(runId);
   const header = useMemo(() => runPageHeader(run), [run]);
   usePageHeader(header);
   const location = useLocation();
   const notice = (location.state as RunPageState | null)?.notice;
 
+  const connectionLost = Boolean(error) || reconnecting;
+
   if (isRunMissing(error)) return <RunNotFoundState runId={runId} />;
   if (isLoading || !run) {
-    return <RunLoadingState connectionLost={Boolean(error)} />;
+    return <RunLoadingState connectionLost={connectionLost} />;
   }
 
   return (
@@ -258,7 +267,7 @@ export function RunDetailView() {
       connected={connected}
       eventsLoaded={eventsLoaded}
       notice={notice}
-      connectionLost={Boolean(error)}
+      connectionLost={connectionLost}
     />
   );
 }

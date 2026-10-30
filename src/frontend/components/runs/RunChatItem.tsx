@@ -4,11 +4,12 @@
 // reads the same everywhere: relative within the hour, then the time of day, the full date
 // and time on hover.
 
-import type { ReactNode } from "react";
+import { memo, type ReactNode } from "react";
 import {
   formatTimelineTime,
   formatTimestamp,
 } from "../../lib/format-timestamp.js";
+import { useMinuteNow } from "../../lib/minute-ticker.js";
 import type { ChatItem } from "../../lib/run-chat-items.js";
 import { MotionEntry } from "../../motion/MotionEntry.js";
 import { MarkdownBlock } from "../MarkdownBlock.js";
@@ -19,7 +20,10 @@ import { Card } from "../ui/Card.js";
 import { Icon } from "../ui/Icon.js";
 import { type RunDetailsSection, useShowDetails } from "./RunDetailsContext.js";
 
-export function RunTime({ at, now }: { at: string; now: number }) {
+/** A time label. It reads the shared minute ticker; `now` pins the clock (tests, fixed views). */
+export function RunTime({ at, now }: { at: string; now?: number | undefined }) {
+  const shared = useMinuteNow();
+  now ??= shared;
   return (
     <time
       className="run-chat-time text-caption-2"
@@ -49,7 +53,7 @@ function SummaryLine({
   tone?: "success" | "error" | undefined;
   section?: RunDetailsSection | undefined;
   at: string;
-  now: number;
+  now?: number | undefined;
   children: ReactNode;
 }) {
   const showDetails = useShowDetails();
@@ -85,7 +89,7 @@ function SummaryLine({
 
 export interface RunChatItemProps {
   item: ChatItem;
-  now: number;
+  now?: number | undefined;
   /** Re-sends the message before a trailing error (#263); absent when a retry is not offered. */
   onRetry?: (() => void) | undefined;
 }
@@ -95,7 +99,7 @@ function Status({
   now,
 }: {
   item: Extract<ChatItem, { kind: "status" }>;
-  now: number;
+  now?: number | undefined;
 }) {
   return (
     <div className="run-chat-system" data-kind="status">
@@ -118,7 +122,7 @@ function SystemLine({
   onRetry,
 }: {
   item: ChatItem;
-  now: number;
+  now?: number | undefined;
   tone?: "warning" | "error" | undefined;
   onRetry?: (() => void) | undefined;
 }) {
@@ -291,10 +295,13 @@ export function RunChatItemView({ item, now, onRetry }: RunChatItemProps) {
 }
 
 /** A row with the chat's entry motion; under reduced motion it is a crossfade (#252). */
-export function RunChatRow(props: RunChatItemProps) {
+function RunChatRowView(props: RunChatItemProps) {
   return (
     <MotionEntry className="run-chat-row">
       <RunChatItemView {...props} />
     </MotionEntry>
   );
 }
+
+/** Memoised: a row renders again only when its item, pinned time or retry changes (#321). */
+export const RunChatRow = memo(RunChatRowView);

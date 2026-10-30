@@ -73,7 +73,22 @@ function base(event: RunEvent): ItemBase {
   return { id: `event-${event.id}`, at: event.timestamp };
 }
 
+/**
+ * The items of each event, kept per event (#321): the same event object always gives the same item
+ * objects, so a row whose event has not changed keeps its identity and does not render again.
+ */
+const itemsByEvent = new WeakMap<RunEvent, ChatItem[]>();
+
 function mapEvent(event: RunEvent): ChatItem[] {
+  let items = itemsByEvent.get(event);
+  if (!items) {
+    items = mapEventUncached(event);
+    itemsByEvent.set(event, items);
+  }
+  return items;
+}
+
+function mapEventUncached(event: RunEvent): ChatItem[] {
   const common = base(event);
   switch (event.type) {
     case "status": {
@@ -209,6 +224,18 @@ function mapEvent(event: RunEvent): ChatItem[] {
  * output line that repeats the progress line before it (the loop logs each step both ways),
  * and a stage summary that restates the result before it ("Review approved: Review passed…").
  */
+/** A progress item marked as continuing its iteration, kept per item so its identity is stable. */
+const sameIterationOf = new WeakMap<ChatItem, ChatItem>();
+
+function asSameIteration(item: ChatItem): ChatItem {
+  let marked = sameIterationOf.get(item);
+  if (!marked) {
+    marked = { ...item, sameIteration: true } as ChatItem;
+    sameIterationOf.set(item, marked);
+  }
+  return marked;
+}
+
 function withoutRepeats(items: readonly ChatItem[]): ChatItem[] {
   const kept: ChatItem[] = [];
   let lastStatus: RunStatus | undefined;
@@ -225,7 +252,7 @@ function withoutRepeats(items: readonly ChatItem[]): ChatItem[] {
       const same = item.iteration === lastIteration;
       lastIteration = item.iteration;
       if (same) {
-        kept.push({ ...item, sameIteration: true });
+        kept.push(asSameIteration(item));
         continue;
       }
     }

@@ -28,7 +28,10 @@ import {
   MemoryRouter,
   RouterProvider,
 } from "react-router-dom";
-import { RunChat } from "../src/frontend/components/runs/RunChat.js";
+import {
+  RunChat as RealRunChat,
+  type RunChatProps,
+} from "../src/frontend/components/runs/RunChat.js";
 import { RunDetailsProvider } from "../src/frontend/components/runs/RunDetailsContext.js";
 import { ModalProvider } from "../src/frontend/context/ModalContext.js";
 import {
@@ -75,6 +78,19 @@ function makeRun(status: RunStatus, overrides: Partial<Run> = {}): Run {
     worktreePath: "/tmp/w",
     ...overrides,
   } as Run;
+}
+
+/**
+ * The chat for a run that stands in the stage its status names. A closed stage renders no rows
+ * (#321), so events that carry no status of their own get the run's status first, as a real run's
+ * history does.
+ */
+function RunChat(props: RunChatProps) {
+  const hasStatus = props.events.some((event) => event.type === "status");
+  const events = hasStatus
+    ? props.events
+    : [ev(0, "status", { status: props.run.status }), ...props.events];
+  return <RealRunChat {...props} events={events} />;
 }
 
 function ev(id: number, type: string, payload: unknown, timestamp = AT) {
@@ -188,6 +204,8 @@ describe("the run chat shows real events and nothing invented", () => {
         ]}
       />,
     );
+    // The failure sits in the stage it happened in, which the run has left: open it to read it.
+    fireEvent.click(within(container).getByRole("button", { name: /Prepare/ }));
     const chat = within(log(container));
     expect(chat.getByText("The model call failed.")).toBeTruthy();
     expect(chat.getByText(failure.recovery)).toBeTruthy();
@@ -504,6 +522,11 @@ describe("every kind of run event reads as its own line", () => {
     const { container } = render(
       <RunChat run={makeRun("awaiting_plan_approval")} events={events} />,
     );
+    // The agent updates are folded into one group until it is opened.
+    const group = container.querySelector<HTMLElement>(
+      ".run-chat-group .run-disclosure",
+    );
+    if (group) fireEvent.click(group);
     const chat = within(log(container));
     expect(chat.getByText("The tests cover the change.")).toBeTruthy();
     // The Builder's output and the Builder's chat reply each name the speaker above their text.
@@ -785,6 +808,115 @@ describe("the composer: multi-line, keyboard-first, honest about failures (#263)
       bar.compareDocumentPosition(composer(container)) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+  });
+
+  it("keeps each message until the server confirms it, even when sending the same text twice (#317, user story 15)", async () => {
+    let confirmSend: (() => void) | null = null;
+
+    respond = () =>
+      new Promise((resolve) => {
+        confirmSend = () =>
+          resolve(
+            new Response(JSON.stringify({ ok: true, message: "OK" }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+      });
+
+    // The first message is already in events (from previous send)
+    const run = makeRun("awaiting_plan_approval");
+    const { container, rerender } = render(
+      <RunChat
+        run={run}
+        events={[
+          ev(1, "status", { status: "awaiting_plan_approval" }),
+          ev(2, "chat_user", { text: "Same message" }),
+        ]}
+      />,
+    );
+    const form = composer(container).closest("form") as HTMLFormElement;
+
+    // Send the second message with the exact same text
+    typeInto(composer(container), "Same message");
+    await act(async () => {
+      fireEvent.submit(form);
+    });
+
+    // The second message MUST be visible as a local echo while awaiting confirmation
+    const messages = within(log(container)).getAllByText("Same message");
+    expect(messages).toHaveLength(2);
+
+    // Now server confirms the second message
+    await act(async () => {
+      confirmSend?.();
+    });
+
+    // And second event arrives in events
+    rerender(
+      <RunChat
+        run={run}
+        events={[
+          ev(1, "status", { status: "awaiting_plan_approval" }),
+          ev(2, "chat_user", { text: "Same message" }),
+          ev(3, "chat_user", { text: "Same message" }),
+        ]}
+      />,
+    );
+    const confirmedMessages = within(log(container)).getAllByText(
+      "Same message",
+    );
+    expect(confirmedMessages).toHaveLength(2);
+  });
+
+  it("keeps a sent message after the server accepts it, until its own event arrives (#317, user story 15)", async () => {
+    respond = () =>
+      Promise.resolve(
+        new Response(JSON.stringify({ ok: true, message: "OK" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+    const run = makeRun("awaiting_plan_approval");
+    const { container } = render(
+      <RunChat
+        run={run}
+        events={[ev(1, "status", { status: "awaiting_plan_approval" })]}
+      />,
+    );
+    typeInto(composer(container), "Hold me");
+    await act(async () => {
+      fireEvent.submit(composer(container).closest("form") as HTMLFormElement);
+    });
+    expect(within(log(container)).getAllByText("Hold me")).toHaveLength(1);
+  });
+
+  it("clears the rework hint when the run status changes (#317)", async () => {
+    const run = makeRun("awaiting_review");
+    const { container, rerender } = render(
+      <RunChat run={run} events={[]} onAction={() => {}} />,
+    );
+
+    const reworkButton = within(container).getByRole("button", {
+      name: /request changes/i,
+    });
+    fireEvent.click(reworkButton);
+
+    expect(
+      within(container).getByText(
+        "Describe the changes needed. Your next message goes back to planning.",
+      ),
+    ).toBeTruthy();
+
+    rerender(
+      <RunChat run={makeRun("planning")} events={[]} onAction={() => {}} />,
+    );
+
+    expect(
+      within(container).queryByText(
+        "Describe the changes needed. Your next message goes back to planning.",
+      ),
+    ).toBeNull();
   });
 });
 

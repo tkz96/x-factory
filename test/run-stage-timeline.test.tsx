@@ -171,7 +171,9 @@ describe("RunStageTimeline", () => {
   });
 
   it("shows the stage's items inside its body, and Nothing yet. for an empty stage", () => {
-    const { container } = renderTimeline();
+    const { container } = renderTimeline({
+      open: new Set<WorkflowStage>(["plan", "execute"]),
+    });
     const plan = stageItem(container, "plan");
     expect(within(plan).getByText("Drafting the plan")).toBeTruthy();
     expect(plan.querySelector(".run-stage-empty")).toBeNull();
