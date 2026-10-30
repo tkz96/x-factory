@@ -7,10 +7,7 @@ import { formatRelativeTime } from "../../lib/format-timestamp.js";
 import { FAILURE_CATEGORY_LABEL, type RunNow } from "../../lib/run-now.js";
 import { STATUS_COPY } from "../feedback/copy-map.js";
 import { Card } from "../ui/Card.js";
-import {
-  type CheckpointAction,
-  RunCheckpointBar,
-} from "./RunCheckpointBar.js";
+import { type CheckpointAction, RunCheckpointBar } from "./RunCheckpointBar.js";
 
 interface RunTerminalCardProps {
   run: Run;

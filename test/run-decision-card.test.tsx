@@ -11,7 +11,12 @@ import { afterAll, afterEach, describe, expect, it } from "bun:test";
 import { cleanup, render, within } from "@testing-library/react";
 import { RunDecisionCard } from "../src/frontend/components/runs/RunDecisionCard.js";
 import { runNow } from "../src/frontend/lib/run-now.js";
-import type { ReviewResult, Run, RunEvent, RunStatus } from "../src/shared/types.js";
+import type {
+  ReviewResult,
+  Run,
+  RunEvent,
+  RunStatus,
+} from "../src/shared/types.js";
 
 afterEach(() => {
   cleanup();
@@ -216,7 +221,9 @@ describe("the terminal card", () => {
     const card = within(container);
     expect(card.getByText("Merged")).toBeTruthy();
     expect(
-      card.getByRole("link", { name: /Open Pull Request/ }).getAttribute("href"),
+      card
+        .getByRole("link", { name: /Open Pull Request/ })
+        .getAttribute("href"),
     ).toBe("https://gh/pr/1");
   });
 

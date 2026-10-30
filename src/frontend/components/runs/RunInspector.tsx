@@ -7,6 +7,7 @@ import "./RunInspector.css";
 
 import { type ReactNode, useState } from "react";
 import { reviewCriterionStatus } from "../../../shared/review-criterion-status.js";
+import { TERMINAL_RUN_STATUSES } from "../../../shared/run-status-policy.js";
 import type {
   ModelRoleName,
   ReviewResult,
@@ -53,6 +54,7 @@ interface Verdict {
 const VERDICT_PASS: Verdict = { text: "Pass", tone: "pass" };
 const VERDICT_FAIL: Verdict = { text: "Fail", tone: "fail" };
 const VERDICT_AWAITING: Verdict = { text: "Awaiting", tone: "muted" };
+const VERDICT_NOT_RUN: Verdict = { text: "Not run", tone: "muted" };
 const VERDICT_NOT_ASSESSED: Verdict = { text: "Not assessed", tone: "muted" };
 
 const MODEL_ROLES: readonly { role: ModelRoleName; label: string }[] = [
@@ -74,14 +76,16 @@ function pullRequestLabel(url: string): string {
 function evidenceChecks(
   verification: VerificationResult | null,
   review: ReviewResult | null,
+  finished: boolean,
 ): { key: string; label: string; verdict: Verdict }[] {
+  // A finished run with no result never ran the check; a running one has not got there yet.
+  const pending = finished ? VERDICT_NOT_RUN : VERDICT_AWAITING;
   let tests: Verdict = VERDICT_PASS;
-  if (verification === null) tests = VERDICT_AWAITING;
+  if (verification === null) tests = pending;
   else if (!verification.passed) tests = VERDICT_FAIL;
-  else if (verification.tests?.skipped === true)
-    tests = { text: "Not run", tone: "muted" };
+  else if (verification.tests?.skipped === true) tests = VERDICT_NOT_RUN;
 
-  let reviewVerdict: Verdict = VERDICT_AWAITING;
+  let reviewVerdict: Verdict = pending;
   if (review !== null)
     reviewVerdict = review.passed ? VERDICT_PASS : VERDICT_FAIL;
 
@@ -200,7 +204,11 @@ function RunDetailsPane({ run, events, connected }: RunInspectorProps) {
   const files = parseDiffToFiles(run.diff);
   const totalAdded = files.reduce((sum, file) => sum + file.added, 0);
   const totalRemoved = files.reduce((sum, file) => sum + file.removed, 0);
-  const checks = evidenceChecks(run.verification, run.review);
+  const checks = evidenceChecks(
+    run.verification,
+    run.review,
+    TERMINAL_RUN_STATUSES.has(run.status),
+  );
   const pullRequest = run.pullRequest;
   const ticketUrl = run.ticket.url;
   const logCount = `${events.length} ${plural(events.length, "event", "events")}`;

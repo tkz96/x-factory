@@ -3,7 +3,11 @@
 
 import type { ReactNode } from "react";
 import { TERMINAL_RUN_STATUSES } from "../../../shared/run-status-policy.js";
-import type { Run, RunEvent } from "../../../shared/types.js";
+import type {
+  PullRequestOutcome,
+  Run,
+  RunEvent,
+} from "../../../shared/types.js";
 import { useNow } from "../../hooks/useNow.js";
 import {
   isWaitingForWorker,
@@ -19,6 +23,7 @@ import {
   runStatusTone,
   runStatusUi,
 } from "../../lib/run-status-ui.js";
+import { STATUS_COPY } from "../feedback/copy-map.js";
 import { Badge } from "../ui/Badge.js";
 import { Button } from "../ui/Button.js";
 import { IconButton } from "../ui/IconButton.js";
@@ -27,6 +32,8 @@ interface RunChatHeaderProps {
   run: Run;
   events: RunEvent[];
   groups: StageGroup[];
+  /** The pull request's outcome, so the header says what the card and Run details say. */
+  pullRequestOutcome?: PullRequestOutcome | null;
   /** Phone width: the count is left out and the expand control is an icon. */
   narrow: boolean;
   allOpen: boolean;
@@ -62,6 +69,7 @@ export function RunChatHeader({
   run,
   events,
   groups,
+  pullRequestOutcome = null,
   narrow,
   allOpen,
   onToggleAll,
@@ -71,7 +79,23 @@ export function RunChatHeader({
   // The header's clock stops at a finished run or one that waits on the reader.
   const waiting = NEEDS_YOU_STATUSES.has(run.status);
   const live = !TERMINAL_RUN_STATUSES.has(run.status) && !waiting;
-  const lastEventAt = events.at(-1)?.timestamp ?? run.updatedAt;
+  // The clock stops at the terminal status; a later merge or close does not extend it.
+  const endedAt =
+    events.findLast(
+      (event) =>
+        event.type === "status" &&
+        TERMINAL_RUN_STATUSES.has(event.payload.status),
+    )?.timestamp ??
+    events.at(-1)?.timestamp ??
+    run.updatedAt;
+  const outcomeLabel =
+    run.status === "pr_created" && pullRequestOutcome
+      ? pullRequestOutcome.status === "merged"
+        ? STATUS_COPY.prMerged
+        : pullRequestOutcome.status === "closed"
+          ? STATUS_COPY.prClosedUnmerged
+          : null
+      : null;
   const expandLabel = allOpen ? "Collapse all" : "Expand all";
 
   return (
@@ -83,13 +107,10 @@ export function RunChatHeader({
             ? "Needs you"
             : isWaitingForWorker(run)
               ? WAITING_FOR_WORKER_TITLE
-              : ui.label}
+              : (outcomeLabel ?? ui.label)}
         </span>
       </Badge>
-      <RunElapsed
-        startedAt={run.startedAt}
-        endedAt={live ? null : lastEventAt}
-      />
+      <RunElapsed startedAt={run.startedAt} endedAt={live ? null : endedAt} />
       {/* At phone width the count is left out: the stage list says the same per stage. */}
       {!narrow && (
         <span className="run-chat-progress-count text-caption-1">
