@@ -218,6 +218,15 @@ export function RunChat({
 
   const failure = chat.shownFailure;
   const facts = runNow(run, events);
+  // The header's clock stops at the terminal status; a later merge or close does not extend it.
+  const lastEventAt =
+    events.findLast(
+      (event) =>
+        event.type === "status" &&
+        TERMINAL_RUN_STATUSES.has(event.payload.status),
+    )?.timestamp ??
+    events.at(-1)?.timestamp ??
+    null;
   const emptyStageNote = run.waitingForWorker
     ? "Waiting for a worker"
     : facts.title;
@@ -238,7 +247,7 @@ export function RunChat({
     <div className="run-panel run-chat" id="understanding-chat">
       <RunChatHeader
         run={run}
-        events={events}
+        lastEventAt={lastEventAt}
         pullRequestOutcome={facts.pullRequestOutcome}
         narrow={narrow}
         allOpen={stages.allOpen}

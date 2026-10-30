@@ -3,11 +3,7 @@
 
 import type { ReactNode } from "react";
 import { TERMINAL_RUN_STATUSES } from "../../../shared/run-status-policy.js";
-import type {
-  PullRequestOutcome,
-  Run,
-  RunEvent,
-} from "../../../shared/types.js";
+import type { PullRequestOutcome, Run } from "../../../shared/types.js";
 import { useNow } from "../../hooks/useNow.js";
 import {
   isWaitingForWorker,
@@ -26,7 +22,8 @@ import { IconButton } from "../ui/IconButton.js";
 
 interface RunChatHeaderProps {
   run: Run;
-  events: RunEvent[];
+  /** The time the clock stops at: the terminal status's event, else the last event (#312 ticket 10). */
+  lastEventAt: string | null;
   /** The pull request's outcome, so the header says what the card and Run details say. */
   pullRequestOutcome?: PullRequestOutcome | null;
   /** Phone width: the expand control is an icon. */
@@ -62,7 +59,7 @@ function RunElapsed({
 
 export function RunChatHeader({
   run,
-  events,
+  lastEventAt,
   pullRequestOutcome = null,
   narrow,
   allOpen,
@@ -73,15 +70,7 @@ export function RunChatHeader({
   // The header's clock stops at a finished run or one that waits on the reader.
   const waiting = NEEDS_YOU_STATUSES.has(run.status);
   const live = !TERMINAL_RUN_STATUSES.has(run.status) && !waiting;
-  // The clock stops at the terminal status; a later merge or close does not extend it.
-  const endedAt =
-    events.findLast(
-      (event) =>
-        event.type === "status" &&
-        TERMINAL_RUN_STATUSES.has(event.payload.status),
-    )?.timestamp ??
-    events.at(-1)?.timestamp ??
-    run.updatedAt;
+  const endedAt = lastEventAt ?? run.updatedAt;
   const outcomeLabel =
     run.status === "pr_created" && pullRequestOutcome
       ? pullRequestOutcome.status === "merged"
