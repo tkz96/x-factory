@@ -8,15 +8,12 @@ import "./RunNowHeader.css";
 import type { Run } from "../../../shared/types.js";
 import { formatRelativeTime } from "../../lib/format-timestamp.js";
 import type { RunNow } from "../../lib/run-now.js";
+import { plural } from "../../lib/plural.js";
 import { MarkdownBlock } from "../MarkdownBlock.js";
 
 export interface RunNowHeaderProps {
   run: Run;
   now: RunNow;
-}
-
-function plural(count: number, one: string, many: string): string {
-  return count === 1 ? one : many;
 }
 
 export function RunNowHeader({ run, now }: RunNowHeaderProps) {

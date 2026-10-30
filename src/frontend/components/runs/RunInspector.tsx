@@ -20,6 +20,7 @@ import type {
   VerificationResult,
 } from "../../../shared/types.js";
 import { formatRunDate } from "../../lib/format-timestamp.js";
+import { plural } from "../../lib/plural.js";
 import { usageFor } from "../../lib/run-models.js";
 import {
   DialogBody,
@@ -60,10 +61,6 @@ const MODEL_ROLES: readonly { role: ModelRoleName; label: string }[] = [
   { role: "builder", label: "Builder" },
   { role: "reviewer", label: "Reviewer" },
 ];
-
-function plural(count: number, one: string, many: string): string {
-  return count === 1 ? one : many;
-}
 
 /** "#12" for a GitHub-style pull request URL; the URL itself otherwise. */
 function pullRequestLabel(url: string): string {

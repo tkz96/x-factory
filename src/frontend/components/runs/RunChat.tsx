@@ -162,7 +162,7 @@ export function RunChat({
   });
   const [input, setInput] = useState("");
 
-  const isApprovalGate = canRunAction(run.status, "chat");
+  const canChat = canRunAction(run.status, "chat");
   const finished = TERMINAL_RUN_STATUSES.has(run.status);
   const items = chatItemsFor(realItems, chat.localItems, run.status);
 
@@ -176,7 +176,7 @@ export function RunChat({
   // Return and Mod-Enter send; Shift-Return is a new line (see RunChatComposer).
   const submitInput = () => {
     const text = input.trim();
-    if (!text || chat.sending || !isApprovalGate || pending !== null) return;
+    if (!text || chat.sending || !canChat || pending !== null) return;
     setInput("");
 
     if (flow.reworkPrompt) {
@@ -200,10 +200,10 @@ export function RunChat({
   const ui = runStatusUi(run.status);
   const placeholderText = flow.reworkPrompt
     ? "Describe the changes needed before replanning…"
-    : isApprovalGate
+    : canChat
       ? ui.placeholder
       : "Message the Builder…";
-  const canRetry = isApprovalGate && !chat.sending && pending === null;
+  const canRetry = canChat && !chat.sending && pending === null;
 
   // A trailing error can be retried. Lines the reader just made here do not count as coming after
   // it, and when no earlier message is in the chat the message sent from this view goes again.
@@ -277,9 +277,9 @@ export function RunChat({
           onChange={setInput}
           onSend={submitInput}
           placeholder={placeholderText}
-          inputDisabled={!isApprovalGate || pending !== null}
+          inputDisabled={!canChat || pending !== null}
           sendDisabled={
-            !isApprovalGate || !input.trim() || chat.sending || pending !== null
+            !canChat || !input.trim() || chat.sending || pending !== null
           }
         />
       )}
