@@ -270,6 +270,40 @@ describe("useRunDetail (#191)", () => {
     cleanup();
   });
 
+  it("judges each run's own stream by that run's status when the page moves to another run (#317)", () => {
+    FakeEventSource.instances = [];
+    const finishedId = "run-hook-prev-finished";
+    const activeId = "run-hook-next-active";
+    const client = new QueryClient();
+    client.setQueryData(
+      queryKeys.run(finishedId),
+      runSnapshot(finishedId, "pr_created"),
+    );
+    client.setQueryData(
+      queryKeys.run(activeId),
+      runSnapshot(activeId, "executing"),
+    );
+    const tree = (id: string) =>
+      React.createElement(
+        QueryClientProvider,
+        { client },
+        React.createElement(Probe, { runId: id }),
+      );
+    const view = render(tree(finishedId));
+    view.rerender(tree(activeId));
+    const source = FakeEventSource.instances.find((s) =>
+      s.url.includes(activeId),
+    );
+    act(() => {
+      source?.onerror?.();
+    });
+    // The active run keeps its stream and reports the retry; the earlier run's replay-only mode must not leak.
+    expect(source?.closed).toBe(false);
+    expect(view.getByTestId("probe").textContent).toContain("reconnecting");
+    view.unmount();
+    cleanup();
+  });
+
   it("starts the stream from lastAppliedId when events are already in cache (#317)", () => {
     FakeEventSource.instances = [];
     const runId = "run-last-applied";

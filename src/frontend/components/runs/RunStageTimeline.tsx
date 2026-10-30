@@ -173,31 +173,36 @@ export function RunStageTimeline({
                 />
               )}
             </span>
-            <RunDisclosure
-              id={headId}
-              controls={bodyId}
-              isOpen={isOpen}
-              onToggle={() => onToggle(group.stage)}
-              className="run-stage-header"
-            >
-              <span className="run-stage-label text-headline">
-                {group.label}
-              </span>
-              {group.tookMs !== null && (
-                <span className="run-stage-took text-footnote">
-                  {`Took ${formatTook(group.tookMs)}`}
+            <h3 className="run-stage-heading text-headline">
+              <RunDisclosure
+                id={headId}
+                controls={bodyId}
+                isOpen={isOpen}
+                onToggle={() => onToggle(group.stage)}
+                className="run-stage-header"
+              >
+                <span className="run-stage-label text-headline">
+                  {group.label}
                 </span>
-              )}
-              {statusText && (
-                <Badge tone={statusText.tone}>{statusText.text}</Badge>
-              )}
-            </RunDisclosure>
+                {group.tookMs !== null && (
+                  <span className="run-stage-took text-footnote">
+                    {`Took ${formatTook(group.tookMs)}`}
+                  </span>
+                )}
+                {statusText && (
+                  <Badge tone={statusText.tone}>{statusText.text}</Badge>
+                )}
+              </RunDisclosure>
+            </h3>
+            {/* The decision card sits directly after the stage's header, outside
+                the collapsible body (#312 ticket 3). */}
             {holdsDecision && (
               <div className="run-stage-decision">{decision}</div>
             )}
-            <section
+            {/* Plain content under the heading: a labelled <section> would be a
+                region, and six landmarks drown the heading path (#319, US20). */}
+            <div
               id={bodyId}
-              aria-labelledby={headId}
               className="run-stage-body"
               data-open={isOpen ? "true" : "false"}
               inert={!isOpen}
@@ -226,7 +231,7 @@ export function RunStageTimeline({
                   </>
                 )}
               </div>
-            </section>
+            </div>
           </li>
         );
       })}

@@ -103,10 +103,9 @@
   white-space: nowrap;
 }
 
-.run-chat-progress-count {
+/* The expand control sits at the end of the strip. */
+.run-chat-expand {
   margin-inline-start: auto;
-  color: var(--text-muted);
-  white-space: nowrap;
 }
 
 /* The tips tooltip is a sentence or two: it wraps rather than running across the panel. */
@@ -249,11 +248,11 @@
 }
 
 .run-chat-system-warning {
-  color: var(--orange);
+  color: var(--orange-text);
 }
 
 .run-chat-system-error {
-  color: var(--red);
+  color: var(--red-text);
 }
 
 .run-chat-failure {
@@ -317,6 +316,19 @@
   transform: none;
 }
 
+/* A finger's target: the line is flush on desktop, but at phone width or under a
+   touch pointer every summary line — button and plain line alike — is at least
+   --tap-min tall (US21, #319). */
+@media (any-pointer: coarse), (max-width: 768px) {
+  .ui-button.run-chat-summary {
+    min-height: var(--tap-min);
+  }
+
+  .run-chat-summary {
+    min-height: var(--tap-min);
+  }
+}
+
 .run-chat-summary-icon {
   flex: none;
   color: var(--text-secondary);
@@ -359,11 +371,16 @@
 }
 
 .run-chat-add {
-  color: var(--green);
+  color: var(--green-text);
 }
 
 .run-chat-remove {
-  color: var(--red);
+  color: var(--red-text);
+}
+
+.run-chat-add.run-chat-zero,
+.run-chat-remove.run-chat-zero {
+  color: var(--text-secondary);
 }
 
 .run-chat-progress {

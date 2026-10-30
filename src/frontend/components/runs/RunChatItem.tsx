@@ -148,6 +148,11 @@ function SystemLine({
   );
 }
 
+/** A count of nothing is not a change: it takes the secondary color. */
+function zeroClass(base: string, count: number): string {
+  return count === 0 ? `${base} run-chat-zero` : base;
+}
+
 export function RunChatItemView({ item, now, onRetry }: RunChatItemProps) {
   switch (item.kind) {
     case "status":
@@ -200,8 +205,12 @@ export function RunChatItemView({ item, now, onRetry }: RunChatItemProps) {
         >
           {`${files.length} ${files.length === 1 ? "file" : "files"} changed`}
           <span className="run-chat-summary-counts">
-            <span className="run-chat-add">{`+${totalAdded}`}</span>
-            <span className="run-chat-remove">{`−${totalRemoved}`}</span>
+            <span
+              className={zeroClass("run-chat-add", totalAdded)}
+            >{`+${totalAdded}`}</span>
+            <span
+              className={zeroClass("run-chat-remove", totalRemoved)}
+            >{`−${totalRemoved}`}</span>
           </span>
         </SummaryLine>
       );
@@ -239,7 +248,9 @@ export function RunChatItemView({ item, now, onRetry }: RunChatItemProps) {
     case "progress":
       return (
         <div className="run-chat-system run-chat-progress" data-kind="progress">
-          <Badge className="run-chat-badge">Iteration {item.iteration}</Badge>
+          {!item.sameIteration && (
+            <Badge className="run-chat-badge">Iteration {item.iteration}</Badge>
+          )}
           <span className="run-chat-system-text">{item.text}</span>
           <RunTime at={item.at} now={now} />
         </div>

@@ -81,8 +81,11 @@ function ev(id: number, type: string, payload: unknown, timestamp = AT) {
   return { id, type, payload, timestamp } as unknown as RunEvent;
 }
 
+/** The scrolling timeline (no longer a live role, #319: its scope is one status node). */
 function log(container: HTMLElement) {
-  return within(container).getByRole("log");
+  const messages = container.querySelector<HTMLElement>(".run-chat-messages");
+  if (!messages) throw new Error("no timeline");
+  return messages;
 }
 
 const json = (body: unknown) =>
@@ -317,12 +320,16 @@ describe("scroll position and Jump to Latest", () => {
     ).toBeNull();
   });
 
-  it("only announces new items, and only additions", () => {
+  it("keeps the log out of any live region and announces through the status node", () => {
     const { container } = render(
       <RunChat run={makeRun("executing")} events={[]} />,
     );
-    expect(log(container).getAttribute("aria-relevant")).toBe("additions");
-    expect(log(container).getAttribute("aria-live")).toBe("polite");
+    // The timeline is no longer one live region (#319): a single small status
+    // node carries what changes, so progress lines are never announced.
+    expect(log(container).getAttribute("aria-live")).toBeNull();
+    expect(log(container).getAttribute("aria-relevant")).toBeNull();
+    expect(log(container).getAttribute("role")).not.toBe("log");
+    expect(container.querySelector('.sr-only[role="status"]')).not.toBeNull();
   });
 });
 
@@ -837,6 +844,28 @@ describe("the composer: multi-line, keyboard-first, honest about failures (#263)
       "Same message",
     );
     expect(confirmedMessages).toHaveLength(2);
+  });
+
+  it("keeps a sent message after the server accepts it, until its own event arrives (#317, user story 15)", async () => {
+    respond = () =>
+      Promise.resolve(
+        new Response(JSON.stringify({ ok: true, message: "OK" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+    const run = makeRun("awaiting_plan_approval");
+    const { container } = render(
+      <RunChat
+        run={run}
+        events={[ev(1, "status", { status: "awaiting_plan_approval" })]}
+      />,
+    );
+    typeInto(composer(container), "Hold me");
+    await act(async () => {
+      fireEvent.submit(composer(container).closest("form") as HTMLFormElement);
+    });
+    expect(within(log(container)).getAllByText("Hold me")).toHaveLength(1);
   });
 
   it("clears the rework hint when the run status changes (#317)", async () => {

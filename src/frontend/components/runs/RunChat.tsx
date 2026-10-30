@@ -14,6 +14,7 @@ import { useNow } from "../../hooks/useNow.js";
 import {
   type ChatItem,
   mapEventsToChatItems,
+  PULL_REQUEST_LINK_TEXT,
 } from "../../lib/run-chat-items.js";
 import { runNow } from "../../lib/run-now.js";
 import { groupItemsByStage, type StageGroup } from "../../lib/run-stages.js";
@@ -73,25 +74,26 @@ function chatItemsFor(
   realItems: ChatItem[],
   localItems: ChatItem[],
   status: RunStatus,
+  baselines: ReadonlyMap<string, number>,
 ): ChatItem[] {
-  // A real message matches at most one local echo created before it (#317).
-  const unmatchedRealUserMessages = realItems.filter(isUserMessage);
-  const matchedRealIds = new Set<string>();
-
+  // An echo clears only when the run's own copy of it arrives (#317): for each text, the copies
+  // beyond the count at send time confirm that text's echoes, oldest first, one copy for one echo.
+  const realCounts = new Map<string, number>();
+  for (const real of realItems.filter(isUserMessage)) {
+    realCounts.set(real.text, (realCounts.get(real.text) ?? 0) + 1);
+  }
+  const confirmedLeft = new Map<string, number>();
   const visibleLocalItems = localItems.filter((local) => {
     if (!isUserMessage(local)) return true;
-    const matchIndex = unmatchedRealUserMessages.findIndex(
-      (real) =>
-        !matchedRealIds.has(real.id) &&
-        real.text === local.text &&
-        new Date(real.at).getTime() >= new Date(local.at).getTime(),
-    );
-    if (matchIndex !== -1) {
-      const matched = unmatchedRealUserMessages[matchIndex];
-      if (matched) matchedRealIds.add(matched.id);
-      return false;
+    let left = confirmedLeft.get(local.text);
+    if (left === undefined) {
+      left = Math.max(
+        0,
+        (realCounts.get(local.text) ?? 0) - (baselines.get(local.id) ?? 0),
+      );
     }
-    return true;
+    confirmedLeft.set(local.text, Math.max(0, left - 1));
+    return left <= 0;
   });
 
   const lastStatus = realItems.findLast((i) => i.kind === "status");
@@ -128,6 +130,30 @@ function withoutRepeatedStatus(
   );
 }
 
+/**
+ * The groups without what Deliver says a second time: the pull request card names the pull request,
+ * so the bare "Pull request link" notice and the evidence line of Deliver are dropped. The stages
+ * stay as they were.
+ */
+function withoutRepeatedDeliver(
+  groups: StageGroup[],
+  namedByCard: boolean,
+): StageGroup[] {
+  if (!namedByCard) return groups;
+  return groups.map((group) =>
+    group.stage === "deliver"
+      ? {
+          ...group,
+          items: group.items.filter(
+            (item) =>
+              item.kind !== "evidence" &&
+              !(item.kind === "notice" && item.text === PULL_REQUEST_LINK_TEXT),
+          ),
+        }
+      : group,
+  );
+}
+
 /** The label of the stage a failed run failed in, or null. */
 function failedStageLabel(groups: readonly StageGroup[]): string | null {
   return groups.find((group) => group.state === "failed")?.label ?? null;
@@ -146,7 +172,12 @@ export function RunChat({
   const narrow = useMediaQuery(PHONE_QUERY);
   const realItems = useMemo(() => mapEventsToChatItems(events), [events]);
   const errorCount = realItems.filter((i) => i.kind === "error").length;
-  const chat = useRunChatSend(run.id, errorCount);
+  const chat = useRunChatSend(
+    run.id,
+    errorCount,
+    (text) =>
+      realItems.filter((i) => isUserMessage(i) && i.text === text).length,
+  );
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const flow = useCheckpointFlow({
     status: run.status,
@@ -168,12 +199,17 @@ export function RunChat({
     }
   }, [run.status, chat]);
 
-  const items = chatItemsFor(realItems, chat.localItems, run.status);
+  const items = chatItemsFor(
+    realItems,
+    chat.localItems,
+    run.status,
+    chat.baselines,
+  );
 
   // The six stages, and which of them are open.
-  const groups = withoutRepeatedStatus(
-    groupItemsByStage(items, run, events),
-    run.status,
+  const groups = withoutRepeatedDeliver(
+    withoutRepeatedStatus(groupItemsByStage(items, run, events), run.status),
+    run.status === "pr_created",
   );
   const stages = useStageOpenState(groups);
 
@@ -243,7 +279,6 @@ export function RunChat({
       <RunChatHeader
         run={run}
         events={events}
-        groups={groups}
         pullRequestOutcome={facts.pullRequestOutcome}
         narrow={narrow}
         allOpen={stages.allOpen}
@@ -270,6 +305,7 @@ export function RunChat({
         }
         resolved={flow.resolved}
         sending={chat.sending}
+        waiting={NEEDS_YOU_STATUSES.has(run.status)}
         eventsLoaded={eventsLoaded}
         emptyStageNote={emptyStageNote}
       />

@@ -35,11 +35,11 @@ export function useRunDetail(runId: string | null | undefined) {
   // The subscription depends on the run's id and whether the snapshot is loaded.
   // It does not restart when the run becomes terminal (#317).
   const loaded = plan !== null;
-  const initialReplayOnlyRef = useRef(false);
-  const replayCapturedRef = useRef(false);
-  if (loaded && !replayCapturedRef.current && plan) {
-    replayCapturedRef.current = true;
-    initialReplayOnlyRef.current = plan.replayOnly;
+  // Whether the run was finished when its stream first opened: kept per run, so a later status
+  // change does not reopen the stream and another run does not inherit it.
+  const replayRef = useRef<{ runId: string; replayOnly: boolean } | null>(null);
+  if (loaded && plan && replayRef.current?.runId !== runId) {
+    replayRef.current = { runId: runId ?? "", replayOnly: plan.replayOnly };
   }
 
   useEffect(() => {
@@ -47,7 +47,7 @@ export function useRunDetail(runId: string | null | undefined) {
     return subscribeRunEvents({
       queryClient,
       runId,
-      replayOnly: initialReplayOnlyRef.current,
+      replayOnly: replayRef.current?.replayOnly ?? false,
       onConnectionChange: (live) => {
         setConnected(live);
         if (live) setOpenedRunId(runId);

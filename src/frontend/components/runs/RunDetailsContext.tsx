@@ -12,6 +12,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { scrollBehavior } from "../../hooks/scroll-behavior.js";
@@ -51,27 +52,47 @@ export function RunDetailsProvider({
 }) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [pending, setPending] = useState<RunDetailsSection | null>(null);
+  /** The control that asked for the sheet, remembered while it is open (US20, #319). */
+  const openerRef = useRef<HTMLElement | null>(null);
 
   // At phone width the section exists only once the sheet has rendered.
   useEffect(() => {
     if (pending && reveal(pending)) setPending(null);
-  });
+  }, [pending]);
+
+  // Closing the sheet hands focus back to the control that opened it.
+  useEffect(() => {
+    if (sheetOpen) return;
+    const opener = openerRef.current;
+    openerRef.current = null;
+    if (opener?.isConnected) opener.focus();
+  }, [sheetOpen]);
+
+  // Opened from a press: the active element is that press's control, captured
+  // before any effect moves focus into the sheet. Closing leaves the opener for
+  // the restore effect above to hand focus back.
+  const openSheet = useCallback((open: boolean) => {
+    if (open && document.activeElement instanceof HTMLElement) {
+      openerRef.current = document.activeElement;
+    }
+    setSheetOpen(open);
+  }, []);
 
   const showDetails = useCallback(
     (section: RunDetailsSection) => {
       if (isPhone) {
-        setSheetOpen(true);
+        openSheet(true);
         setPending(section);
       } else {
         reveal(section);
       }
     },
-    [isPhone],
+    [isPhone, openSheet],
   );
 
   const value = useMemo(
-    () => ({ showDetails, sheetOpen, setSheetOpen }),
-    [showDetails, sheetOpen],
+    () => ({ showDetails, sheetOpen, setSheetOpen: openSheet }),
+    [showDetails, sheetOpen, openSheet],
   );
   return (
     <RunDetailsContext.Provider value={value}>
