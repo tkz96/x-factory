@@ -10,6 +10,7 @@ registerHappyDom();
 
 import { afterAll, afterEach, describe, expect, it } from "bun:test";
 import { cleanup, render } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { RunChatLog } from "../src/frontend/components/runs/RunChatLog.js";
 import type { ChatItem } from "../src/frontend/lib/run-chat-items.js";
 import type { StageGroup, StageState } from "../src/frontend/lib/run-stages.js";
@@ -29,7 +30,13 @@ const NOW = Date.parse("2026-10-20T10:05:00.000Z");
 const LIVE_ROLES = new Set(["alert", "log", "marquee", "status", "timer"]);
 
 function message(id: string, text: string): ChatItem {
-  return { id, at: "2026-10-20T10:00:00.000Z", kind: "message", role: "user", text };
+  return {
+    id,
+    at: "2026-10-20T10:00:00.000Z",
+    kind: "message",
+    role: "user",
+    text,
+  };
 }
 
 function group(
@@ -68,6 +75,7 @@ function renderLog(overrides: Partial<Parameters<typeof RunChatLog>[0]> = {}) {
     onToggleStage: () => {},
     now: NOW,
     retryFor: () => undefined,
+    decision: null as ReactNode,
     waiting: false,
     failure: null,
     resolved: null,

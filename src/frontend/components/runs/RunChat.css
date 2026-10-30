@@ -290,6 +290,19 @@
   transform: none;
 }
 
+/* A finger's target: the line is flush on desktop, but at phone width or under a
+   touch pointer every summary line — button and plain line alike — is at least
+   --tap-min tall (US21, #319). */
+@media (any-pointer: coarse), (max-width: 768px) {
+  .ui-button.run-chat-summary {
+    min-height: var(--tap-min);
+  }
+
+  .run-chat-summary {
+    min-height: var(--tap-min);
+  }
+}
+
 .run-chat-summary-icon {
   flex: none;
   color: var(--text-secondary);

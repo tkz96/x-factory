@@ -189,7 +189,10 @@ export function RunStageTimeline({
                 )}
                 {isCurrent && waiting && (
                   <Badge tone="warning">
-                    <span className="run-stage-waiting-dot" aria-hidden="true" />
+                    <span
+                      className="run-stage-waiting-dot"
+                      aria-hidden="true"
+                    />
                     {STATUS_COPY.waitingForYou}
                   </Badge>
                 )}

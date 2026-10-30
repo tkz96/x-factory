@@ -1,7 +1,7 @@
 // src/frontend/components/runs/RunChatComposer.tsx — The run chat's message box: the textarea (Return
 // sends, Shift-Return adds a line, Mod-Return sends), the tips tooltip, and the send button.
 
-import { useId, type KeyboardEvent, type RefObject } from "react";
+import { type KeyboardEvent, type RefObject, useId } from "react";
 import { Tooltip, TooltipTrigger } from "../overlays/Tooltip.js";
 import { IconButton } from "../ui/IconButton.js";
 
