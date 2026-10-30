@@ -1,288 +1,181 @@
 // src/frontend/components/runs/RawLog.tsx — The raw event log, as chat bubbles (#191; renamed from
-// ChatThread, spec #312 ticket 10). It renders the chat items the one mapping gives it, so the raw
-// log and the run chat read events the same way.
+// ChatThread, spec #312 ticket 10). Every line comes from the one event mapping
+// (mapEventsToChatItems) with the stage labels from workflow-stages.ts, so the raw log and the run
+// chat read events the same way, and an event the mapping does not know is dropped, never shown as
+// invented text. The log scrolls only while the reader is at the end.
 
-import { stageLabel, stageStartedText } from "../../lib/run-models.js";
-import { runStatusText } from "../../lib/run-status-ui.js";
 import "./RawLog.css";
 
-import { useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useMemo, useRef } from "react";
 import type { RunEvent } from "../../../shared/types.js";
 import { formatTimestamp } from "../../lib/format-timestamp.js";
-import { Badge } from "../ui/Badge.js";
+import {
+  type ChatItem,
+  mapEventsToChatItems,
+} from "../../lib/run-chat-items.js";
+import { Badge, type BadgeTone } from "../ui/Badge.js";
 import { EmptyState } from "../ui/EmptyState.js";
 
 export interface RawLogProps {
   events: RunEvent[];
 }
 
-function renderStatusBubble(item: RunEvent<"status">) {
-  const { status, text } = item.payload;
+/** How close to the bottom still counts as following the log. */
+const AT_BOTTOM_PX = 48;
+
+interface BubbleStyle {
+  className: string;
+  /** The bubble's text line, when the item has one. */
+  text?: string | undefined;
+  /** The badge word, when the item names what kind of line it is. */
+  badge?: string | undefined;
+  tone?: BadgeTone | undefined;
+  /** A plain word beside the badge — a stage label or a role. */
+  head?: string | undefined;
+}
+
+/** One line of the log: its badge and text, and the event's own time. */
+function bubble(item: ChatItem, style: BubbleStyle) {
+  const { className, text, badge, tone, head } = style;
   return (
-    <div key={item.id} className="chat-bubble bubble-system">
-      <div className="chat-bubble-header">
-        <Badge className="chat-bubble-badge">Status</Badge>
-        <span>{runStatusText(status)}</span>
-      </div>
-      <div className="chat-bubble-body">{text ?? ""}</div>
-      <time
-        className="chat-bubble-time text-caption-2"
-        dateTime={item.timestamp}
-      >
-        {formatTimestamp(item.timestamp)}
-      </time>
-    </div>
-  );
-}
-
-function renderEvidenceBubble(item: RunEvent<"stage_evidence">) {
-  const { stage, evidence } = item.payload;
-  return (
-    <div key={item.id} className="chat-bubble bubble-evidence">
-      <div className="chat-bubble-header">
-        <Badge className="chat-bubble-badge">Evidence</Badge>
-        {stage && <strong>{stageLabel(stage)}</strong>}
-      </div>
-      <div className="chat-bubble-body">✓ {evidence}</div>
-      <time
-        className="chat-bubble-time text-caption-2"
-        dateTime={item.timestamp}
-      >
-        {formatTimestamp(item.timestamp)}
-      </time>
-    </div>
-  );
-}
-
-function renderRalphBubble(item: RunEvent<"ralph_progress">) {
-  const { text, iteration } = item.payload;
-  return (
-    <div key={item.id} className="chat-bubble bubble-ralph">
-      <div className="chat-bubble-header">
-        <Badge className="chat-bubble-badge" tone="accent">
-          Progress
-        </Badge>
-        {iteration ? <span>Iteration #{String(iteration)}</span> : null}
-      </div>
-      <div className="chat-bubble-body">{text}</div>
-      <time
-        className="chat-bubble-time text-caption-2"
-        dateTime={item.timestamp}
-      >
-        {formatTimestamp(item.timestamp)}
-      </time>
-    </div>
-  );
-}
-
-function renderPiChunkBubble(item: RunEvent<"pi_output_chunk">) {
-  const { role, text } = item.payload;
-  const isRalph = role === "ralph";
-  const bubbleClass = isRalph
-    ? "chat-bubble bubble-ralph"
-    : "chat-bubble bubble-agent";
-  // The roles the redesign names (#278): the Builder writes, the Reviewer reads.
-  const badgeLabel = role === "reviewer" ? "Reviewer" : "Builder";
-
-  return (
-    <div key={item.id} className={bubbleClass}>
-      <div className="chat-bubble-header">
-        <Badge className="chat-bubble-badge">{badgeLabel}</Badge>
-      </div>
-      <div className="chat-bubble-body">{text}</div>
-      <time
-        className="chat-bubble-time text-caption-2"
-        dateTime={item.timestamp}
-      >
-        {formatTimestamp(item.timestamp)}
-      </time>
-    </div>
-  );
-}
-
-function snippetOf(text: string): string {
-  return text.length > 80 ? `${text.slice(0, 80)}…` : text;
-}
-
-function renderChatUserBubble(item: RunEvent<"chat_user">) {
-  const snippet = snippetOf(item.payload.text);
-  return (
-    <div key={item.id} className="chat-bubble bubble-chat-user">
-      <div className="chat-bubble-header">
-        <Badge className="chat-bubble-badge">Chat</Badge>
-        <strong>User Message Sent</strong>
-      </div>
-      <div className="chat-bubble-body">
-        {snippet || "User sent message in chat"}
-      </div>
-      <time
-        className="chat-bubble-time text-caption-2"
-        dateTime={item.timestamp}
-      >
-        {formatTimestamp(item.timestamp)}
-      </time>
-    </div>
-  );
-}
-
-function renderChatAgentBubble(item: RunEvent<"chat_agent">) {
-  const snippet = snippetOf(item.payload.text);
-  return (
-    <div key={item.id} className="chat-bubble bubble-chat-agent">
-      <div className="chat-bubble-header">
-        <Badge className="chat-bubble-badge">Chat</Badge>
-        <strong>Agent Response Received</strong>
-      </div>
-      <div className="chat-bubble-body">
-        {snippet || "Agent replied in chat"}
-      </div>
-      <time
-        className="chat-bubble-time text-caption-2"
-        dateTime={item.timestamp}
-      >
-        {formatTimestamp(item.timestamp)}
-      </time>
-    </div>
-  );
-}
-
-function renderErrorBubble(item: RunEvent<"error">) {
-  return (
-    <div key={item.id} className="chat-bubble bubble-error">
-      <div className="chat-bubble-header">
-        <Badge className="chat-bubble-badge" tone="error">
-          Error
-        </Badge>
-      </div>
-      <div className="chat-bubble-body">{item.payload.message}</div>
-      <time
-        className="chat-bubble-time text-caption-2"
-        dateTime={item.timestamp}
-      >
-        {formatTimestamp(item.timestamp)}
-      </time>
-    </div>
-  );
-}
-
-function renderInfoBubble(item: RunEvent<"info">) {
-  const text = item.payload.text;
-  if (item.payload.warning === "unsandboxed") {
-    return (
-      <div key={item.id} className="chat-bubble bubble-warning">
+    <div key={item.id} className={`chat-bubble ${className}`}>
+      {(badge || head) && (
         <div className="chat-bubble-header">
-          <Badge className="chat-bubble-badge" tone="warning">
-            Warning
-          </Badge>
+          {badge && (
+            <Badge {...(tone ? { tone } : {})} className="chat-bubble-badge">
+              {badge}
+            </Badge>
+          )}
+          {head && <strong>{head}</strong>}
         </div>
-        <div className="chat-bubble-body">{text}</div>
-        <time
-          className="chat-bubble-time text-caption-2"
-          dateTime={item.timestamp}
-        >
-          {formatTimestamp(item.timestamp)}
-        </time>
-      </div>
-    );
-  }
-  return renderTextBubble(item, text);
-}
-
-function renderTextBubble(item: RunEvent, text: string) {
-  return (
-    <div key={item.id} className="chat-bubble bubble-system">
-      <div className="chat-bubble-body">{text}</div>
-      <time
-        className="chat-bubble-time text-caption-2"
-        dateTime={item.timestamp}
-      >
-        {formatTimestamp(item.timestamp)}
+      )}
+      {text !== undefined && <div className="chat-bubble-body">{text}</div>}
+      <time className="chat-bubble-time text-caption-2" dateTime={item.at}>
+        {formatTimestamp(item.at)}
       </time>
     </div>
   );
 }
 
-/**
- * A type this client does not know, such as a leftover `steer` row from an old database.
- * It renders as a neutral line: the payload's text, its raw string, or its JSON.
- */
-function renderFallbackBubble(item: RunEvent) {
-  const { payload } = item;
-  const text =
-    typeof payload === "string"
-      ? payload
-      : (payloadText(payload) ?? JSON.stringify(payload ?? item));
-  return renderTextBubble(item, text);
-}
-
-function payloadText(payload: unknown): string | undefined {
-  if (payload && typeof payload === "object" && "text" in payload) {
-    return typeof payload.text === "string" ? payload.text : undefined;
-  }
-  return undefined;
-}
-
-/** Renders one event. Each case reads the payload its event type declares, so there are no casts. */
-function renderBubble(item: RunEvent) {
-  switch (item.type) {
+/** Renders one chat item. Each case reads the fields its kind declares, so there are no casts. */
+function bubbleFor(item: ChatItem): ReactNode {
+  switch (item.kind) {
     case "status":
-      return renderStatusBubble(item);
-    case "stage_evidence":
-      return renderEvidenceBubble(item);
-    case "ralph_progress":
-      return renderRalphBubble(item);
-    case "pi_output_chunk":
-      return renderPiChunkBubble(item);
-    case "chat_user":
-      return renderChatUserBubble(item);
-    case "chat_agent":
-      return renderChatAgentBubble(item);
-    case "error":
-      return renderErrorBubble(item);
-    case "info":
-      return renderInfoBubble(item);
-    case "user_feedback":
-      return renderTextBubble(item, item.payload.text);
-    case "pr_step":
-      return renderTextBubble(
-        item,
-        item.payload.text ?? item.payload.url ?? "",
-      );
-    case "stage_started":
-      return renderTextBubble(item, stageStartedText(item.payload));
-    case "verification":
+      return bubble(item, {
+        className: "bubble-system",
+        badge: "Status",
+        head: item.label,
+      });
+    case "plan":
+      return bubble(item, { className: "bubble-system", text: item.plan });
+    case "diff":
+      return bubble(item, {
+        className: "bubble-system",
+        text: `${String(item.summary.files.length)} files · +${String(item.summary.totalAdded)} −${String(item.summary.totalRemoved)}`,
+      });
     case "review":
-      return renderTextBubble(item, JSON.stringify(item.payload));
-    default:
-      return renderFallbackBubble(item);
+      return bubble(item, {
+        className: "bubble-system",
+        text: item.text ?? item.tool ?? "",
+      });
+    case "result":
+      return bubble(item, {
+        className: "bubble-system",
+        text: `${item.title} ${item.passed ? "passed" : "did not pass"}: ${item.summary}`,
+      });
+    case "progress":
+      return bubble(item, {
+        className: "bubble-ralph",
+        badge: "Progress",
+        tone: "accent",
+        head: item.sameIteration
+          ? undefined
+          : `Iteration #${String(item.iteration)}`,
+        text: item.text,
+      });
+    case "output":
+      return bubble(item, {
+        className: "bubble-agent",
+        badge: item.speaker === "reviewer" ? "Reviewer" : "Builder",
+        text: item.text,
+      });
+    case "message":
+      return item.role === "user"
+        ? bubble(item, {
+            className: "bubble-chat-user",
+            badge: "You",
+            text: item.text,
+          })
+        : bubble(item, {
+            className: "bubble-chat-agent",
+            badge: "Agent",
+            text: item.text,
+          });
+    case "evidence":
+      return bubble(item, {
+        className: "bubble-evidence",
+        badge: "Evidence",
+        head: item.stage,
+        text: `✓ ${item.text}`,
+      });
+    case "stage":
+      return bubble(item, { className: "bubble-system", text: item.text });
+    case "notice":
+      return item.warning
+        ? bubble(item, {
+            className: "bubble-warning",
+            badge: "Warning",
+            tone: "warning",
+            text: item.text,
+          })
+        : bubble(item, { className: "bubble-system", text: item.text });
+    case "error":
+      return bubble(item, {
+        className: "bubble-error",
+        badge: "Error",
+        tone: "error",
+        text: item.text,
+      });
   }
 }
 
+/** The raw event log of one run, through the chat items the one mapping gives it. */
 export function RawLog({ events }: RawLogProps) {
+  const items = useMemo(() => mapEventsToChatItems(events), [events]);
   const containerRef = useRef<HTMLDivElement>(null);
+  const atBottomRef = useRef(true);
 
-  // Auto-scroll to bottom on new events
-  // biome-ignore lint/correctness/useExhaustiveDependencies: auto-scroll on new events
+  const onScroll = () => {
+    const el = containerRef.current;
+    if (!el) return;
+    atBottomRef.current =
+      el.scrollHeight - el.scrollTop - el.clientHeight <= AT_BOTTOM_PX;
+  };
+
+  // Follow new events only while the reader is at the end; a reader up the log keeps their place.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: follow new items when the count changes
   useEffect(() => {
-    if (containerRef.current) {
-      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    const el = containerRef.current;
+    if (el && atBottomRef.current) {
+      el.scrollTop = el.scrollHeight;
     }
-  }, [events.length]);
+  }, [items.length]);
 
   return (
     <div
-      id="chat-thread"
+      id="raw-log"
       ref={containerRef}
+      onScroll={onScroll}
       className="chat-thread-container text-subhead"
       aria-live="polite"
       role="log"
     >
-      {events.length === 0 ? (
+      {items.length === 0 ? (
         <div className="chat-thread-note">
           <EmptyState message="Waiting for the first update…" />
         </div>
       ) : (
-        events.map((event) => renderBubble(event))
+        items.map((item) => bubbleFor(item))
       )}
     </div>
   );

@@ -6,8 +6,8 @@
 //   1. HTTP API seam — POST /api/runs/:id/steer returns 404 through handleApi.
 //   2. Worker seam — a leftover steer command row is failed cleanly, never
 //      crash-looped or silently retried.
-//   3. Client run-state seam — a leftover steer event renders as a neutral
-//      fallback in the raw log / EventLogViewer instead of crashing.
+//   3. Client run-state seam — a leftover steer event is dropped by the one
+//      event mapping (mapEventsToChatItems) instead of crashing.
 
 import { afterAll, describe, expect, it } from "bun:test";
 import React from "react";
@@ -159,7 +159,7 @@ describe("Steering removed (#167)", () => {
     expect(commandRepo.getCommand(commandId)?.attempts).toBe(2);
   });
 
-  it("renders a leftover steer event as a neutral fallback", () => {
+  it("drops a leftover steer event from the raw log instead of crashing on it", () => {
     const { db, runRepo, eventRepo } = setupTest();
     const runId = "run-steer-leftover-event";
     createRun(runRepo, runId);
@@ -185,7 +185,11 @@ describe("Steering removed (#167)", () => {
     );
     expect(chatHtml).not.toContain("bubble-steer");
     expect(chatHtml).not.toContain("Steer Action");
-    expect(chatHtml).toContain(message);
+    // The one mapping drops an event type it does not know, so the payload is
+    // never shown as invented text (#312 ticket 10); the log falls to its
+    // waiting state instead of crashing.
+    expect(chatHtml).not.toContain(message);
+    expect(chatHtml).toContain("Waiting for the first update");
 
     // EventLogViewer was deleted in #191 (no production consumer); its steer assertions go with it.
   });

@@ -19,6 +19,7 @@ import { RunChat } from "../src/frontend/components/runs/RunChat.js";
 import { RunCheckpointBar } from "../src/frontend/components/runs/RunCheckpointBar.js";
 import { ModalProvider } from "../src/frontend/context/ModalContext.js";
 import { runStatusUi } from "../src/frontend/lib/run-status-ui.js";
+import { STAGE_LABELS } from "../src/frontend/lib/workflow-stages.js";
 import { TRANSITIONS } from "../src/shared/run-status-policy.js";
 import type { Run, RunEvent, RunStatus } from "../src/shared/types.js";
 
@@ -131,7 +132,7 @@ describe("RawLog wording", () => {
     ];
     const { container } = render(<RawLog events={events} />);
     const text = container.textContent ?? "";
-    expect(text).toContain("Coding");
+    expect(text).toContain(STAGE_LABELS.execute);
     expect(text).not.toContain("EXECUTE");
   });
 
