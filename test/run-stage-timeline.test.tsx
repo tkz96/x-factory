@@ -1,6 +1,6 @@
 // test/run-stage-timeline.test.tsx — The run chat's stage timeline: six stages in order, collapsed stages
 // showing only their header, the controlled open state, the decision inside the current stage, the
-// "Waiting for you" pill, and the default open stage (spec "Left panel: stage timeline").
+// default open stage (spec "Left panel: stage timeline").
 
 /// <reference lib="dom" />
 import { registerHappyDom, unregisterHappyDom } from "./setup-happy-dom.js";
@@ -80,7 +80,6 @@ function renderTimeline(overrides: Partial<RunStageTimelineProps> = {}) {
     open: new Set<WorkflowStage>(["plan"]),
     onToggle: () => {},
     now: NOW,
-    waiting: false,
     ...overrides,
   };
   const result = render(<RunStageTimeline {...props} />);
@@ -225,15 +224,20 @@ describe("RunStageTimeline", () => {
     expect(holder?.getAttribute("data-state")).toBe("failed");
   });
 
-  it("shows the Waiting for you pill on the current stage only when the run waits", () => {
-    const idle = renderTimeline({ waiting: false });
-    expect(idle.queryByText("Waiting for you")).toBeNull();
-    idle.unmount();
+  it("keeps the decision visible when its stage is collapsed, outside the stage body", () => {
+    const { container, getByText } = renderTimeline({
+      open: new Set<WorkflowStage>(),
+      decision: <p>Decision card</p>,
+    });
+    const decision = getByText("Decision card");
+    expect(stageItem(container, "plan").contains(decision)).toBe(true);
+    expect(decision.closest(".run-stage-body")).toBeNull();
+    expect(decision.closest("[inert]")).toBeNull();
+  });
 
-    const { container, getByText } = renderTimeline({ waiting: true });
-    const pill = getByText("Waiting for you");
-    expect(stageItem(container, "plan").contains(pill)).toBe(true);
-    expect(headerOf(container, "plan").contains(pill)).toBe(true);
+  it("does not repeat Needs you as a Waiting for you pill on the stage", () => {
+    const { queryByText } = renderTimeline({ decision: <p>Decision card</p> });
+    expect(queryByText("Waiting for you")).toBeNull();
   });
 
   it("shows Failed for a failed stage and no Took while it is current", () => {

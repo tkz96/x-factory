@@ -14,7 +14,7 @@ import {
 } from "../../lib/run-chat-items.js";
 import { runNow } from "../../lib/run-now.js";
 import { groupItemsByStage } from "../../lib/run-stages.js";
-import { NEEDS_YOU_STATUSES, runStatusUi } from "../../lib/run-status-ui.js";
+import { runStatusUi } from "../../lib/run-status-ui.js";
 import { AlertDialog } from "../overlays/AlertDialog.js";
 import { useMediaQuery } from "../ui/useMediaQuery.js";
 import { RunChatComposer } from "./RunChatComposer.js";
@@ -189,7 +189,6 @@ export function RunChat({
         now={now}
         retryFor={retryFor}
         decision={decision}
-        waiting={NEEDS_YOU_STATUSES.has(run.status)}
         failure={
           failure
             ? {

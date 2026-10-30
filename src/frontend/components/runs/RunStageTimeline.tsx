@@ -30,12 +30,10 @@ export interface RunStageTimelineProps {
   now: number;
   /** The retry offered for a trailing error row, if any. */
   retryFor?: (item: ChatItem) => (() => void) | undefined;
-  /** Rendered at the end of the body of the decision stage (see `defaultDecisionStage`). */
+  /** Rendered after the header of the decision stage (see `defaultDecisionStage`), outside the collapsible body. */
   decision?: ReactNode;
   /** The stage the decision renders in; defaults to `defaultDecisionStage(groups)`. */
   decisionStage?: WorkflowStage | undefined;
-  /** The run waits on the user: the current stage shows a "Waiting for you" pill. */
-  waiting: boolean;
 }
 
 /**
@@ -143,7 +141,6 @@ export function RunStageTimeline({
   retryFor,
   decision,
   decisionStage,
-  waiting,
 }: RunStageTimelineProps) {
   const idBase = useId();
   const decisionAt = decisionStage ?? defaultDecisionStage(groups);
@@ -152,7 +149,6 @@ export function RunStageTimeline({
     <ol className="run-stage-list" aria-label="Run stages">
       {groups.map((group) => {
         const isOpen = open.has(group.stage);
-        const isCurrent = group.state === "current";
         const headId = `${idBase}-${group.stage}-head`;
         const bodyId = `${idBase}-${group.stage}-body`;
         const statusText = STATE_STATUS[group.state];
@@ -186,13 +182,10 @@ export function RunStageTimeline({
               {statusText && (
                 <Badge tone={statusText.tone}>{statusText.text}</Badge>
               )}
-              {isCurrent && waiting && (
-                <Badge tone="warning">
-                  <span className="run-stage-waiting-dot" aria-hidden="true" />
-                  {STATUS_COPY.waitingForYou}
-                </Badge>
-              )}
             </RunDisclosure>
+            {holdsDecision && (
+              <div className="run-stage-decision">{decision}</div>
+            )}
             <section
               id={bodyId}
               aria-labelledby={headId}
@@ -201,13 +194,12 @@ export function RunStageTimeline({
               inert={!isOpen}
             >
               <div className="run-stage-panel">
-                {group.items.length === 0 && !holdsDecision && (
+                {group.items.length === 0 && (
                   <div className="run-stage-note">
                     <EmptyState message="Nothing yet." />
                   </div>
                 )}
                 <StageRows items={group.items} now={now} retryFor={retryFor} />
-                {holdsDecision && decision}
               </div>
             </section>
           </li>

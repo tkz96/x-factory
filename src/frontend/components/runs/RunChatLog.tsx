@@ -76,7 +76,6 @@ interface RunChatLogProps {
   now: number;
   retryFor: (item: ChatItem) => (() => void) | undefined;
   decision: ReactNode;
-  waiting: boolean;
   /** A failed send to show; `onRetry` is set only while a retry is allowed. */
   failure: { message: string; onRetry?: (() => void) | undefined } | null;
   /** The line for a button just pressed, or null. */
@@ -92,7 +91,6 @@ export function RunChatLog({
   now,
   retryFor,
   decision,
-  waiting,
   failure,
   resolved,
   sending,
@@ -121,7 +119,6 @@ export function RunChatLog({
           now={now}
           retryFor={retryFor}
           decision={decision}
-          waiting={waiting}
         />
         {failure && (
           <div className="run-chat-system run-chat-system-error" role="alert">

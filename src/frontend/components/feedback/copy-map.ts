@@ -54,7 +54,6 @@ export const STATUS_COPY = {
   unavailable: "Unavailable",
   stageFailed: "Failed",
   stageStopped: "Stopped",
-  waitingForYou: "Waiting for you",
   prMerged: "Merged",
   prClosedUnmerged: "Closed without merging",
 } as const;
