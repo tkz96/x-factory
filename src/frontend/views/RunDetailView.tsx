@@ -25,7 +25,7 @@ import {
 } from "../components/runs/useRunCheckpointActions.js";
 import { useRunSplit } from "../components/runs/useRunSplit.js";
 import { EmptyState } from "../components/ui/EmptyState.js";
-import { useMediaQuery } from "../components/ui/useMediaQuery.js";
+import { PHONE_QUERY, useMediaQuery } from "../components/ui/useMediaQuery.js";
 import { usePageHeader } from "../context/PageHeaderContext.js";
 import { useRunDetail } from "../hooks/useRunDetail.js";
 import { ApiError } from "../lib/api-client.js";
@@ -187,7 +187,7 @@ function RunDetailLayout({
   pending: CheckpointAction | null;
   onAction: (action: CheckpointAction, notes?: string) => void;
 }) {
-  const isPhone = useMediaQuery("(max-width: 768px)");
+  const isPhone = useMediaQuery(PHONE_QUERY);
   const layoutRef = useRef<HTMLDivElement>(null);
   const { split, setSplit, resetSplit } = useRunSplit();
   const inspectorProps = { run, events, connected };

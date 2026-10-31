@@ -448,3 +448,66 @@ describe("RunStageTimeline: attempts", () => {
     expect(getAllByText("Decision card")).toHaveLength(1);
   });
 });
+
+describe("RunStageTimeline: folding keeps row identity (#321)", () => {
+  function progress(id: string, text: string): ChatItem {
+    return {
+      id,
+      at: "2026-10-20T10:00:00.000Z",
+      kind: "progress",
+      iteration: 1,
+      text,
+    };
+  }
+  const rowText = (container: HTMLElement, text: string) =>
+    Array.from(container.querySelectorAll<HTMLElement>(".run-chat-row")).find(
+      (row) => row.textContent?.includes(text),
+    );
+
+  function groupsWith(items: ChatItem[]): StageGroup[] {
+    const groups = sampleGroups();
+    groups[2] = group("plan", "current", items);
+    return groups;
+  }
+
+  it("does not remount the rows around a run of updates when it folds into a group", () => {
+    const before = [
+      message("a", "Before"),
+      progress("p1", "one"),
+      progress("p2", "two"),
+    ];
+    const { container, rerender, props } = renderTimeline({
+      groups: groupsWith(before),
+    });
+    const beforeRow = rowText(container, "Before");
+    expect(beforeRow).toBeDefined();
+
+    const after = [...before, progress("p3", "three"), message("b", "After")];
+    rerender(<RunStageTimeline {...props} groups={groupsWith(after)} />);
+    expect(container.textContent).toContain("3 agent updates");
+    expect(rowText(container, "Before")).toBe(beforeRow);
+  });
+
+  it("does not remount the rows of an open group when the group grows", () => {
+    const items = [
+      progress("p1", "one"),
+      progress("p2", "two"),
+      progress("p3", "three"),
+    ];
+    const { container, rerender, props, getByRole } = renderTimeline({
+      groups: groupsWith(items),
+    });
+    fireEvent.click(getByRole("button", { name: /3 agent updates/ }));
+    const first = rowText(container, "one");
+    expect(first).toBeDefined();
+
+    rerender(
+      <RunStageTimeline
+        {...props}
+        groups={groupsWith([...items, progress("p4", "four")])}
+      />,
+    );
+    expect(container.textContent).toContain("4 agent updates");
+    expect(rowText(container, "one")).toBe(first);
+  });
+});

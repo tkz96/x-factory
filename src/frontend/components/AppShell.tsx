@@ -56,7 +56,7 @@ import { Button } from "./ui/Button.js";
 import { Icon } from "./ui/Icon.js";
 import { PageHeader } from "./ui/PageHeader.js";
 import { SegmentedControl } from "./ui/SegmentedControl.js";
-import { useMediaQuery } from "./ui/useMediaQuery.js";
+import { PHONE_QUERY, useMediaQuery } from "./ui/useMediaQuery.js";
 
 /** Scrolling past this many pixels moves the page title into the toolbar. */
 const COMPACT_TITLE_SCROLL = 32;
@@ -357,7 +357,7 @@ function AppShellHeader({
   // re-renders the bar and the heading — never the view that made it.
   const providedHeader = usePageHeaderContent();
   // The breadcrumb and the search label take the phone and compact sizes.
-  const phoneWidth = useMediaQuery("(max-width: 768px)");
+  const phoneWidth = useMediaQuery(PHONE_QUERY);
   const compactSearch = useMediaQuery("(max-width: 1320px)");
   const headingTitle = providedHeader?.title ?? title;
   const headingSubtitle = providedHeader?.subtitle ?? subtitle;

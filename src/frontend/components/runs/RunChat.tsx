@@ -23,7 +23,7 @@ import {
 } from "../../lib/run-stages.js";
 import { NEEDS_YOU_STATUSES, runStatusUi } from "../../lib/run-status-ui.js";
 import { AlertDialog } from "../overlays/AlertDialog.js";
-import { useMediaQuery } from "../ui/useMediaQuery.js";
+import { PHONE_QUERY, useMediaQuery } from "../ui/useMediaQuery.js";
 import { RunChatComposer } from "./RunChatComposer.js";
 import { RunChatHeader } from "./RunChatHeader.js";
 import { RunChatLog } from "./RunChatLog.js";
@@ -47,9 +47,6 @@ export interface RunChatProps {
   /** True once the stream has opened or any event has arrived (#313). Defaults to true. */
   eventsLoaded?: boolean | undefined;
 }
-
-/** Below the phone breakpoint (768px, as the app shell's) the header strip shows only what fits. */
-const PHONE_QUERY = "(max-width: 768px)";
 
 /** The text of the nearest message the reader sent before `index`, or null. */
 function messageBefore(

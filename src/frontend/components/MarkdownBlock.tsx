@@ -13,9 +13,7 @@ import {
   SegmentedControl,
   type SegmentedControlOption,
 } from "./ui/SegmentedControl.js";
-import { useMediaQuery } from "./ui/useMediaQuery.js";
-
-const PHONE_QUERY = "(max-width: 768px)";
+import { PHONE_QUERY, useMediaQuery } from "./ui/useMediaQuery.js";
 
 export type MarkdownBlockView = "preview" | "raw";
 
