@@ -1,12 +1,17 @@
 // src/frontend/components/runs/RunInspector.tsx — The "Run details" pane (#262, spec #241): the run's
-// branch, ticket and pull request, the models that did its work, the files it changed and its evidence.
+// branch, ticket and pull request, the ticket as the run received it, the models that did its work, the files it changed and its evidence.
 // The raw activity log opens from the footer. Beside the chat on a wide window; a sheet at phone width.
 
 import "./RunPanel.css";
 import "./RunInspector.css";
 
 import { type ReactNode, useState } from "react";
+import {
+  type ParsedDiffFile,
+  parseDiffToFiles,
+} from "../../../shared/diff-summary.js";
 import { reviewCriterionStatus } from "../../../shared/review-criterion-status.js";
+import { TERMINAL_RUN_STATUSES } from "../../../shared/run-status-policy.js";
 import type {
   ModelRoleName,
   ReviewResult,
@@ -14,11 +19,8 @@ import type {
   RunEvent,
   VerificationResult,
 } from "../../../shared/types.js";
-import {
-  type ParsedDiffFile,
-  parseDiffToFiles,
-} from "../../lib/diff-parser.js";
 import { formatRunDate } from "../../lib/format-timestamp.js";
+import { plural } from "../../lib/plural.js";
 import { usageFor } from "../../lib/run-models.js";
 import {
   DialogBody,
@@ -29,11 +31,11 @@ import {
 } from "../overlays/index.js";
 import { Button } from "../ui/Button.js";
 import { Icon } from "../ui/Icon.js";
-import { IconButton } from "../ui/IconButton.js";
 import { useCopyToClipboard } from "../ui/useCopyToClipboard.js";
-import { ChatThread } from "./ChatThread.js";
 import { DiffModal } from "./DiffModal.js";
+import { RawLog } from "./RawLog.js";
 import { useDetailsSheet } from "./RunDetailsContext.js";
+import { RunTicket } from "./RunTicket.js";
 import { TokenUsage } from "./TokenUsage.js";
 
 export interface RunInspectorProps {
@@ -52,16 +54,13 @@ interface Verdict {
 const VERDICT_PASS: Verdict = { text: "Pass", tone: "pass" };
 const VERDICT_FAIL: Verdict = { text: "Fail", tone: "fail" };
 const VERDICT_AWAITING: Verdict = { text: "Awaiting", tone: "muted" };
+const VERDICT_NOT_RUN: Verdict = { text: "Not run", tone: "muted" };
 const VERDICT_NOT_ASSESSED: Verdict = { text: "Not assessed", tone: "muted" };
 
 const MODEL_ROLES: readonly { role: ModelRoleName; label: string }[] = [
   { role: "builder", label: "Builder" },
   { role: "reviewer", label: "Reviewer" },
 ];
-
-function plural(count: number, one: string, many: string): string {
-  return count === 1 ? one : many;
-}
 
 /** "#12" for a GitHub-style pull request URL; the URL itself otherwise. */
 function pullRequestLabel(url: string): string {
@@ -73,14 +72,16 @@ function pullRequestLabel(url: string): string {
 function evidenceChecks(
   verification: VerificationResult | null,
   review: ReviewResult | null,
+  finished: boolean,
 ): { key: string; label: string; verdict: Verdict }[] {
+  // A finished run with no result never ran the check; a running one has not got there yet.
+  const pending = finished ? VERDICT_NOT_RUN : VERDICT_AWAITING;
   let tests: Verdict = VERDICT_PASS;
-  if (verification === null) tests = VERDICT_AWAITING;
+  if (verification === null) tests = pending;
   else if (!verification.passed) tests = VERDICT_FAIL;
-  else if (verification.tests?.skipped === true)
-    tests = { text: "Not run", tone: "muted" };
+  else if (verification.tests?.skipped === true) tests = VERDICT_NOT_RUN;
 
-  let reviewVerdict: Verdict = VERDICT_AWAITING;
+  let reviewVerdict: Verdict = pending;
   if (review !== null)
     reviewVerdict = review.passed ? VERDICT_PASS : VERDICT_FAIL;
 
@@ -104,6 +105,13 @@ function evidenceChecks(
     { key: "review", label: "Review", verdict: reviewVerdict },
     ...criteria,
   ];
+}
+
+/** The class of a +N or −N count; a zero count reads in the secondary color. */
+function countClass(kind: "add" | "remove", count: number): string {
+  return count === 0
+    ? `run-inspector-${kind} run-inspector-zero`
+    : `run-inspector-${kind}`;
 }
 
 /** What a row does when pressed: open a page, or copy its value. */
@@ -135,15 +143,22 @@ function RowActionControl({
     );
   }
   return (
-    <Button
-      variant="quiet"
-      className="run-inspector-stretch run-inspector-copy"
-      aria-label={copied ? `${label} copied` : `Copy ${label}`}
-      onPress={() => void copy(action.text)}
-    >
-      <span className="run-inspector-copy-text">{children}</span>
-      <Icon name={copied ? "icon-check" : "icon-copy"} size="xs" />
-    </Button>
+    <>
+      <Button
+        variant="quiet"
+        className="run-inspector-stretch run-inspector-copy"
+        aria-label={`Copy ${label} ${action.text}`}
+        onPress={() => void copy(action.text)}
+      >
+        <span className="run-inspector-copy-text">{children}</span>
+        <Icon name={copied ? "icon-check" : "icon-copy"} size="xs" />
+      </Button>
+      {/* The copy is announced through the CopyButton live node, so the button's
+          name can keep holding the visible value (#319, US22). */}
+      <span className="sr-only" aria-live="polite">
+        {copied ? "Copied" : ""}
+      </span>
+    </>
   );
 }
 
@@ -157,6 +172,7 @@ function DetailRow({
   value,
   tone,
   kind = "truncate",
+  mono = false,
   action,
 }: {
   label: string;
@@ -164,10 +180,13 @@ function DetailRow({
   tone?: Tone | undefined;
   /** "status" never shrinks, "wrap" wraps onto more lines, "truncate" (the default) cuts with an ellipsis. */
   kind?: "truncate" | "status" | "wrap";
+  /** Monospace, for an identifier (a branch, a ticket id, a pull request number). */
+  mono?: boolean;
   action?: RowAction | undefined;
 }) {
   const classes = ["run-inspector-value"];
   if (kind !== "truncate") classes.push(`run-inspector-value--${kind}`);
+  if (mono) classes.push("run-inspector-value--mono");
   if (tone) classes.push(`run-inspector-value--${tone}`);
   return (
     <div
@@ -199,9 +218,20 @@ function RunDetailsPane({ run, events, connected }: RunInspectorProps) {
   const files = parseDiffToFiles(run.diff);
   const totalAdded = files.reduce((sum, file) => sum + file.added, 0);
   const totalRemoved = files.reduce((sum, file) => sum + file.removed, 0);
-  const checks = evidenceChecks(run.verification, run.review);
+  const checks = evidenceChecks(
+    run.verification,
+    run.review,
+    TERMINAL_RUN_STATUSES.has(run.status),
+  );
   const pullRequest = run.pullRequest;
   const ticketUrl = run.ticket.url;
+  const modelRows = MODEL_ROLES.flatMap(({ role, label }) => {
+    const usage = usageFor(run.stageModels ?? [], role);
+    return usage ? [{ role, label, usage }] : [];
+  });
+  const passedChecks = checks.filter(
+    (check) => check.verdict === VERDICT_PASS,
+  ).length;
   const logCount = `${events.length} ${plural(events.length, "event", "events")}`;
 
   return (
@@ -227,6 +257,7 @@ function RunDetailsPane({ run, events, connected }: RunInspectorProps) {
             <dl className="run-inspector-rows">
               <DetailRow
                 label="Branch"
+                mono={Boolean(run.branch)}
                 value={run.branch || "None yet"}
                 tone={run.branch ? undefined : "muted"}
                 action={
@@ -236,12 +267,14 @@ function RunDetailsPane({ run, events, connected }: RunInspectorProps) {
               <DetailRow
                 label="Ticket"
                 value={run.ticket.id}
+                mono
                 action={
                   ticketUrl ? { kind: "link", href: ticketUrl } : undefined
                 }
               />
               <DetailRow
                 label="Pull request"
+                mono={Boolean(pullRequest)}
                 value={
                   pullRequest ? pullRequestLabel(pullRequest.url) : "None yet"
                 }
@@ -258,64 +291,62 @@ function RunDetailsPane({ run, events, connected }: RunInspectorProps) {
 
           <section
             className="run-inspector-section"
-            aria-labelledby="run-inspector-models"
+            aria-labelledby="run-inspector-ticket"
           >
             <h3
-              id="run-inspector-models"
+              id="run-inspector-ticket"
               className="run-inspector-caption text-headline"
             >
-              Models
+              Ticket
             </h3>
-            <dl className="run-inspector-rows">
-              {MODEL_ROLES.map(({ role, label }) => {
-                const usage = usageFor(run.stageModels ?? [], role);
-                if (usage) {
-                  return (
-                    <DetailRow
-                      key={role}
-                      label={label}
-                      kind="wrap"
-                      value={
-                        <span className="run-inspector-model">
-                          <span>{usage.modelId}</span>
-                          <TokenUsage usage={usage} />
-                        </span>
-                      }
-                    />
-                  );
-                }
-                return (
+            <RunTicket ticket={run.ticket} idPrefix="run-inspector-ticket" />
+          </section>
+
+          {modelRows.length > 0 && (
+            <section
+              className="run-inspector-section"
+              aria-labelledby="run-inspector-models"
+            >
+              <h3
+                id="run-inspector-models"
+                className="run-inspector-caption text-headline"
+              >
+                Models
+              </h3>
+              <dl className="run-inspector-rows">
+                {modelRows.map(({ role, label, usage }) => (
                   <DetailRow
                     key={role}
                     label={label}
-                    value="None yet"
-                    tone="muted"
+                    kind="wrap"
+                    value={
+                      <span className="run-inspector-model">
+                        <span>{usage.modelId}</span>
+                        <TokenUsage usage={usage} />
+                      </span>
+                    }
                   />
-                );
-              })}
-            </dl>
-          </section>
+                ))}
+              </dl>
+            </section>
+          )}
 
-          <section
-            className="run-inspector-section"
-            aria-labelledby="run-inspector-files"
-          >
-            <div className="run-inspector-caption-row">
-              <h3
-                id="run-inspector-files"
-                className="run-inspector-caption text-headline"
-              >
-                Files
-              </h3>
-              {files.length > 0 && (
+          {files.length > 0 && (
+            <section
+              className="run-inspector-section"
+              aria-labelledby="run-inspector-files"
+            >
+              <div className="run-inspector-caption-row">
+                <h3
+                  id="run-inspector-files"
+                  className="run-inspector-caption text-headline"
+                >
+                  Files
+                </h3>
                 <span className="run-inspector-note text-caption-1">
                   {`${files.length} ${plural(files.length, "file", "files")} · +${totalAdded} −${totalRemoved}`}
                 </span>
-              )}
-            </div>
-            {files.length === 0 ? (
-              <p className="run-inspector-none text-callout">No changes yet.</p>
-            ) : (
+              </div>
               <ul className="run-inspector-files">
                 {files.map((file) => (
                   <li key={file.file}>
@@ -328,15 +359,19 @@ function RunDetailsPane({ run, events, connected }: RunInspectorProps) {
                         {file.file}
                       </span>
                       <span className="run-inspector-file-counts">
-                        <span className="run-inspector-add">{`+${file.added}`}</span>{" "}
-                        <span className="run-inspector-remove">{`−${file.removed}`}</span>
+                        <span
+                          className={countClass("add", file.added)}
+                        >{`+${file.added}`}</span>{" "}
+                        <span
+                          className={countClass("remove", file.removed)}
+                        >{`−${file.removed}`}</span>
                       </span>
                     </Button>
                   </li>
                 ))}
               </ul>
-            )}
-          </section>
+            </section>
+          )}
 
           <section
             className="run-inspector-section"
@@ -348,17 +383,25 @@ function RunDetailsPane({ run, events, connected }: RunInspectorProps) {
             >
               Evidence
             </h3>
-            <dl className="run-inspector-rows">
-              {checks.map((check) => (
-                <DetailRow
-                  key={check.key}
-                  label={check.label}
-                  kind="status"
-                  value={check.verdict.text}
-                  tone={check.verdict.tone}
-                />
-              ))}
-            </dl>
+            <details className="run-inspector-evidence">
+              <summary className="text-callout">
+                <span>Checks</span>
+                <span className="run-inspector-evidence-total">
+                  {`${passedChecks} of ${checks.length} passed`}
+                </span>
+              </summary>
+              <dl className="run-inspector-rows">
+                {checks.map((check) => (
+                  <DetailRow
+                    key={check.key}
+                    label={check.label}
+                    kind="status"
+                    value={check.verdict.text}
+                    tone={check.verdict.tone}
+                  />
+                ))}
+              </dl>
+            </details>
           </section>
         </div>
       </div>
@@ -411,7 +454,7 @@ function RunDetailsPane({ run, events, connected }: RunInspectorProps) {
           <DialogCloseButton onClose={() => setLogOpen(false)} />
         </DialogHeader>
         <DialogBody className="run-inspector-log">
-          <ChatThread events={events} />
+          <RawLog events={events} />
         </DialogBody>
       </Sheet>
     </>
@@ -435,13 +478,15 @@ export function RunInspectorSheet(props: RunInspectorProps) {
   const { sheetOpen: open, setSheetOpen: setOpen } = useDetailsSheet();
   return (
     <>
-      {/* An icon button named "Details": it sits in the chat's header strip at phone width. */}
-      <IconButton
-        label="Details"
+      {/* A labelled button: it sits in the chat's header strip at phone width, and carries the branch. */}
+      <Button
+        variant="quiet"
+        size="sm"
         icon="icon-info"
-        variant="plain"
         onPress={() => setOpen(true)}
-      />
+      >
+        Details
+      </Button>
       <Sheet
         isOpen={open}
         onClose={() => setOpen(false)}

@@ -1,4 +1,4 @@
-// test/chat-thread-unsandboxed.test.tsx — ChatThread and RunChat render unsandboxed attempt warnings (#275).
+// test/raw-log-unsandboxed.test.tsx — RawLog and RunChat render unsandboxed attempt warnings (#275).
 
 /// <reference lib="dom" />
 import { registerHappyDom, unregisterHappyDom } from "./setup-happy-dom.js";
@@ -8,7 +8,7 @@ registerHappyDom();
 import { afterAll, afterEach, describe, expect, it } from "bun:test";
 import { cleanup, render, within } from "@testing-library/react";
 import React from "react";
-import { ChatThread } from "../src/frontend/components/runs/ChatThread.js";
+import { RawLog } from "../src/frontend/components/runs/RawLog.js";
 import { RunChat } from "../src/frontend/components/runs/RunChat.js";
 import type { Run, RunEvent } from "../src/shared/types.js";
 
@@ -20,7 +20,7 @@ afterAll(async () => {
   await unregisterHappyDom();
 });
 
-describe("ChatThread unsandboxed warning line (#275)", () => {
+describe("RawLog unsandboxed warning line (#275)", () => {
   it("renders a standard text bubble for regular info events", () => {
     const regularEvent: RunEvent = {
       id: 1,
@@ -30,7 +30,7 @@ describe("ChatThread unsandboxed warning line (#275)", () => {
     };
 
     const { container } = render(
-      React.createElement(ChatThread, { events: [regularEvent] }),
+      React.createElement(RawLog, { events: [regularEvent] }),
     );
 
     const bubble = container.querySelector(".chat-bubble");
@@ -52,7 +52,7 @@ describe("ChatThread unsandboxed warning line (#275)", () => {
     };
 
     const { container } = render(
-      React.createElement(ChatThread, { events: [unsandboxedEvent] }),
+      React.createElement(RawLog, { events: [unsandboxedEvent] }),
     );
 
     const bubble = container.querySelector(".chat-bubble.bubble-warning");
@@ -105,7 +105,16 @@ describe("RunChat unsandboxed warning line (#275)", () => {
     const { container } = render(
       React.createElement(RunChat, {
         run: dummyRun,
-        events: [unsandboxedEvent],
+        // The run's first status puts the notice in the stage the run stands in; a closed stage shows no rows.
+        events: [
+          {
+            id: 9,
+            type: "status",
+            payload: { status: "executing" },
+            timestamp: unsandboxedEvent.timestamp,
+          } as RunEvent,
+          unsandboxedEvent,
+        ],
       }),
     );
 

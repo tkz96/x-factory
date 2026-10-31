@@ -2,6 +2,7 @@
 // with its checkpoint actions. It shows while the run waits on the reader, while an action is on offer,
 // or when there is a failure or a pull request to read.
 
+import { TERMINAL_RUN_STATUSES } from "../../../shared/run-status-policy.js";
 import type { Run } from "../../../shared/types.js";
 import type { RunNow } from "../../lib/run-now.js";
 import { NEEDS_YOU_STATUSES } from "../../lib/run-status-ui.js";
@@ -12,12 +13,15 @@ import {
 } from "./RunCheckpointBar.js";
 import { RunNowHeader } from "./RunNowHeader.js";
 import { RunReviewSummary } from "./RunReviewSummary.js";
+import { RunTerminalCard } from "./RunTerminalCard.js";
 import { UnderstandingReview } from "./UnderstandingReview.js";
 
 interface RunDecisionCardProps {
   run: Run;
   /** The run's facts as the run-now line reads them. */
   facts: RunNow;
+  /** The label of the stage a failed run failed in. */
+  failedStage?: string | null;
   pending: CheckpointAction | null;
   conflict: boolean;
   reworkReady: boolean;
@@ -31,6 +35,7 @@ export function decisionShows(
   conflict: boolean,
   reworkReady: boolean,
 ): boolean {
+  if (TERMINAL_RUN_STATUSES.has(run.status)) return true;
   if (NEEDS_YOU_STATUSES.has(run.status) || conflict) return true;
   if (checkpointBarEntries(run.status, reworkReady).length > 0) return true;
   return facts.failure !== null || facts.pullRequestUrl !== null;
@@ -39,11 +44,24 @@ export function decisionShows(
 export function RunDecisionCard({
   run,
   facts,
+  failedStage = null,
   pending,
   conflict,
   reworkReady,
   onAction,
 }: RunDecisionCardProps) {
+  if (TERMINAL_RUN_STATUSES.has(run.status)) {
+    return (
+      <RunTerminalCard
+        run={run}
+        facts={facts}
+        failedStage={failedStage}
+        pending={pending}
+        conflict={conflict}
+        onAction={onAction}
+      />
+    );
+  }
   return (
     <div className="run-decision">
       <RunNowHeader run={run} now={facts} />
@@ -52,7 +70,10 @@ export function RunDecisionCard({
       )}
       {run.status === "awaiting_understanding_approval" &&
         run.implementationContext && (
-          <UnderstandingReview context={run.implementationContext} />
+          <UnderstandingReview
+            context={run.implementationContext}
+            ticket={run.ticket}
+          />
         )}
       <RunCheckpointBar
         status={run.status}

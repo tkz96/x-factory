@@ -117,6 +117,12 @@ interface ResolvedThemeTokens {
   controlBorder: RGB;
   borderFocus: RGB;
   accent: RGB;
+  /** Dim text (timestamps): --text-dim (#319, US18). */
+  textDim: RGB;
+  /** Status text (pass, fail, warnings): the *-text tokens (#319, US18). */
+  greenText: RGB;
+  redText: RGB;
+  orangeText: RGB;
   /** The raw token values, for comparing one set with another. */
   raw: { text: string; textMuted: string; border: string; borderFocus: string };
 }
@@ -131,6 +137,17 @@ function buildResolved(values: Record<string, string>): ResolvedThemeTokens {
   const rawAccent = parseColor(get("--accent", "#0a84ff"));
   const rawText = parseColor(get("--text", "#ffffff"));
   const rawMuted = parseColor(get("--text-muted", "#999999"));
+  const rawDim = parseColor(get("--text-dim", "#707075"));
+  // Before #319 status text used the bright icon tokens, so a missing *-text
+  // token falls back to its bright counterpart: the gate fails until the text
+  // tokens exist and hold their own colour.
+  const rawGreenText = parseColor(
+    get("--green-text", get("--green", "#28a745")),
+  );
+  const rawRedText = parseColor(get("--red-text", get("--red", "#d73a49")));
+  const rawOrangeText = parseColor(
+    get("--orange-text", get("--orange", "#ff9500")),
+  );
 
   return {
     bg,
@@ -144,6 +161,10 @@ function buildResolved(values: Record<string, string>): ResolvedThemeTokens {
     ),
     borderFocus: composite(rawFocus, bg),
     accent: composite(rawAccent, bg),
+    textDim: composite(rawDim, bg),
+    greenText: composite(rawGreenText, bg),
+    redText: composite(rawRedText, bg),
+    orangeText: composite(rawOrangeText, bg),
     raw: {
       text: get("--text", "#ffffff"),
       textMuted: get("--text-muted", "#999999"),
@@ -232,6 +253,33 @@ describe("Theme Contrast Gates across theme × appearance × contrast (#248, #24
         expect(
           contrastRatio(tokens.controlBorder, tokens.bgCard),
         ).toBeGreaterThanOrEqual(3.0);
+      });
+
+      it("meets 4.5:1 text contrast for dim and status text tokens (#319, US18)", () => {
+        expect(contrastRatio(tokens.textDim, tokens.bg)).toBeGreaterThanOrEqual(
+          4.5,
+        );
+        expect(
+          contrastRatio(tokens.textDim, tokens.bgCard),
+        ).toBeGreaterThanOrEqual(4.5);
+        expect(
+          contrastRatio(tokens.greenText, tokens.bg),
+        ).toBeGreaterThanOrEqual(4.5);
+        expect(
+          contrastRatio(tokens.greenText, tokens.bgCard),
+        ).toBeGreaterThanOrEqual(4.5);
+        expect(contrastRatio(tokens.redText, tokens.bg)).toBeGreaterThanOrEqual(
+          4.5,
+        );
+        expect(
+          contrastRatio(tokens.redText, tokens.bgCard),
+        ).toBeGreaterThanOrEqual(4.5);
+        expect(
+          contrastRatio(tokens.orangeText, tokens.bg),
+        ).toBeGreaterThanOrEqual(4.5);
+        expect(
+          contrastRatio(tokens.orangeText, tokens.bgCard),
+        ).toBeGreaterThanOrEqual(4.5);
       });
     });
   }

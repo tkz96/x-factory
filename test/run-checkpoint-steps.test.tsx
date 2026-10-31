@@ -16,7 +16,7 @@ import {
   within,
 } from "@testing-library/react";
 import { RunChat } from "../src/frontend/components/runs/RunChat.js";
-import type { Run, RunStatus } from "../src/shared/types.js";
+import type { Run, RunEvent, RunStatus } from "../src/shared/types.js";
 
 afterEach(cleanup);
 afterAll(async () => {
@@ -192,7 +192,14 @@ describe("Request Changes on a review asks for the changes before it acts", () =
     const { container } = render(
       <RunChat
         run={makeRun("awaiting_review")}
-        events={[]}
+        events={[
+          {
+            id: 1,
+            type: "status",
+            payload: { status: "awaiting_review" },
+            timestamp: "2026-09-20T12:00:00.000Z",
+          } as RunEvent,
+        ]}
         onAction={(action, notes) => actions.push([action, notes])}
       />,
     );

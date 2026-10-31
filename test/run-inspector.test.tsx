@@ -82,7 +82,7 @@ const BUILDER_USE = {
 } as Run["stageModels"] extends (infer U)[] | undefined ? U : never;
 
 describe("the Run details pane names its sections", () => {
-  it("is labelled Run details and holds the four sections", () => {
+  it("is labelled Run details and holds its sections that have content", () => {
     const { container } = render(
       <RunInspector run={makeRun("executing")} events={[]} connected={false} />,
     );
@@ -92,7 +92,8 @@ describe("the Run details pane names its sections", () => {
     expect(
       within(pane).getByRole("heading", { level: 2, name: "Run details" }),
     ).toBeTruthy();
-    for (const name of ["Run", "Models", "Files", "Evidence"]) {
+    // Models and Files have nothing to show yet, so they are not drawn (spec #312).
+    for (const name of ["Run", "Ticket", "Evidence"]) {
       expect(
         within(pane).getByRole("heading", { level: 3, name: new RegExp(name) }),
       ).toBeTruthy();
@@ -132,7 +133,7 @@ describe("the Run details pane names its sections", () => {
     );
   });
 
-  it("shows the model each role last ran on, and None yet for a role that has not run", () => {
+  it("shows the model of a role that ran, and leaves out a role that has not run", () => {
     const { container } = render(
       <RunInspector
         run={makeRun("awaiting_review", { stageModels: [BUILDER_USE] })}
@@ -142,8 +143,46 @@ describe("the Run details pane names its sections", () => {
     );
     expect(within(container).getByText("gemini-x")).toBeTruthy();
     expect(container.textContent).toContain("Builder");
-    expect(container.textContent).toContain("Reviewer");
-    expect(container.textContent).toContain("None yet");
+    expect(container.textContent).not.toContain("Reviewer");
+  });
+});
+
+describe("the Ticket section shows the ticket as the run received it", () => {
+  it("shows the description with its line breaks and each acceptance criterion", () => {
+    const { container } = render(
+      <RunInspector
+        run={makeRun("executing", {
+          ticket: {
+            id: "T-1",
+            title: "A ticket",
+            description: "First line.\nSecond line.",
+            acceptanceCriteria: ["It loads", "It stays put"],
+          },
+        })}
+        events={[]}
+        connected={false}
+      />,
+    );
+    const description = container.querySelector(".run-ticket-description");
+    expect(description?.textContent).toBe("First line.\nSecond line.");
+    const criteria = within(container).getByRole("list", {
+      name: "Acceptance criteria",
+    });
+    expect(
+      within(criteria)
+        .getAllByRole("listitem")
+        .map((item) => item.textContent),
+    ).toEqual(["It loads", "It stays put"]);
+    expect(within(container).queryByRole("status")).toBeNull();
+  });
+
+  it("warns when the run has only the ticket's title", () => {
+    const { container } = render(
+      <RunInspector run={makeRun("executing")} events={[]} connected={false} />,
+    );
+    expect(within(container).getByRole("status").textContent).toContain(
+      "only the ticket's title",
+    );
   });
 });
 
@@ -164,11 +203,14 @@ describe("the Files section lists each changed file as a button", () => {
     expect(row.tagName).toBe("BUTTON");
   });
 
-  it("says no changes exist yet when the run has no diff", () => {
+  it("leaves the Files section out when the run has no diff", () => {
     const { container } = render(
       <RunInspector run={makeRun("planning")} events={[]} connected={false} />,
     );
-    expect(container.textContent).toContain("No changes yet.");
+    expect(
+      within(container).queryByRole("heading", { name: "Files" }),
+    ).toBeNull();
+    expect(container.textContent).not.toContain("No changes yet.");
   });
 
   it("opens the diff for a file when its row is pressed", () => {
@@ -338,7 +380,9 @@ describe("at phone width the same pane is a sheet", () => {
     expect(
       within(container).queryByRole("button", { name: "Inspector" }),
     ).toBeNull();
-    fireEvent.click(within(container).getByRole("button", { name: "Details" }));
+    const trigger = within(container).getByRole("button", { name: "Details" });
+    expect(trigger.textContent?.trim()).toBe("Details");
+    fireEvent.click(trigger);
     const sheet = within(document.body).getByRole("dialog", {
       name: "Run details",
     });
@@ -469,7 +513,7 @@ describe("Run details rows: a fill only where a row does something (run page pla
     expect(within(container).getByRole("link", { name: "#9" })).toBeTruthy();
   });
 
-  it("copies the branch when its row is pressed", async () => {
+  it("copies the branch when its row is pressed, naming the visible value (#319, US22)", async () => {
     let written = "";
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
@@ -483,15 +527,25 @@ describe("Run details rows: a fill only where a row does something (run page pla
     const { container } = render(
       <RunInspector run={makeRun("executing")} events={[]} connected={false} />,
     );
+    // The accessible name contains the visible text of the row's value.
+    const copy = within(container).getByRole("button", {
+      name: "Copy Branch factory/t-1",
+    });
+    expect(copy.textContent).toContain("factory/t-1");
     await act(async () => {
-      fireEvent.click(
-        within(container).getByRole("button", { name: "Copy Branch" }),
-      );
+      fireEvent.click(copy);
     });
     expect(written).toBe("factory/t-1");
+    // The copy itself is announced through the CopyButton live node, so the
+    // name can keep holding the visible text (#319, US22).
+    expect(container.querySelector('[aria-live="polite"]')?.textContent).toBe(
+      "Copied",
+    );
     expect(
-      within(container).getByRole("button", { name: "Branch copied" }),
-    ).toBeTruthy();
+      within(container).getAllByRole("button", {
+        name: "Copy Branch factory/t-1",
+      }).length,
+    ).toBe(1);
   });
 
   it("has no fill on a row without an action", () => {
@@ -501,5 +555,25 @@ describe("Run details rows: a fill only where a row does something (run page pla
     expect(rowOf(container, "Ticket")?.classList.contains("ui-row-hover")).toBe(
       false,
     );
+  });
+});
+
+describe("the Evidence section of a finished run", () => {
+  it("says Not run, not Awaiting, for a check a finished run never reached", () => {
+    for (const status of ["failed", "stopped"] as const) {
+      const { container, unmount } = render(
+        <RunInspector run={makeRun(status)} events={[]} connected={false} />,
+      );
+      expect(within(container).getAllByText("Not run").length).toBe(2);
+      expect(within(container).queryByText("Awaiting")).toBeNull();
+      unmount();
+    }
+  });
+
+  it("still says Awaiting on a run that has not got there yet", () => {
+    const { container } = render(
+      <RunInspector run={makeRun("executing")} events={[]} connected={false} />,
+    );
+    expect(within(container).getAllByText("Awaiting").length).toBe(2);
   });
 });

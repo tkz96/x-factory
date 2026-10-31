@@ -78,6 +78,7 @@ const ACTIVE_RUN_NOTICE =
 interface NewRunDraft {
   ticketId: string;
   ticketTitle: string;
+  description: string;
   branch: string;
   criteria: string;
   plan: string;
@@ -88,6 +89,7 @@ type DraftField = keyof NewRunDraft;
 const EMPTY_DRAFT: NewRunDraft = {
   ticketId: "",
   ticketTitle: "",
+  description: "",
   branch: "",
   criteria: "",
   plan: "",
@@ -99,6 +101,7 @@ function draftFromPrefill(prefill: NewRunPrefill | null): NewRunDraft {
   return {
     ticketId: prefill.ticketId || "",
     ticketTitle: prefill.ticketTitle || "",
+    description: prefill.description ?? "",
     branch: prefill.branch || "",
     criteria: (prefill.criteria || []).join("\n"),
     plan: prefill.plan ?? "",
@@ -127,6 +130,7 @@ function buildCreateRunInput(projectId: string, draft: NewRunDraft) {
     projectId,
     ticketId: draft.ticketId.trim(),
     ticketTitle: draft.ticketTitle.trim(),
+    description: draft.description.trim() || undefined,
     branch: draft.branch.trim() || undefined,
     acceptanceCriteria:
       acceptanceCriteria.length > 0 ? acceptanceCriteria : undefined,
@@ -240,6 +244,21 @@ function NewRunForm({
         labelAccessory={
           <FieldHelp field="Ticket Title" title="Ticket Title">
             Summary description of the task or feature to implement.
+          </FieldHelp>
+        }
+      />
+
+      <TextAreaField
+        label="Description"
+        inputId="input-description"
+        rows={5}
+        placeholder="What the ticket asks for, in the tracker's own words…"
+        value={draft.description}
+        onChange={setField("description")}
+        labelAccessory={
+          <FieldHelp field="Description" title="Ticket Description">
+            The ticket's body. A ticket from the list fills it in. The Builder
+            reads it with the acceptance criteria before it plans.
           </FieldHelp>
         }
       />

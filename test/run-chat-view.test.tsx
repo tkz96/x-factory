@@ -28,7 +28,10 @@ import {
   MemoryRouter,
   RouterProvider,
 } from "react-router-dom";
-import { RunChat } from "../src/frontend/components/runs/RunChat.js";
+import {
+  RunChat as RealRunChat,
+  type RunChatProps,
+} from "../src/frontend/components/runs/RunChat.js";
 import { RunDetailsProvider } from "../src/frontend/components/runs/RunDetailsContext.js";
 import { ModalProvider } from "../src/frontend/context/ModalContext.js";
 import {
@@ -77,12 +80,28 @@ function makeRun(status: RunStatus, overrides: Partial<Run> = {}): Run {
   } as Run;
 }
 
+/**
+ * The chat for a run that stands in the stage its status names. A closed stage renders no rows
+ * (#321), so events that carry no status of their own get the run's status first, as a real run's
+ * history does.
+ */
+function RunChat(props: RunChatProps) {
+  const hasStatus = props.events.some((event) => event.type === "status");
+  const events = hasStatus
+    ? props.events
+    : [ev(0, "status", { status: props.run.status }), ...props.events];
+  return <RealRunChat {...props} events={events} />;
+}
+
 function ev(id: number, type: string, payload: unknown, timestamp = AT) {
   return { id, type, payload, timestamp } as unknown as RunEvent;
 }
 
+/** The scrolling timeline (no longer a live role, #319: its scope is one status node). */
 function log(container: HTMLElement) {
-  return within(container).getByRole("log");
+  const messages = container.querySelector<HTMLElement>(".run-chat-messages");
+  if (!messages) throw new Error("no timeline");
+  return messages;
 }
 
 const json = (body: unknown) =>
@@ -97,22 +116,20 @@ describe("the run chat shows real events and nothing invented", () => {
     );
     expect(container.textContent).not.toContain("Starting run for");
     expect(container.textContent).not.toContain("I'm");
-    expect(
-      within(log(container)).getByText("Waiting for the first update…"),
-    ).toBeTruthy();
+    expect(container.textContent).not.toContain(
+      "Waiting for the first update…",
+    );
+    expect(within(log(container)).getByText("Planning")).toBeTruthy();
   });
 
   it("shows a status change as a system line with the map's label", () => {
     const { container } = render(
       <RunChat
-        run={makeRun("awaiting_plan_approval")}
-        events={[
-          ev(1, "status", { status: "awaiting_plan_approval", text: "raw" }),
-        ]}
+        run={makeRun("executing")}
+        events={[ev(1, "status", { status: "executing", text: "raw" })]}
       />,
     );
-    // The decision card repeats the plan's title, so the chat line is found in its own row.
-    const system = within(log(container)).getByText("Review the plan", {
+    const system = within(log(container)).getByText("Writing code", {
       selector: "[data-kind] > span",
     });
     expect(system.closest("[data-kind]")?.getAttribute("data-kind")).toBe(
@@ -187,6 +204,8 @@ describe("the run chat shows real events and nothing invented", () => {
         ]}
       />,
     );
+    // The failure sits in the stage it happened in, which the run has left: open it to read it.
+    fireEvent.click(within(container).getByRole("button", { name: /Prepare/ }));
     const chat = within(log(container));
     expect(chat.getByText("The model call failed.")).toBeTruthy();
     expect(chat.getByText(failure.recovery)).toBeTruthy();
@@ -200,9 +219,10 @@ describe("the run chat shows real events and nothing invented", () => {
       />,
     );
     expect(container.textContent).not.toContain("old");
-    expect(
-      within(log(container)).getByText("Waiting for the first update…"),
-    ).toBeTruthy();
+    expect(container.textContent).not.toContain(
+      "Waiting for the first update…",
+    );
+    expect(within(log(container)).getByText("Writing code")).toBeTruthy();
   });
 });
 
@@ -318,12 +338,79 @@ describe("scroll position and Jump to Latest", () => {
     ).toBeNull();
   });
 
-  it("only announces new items, and only additions", () => {
+  it("brings the newest item into view when the content grows, while at the end", () => {
+    const callbacks: Array<() => void> = [];
+    const original = globalThis.ResizeObserver;
+    globalThis.ResizeObserver = class {
+      constructor(callback: () => void) {
+        callbacks.push(callback);
+      }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as unknown as typeof ResizeObserver;
+    const shown: string[] = [];
+    const proto = HTMLElement.prototype as unknown as {
+      scrollIntoView?: (arg?: unknown) => void;
+    };
+    const originalScrollIntoView = proto.scrollIntoView;
+    proto.scrollIntoView = function (this: HTMLElement) {
+      shown.push(this.textContent ?? "");
+    };
+    try {
+      const { container } = render(
+        <RunChat
+          run={makeRun("executing")}
+          events={[
+            ev(1, "status", { status: "executing" }),
+            ev(2, "chat_agent", { text: "first" }),
+            ev(3, "chat_agent", { text: "newest row" }),
+          ]}
+        />,
+      );
+      const list = log(container);
+      Object.defineProperty(list, "scrollHeight", {
+        value: 1500,
+        configurable: true,
+      });
+      Object.defineProperty(list, "clientHeight", {
+        value: 200,
+        configurable: true,
+      });
+      shown.length = 0;
+      for (const callback of callbacks) callback();
+      // The newest item scrolls into view, not the bottom of the list.
+      expect(shown.at(-1)).toContain("newest row");
+      expect(list.scrollTop).toBe(0);
+
+      // Up the chat, growth does not move the reader.
+      shown.length = 0;
+      fireEvent.scroll(list);
+      list.scrollTop = 0;
+      Object.defineProperty(list, "scrollHeight", {
+        value: 3000,
+        configurable: true,
+      });
+      fireEvent.scroll(list);
+      for (const callback of callbacks) callback();
+      expect(shown).toEqual([]);
+    } finally {
+      globalThis.ResizeObserver = original;
+      if (originalScrollIntoView) proto.scrollIntoView = originalScrollIntoView;
+      else delete proto.scrollIntoView;
+    }
+  });
+
+  it("keeps the log out of any live region and announces through the status node", () => {
     const { container } = render(
       <RunChat run={makeRun("executing")} events={[]} />,
     );
-    expect(log(container).getAttribute("aria-relevant")).toBe("additions");
-    expect(log(container).getAttribute("aria-live")).toBe("polite");
+    // The timeline is no longer one live region (#319): a single small status
+    // node carries what changes, so progress lines are never announced.
+    expect(log(container).getAttribute("aria-live")).toBeNull();
+    expect(log(container).getAttribute("aria-relevant")).toBeNull();
+    expect(log(container).getAttribute("role")).not.toBe("log");
+    expect(container.querySelector('.sr-only[role="status"]')).not.toBeNull();
   });
 });
 
@@ -498,6 +585,11 @@ describe("every kind of run event reads as its own line", () => {
     const { container } = render(
       <RunChat run={makeRun("awaiting_plan_approval")} events={events} />,
     );
+    // The agent updates are folded into one group until it is opened.
+    const group = container.querySelector<HTMLElement>(
+      ".run-chat-group .run-disclosure",
+    );
+    if (group) fireEvent.click(group);
     const chat = within(log(container));
     expect(chat.getByText("The tests cover the change.")).toBeTruthy();
     // The Builder's output and the Builder's chat reply each name the speaker above their text.
@@ -779,6 +871,115 @@ describe("the composer: multi-line, keyboard-first, honest about failures (#263)
       bar.compareDocumentPosition(composer(container)) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+  });
+
+  it("keeps each message until the server confirms it, even when sending the same text twice (#317, user story 15)", async () => {
+    let confirmSend: (() => void) | null = null;
+
+    respond = () =>
+      new Promise((resolve) => {
+        confirmSend = () =>
+          resolve(
+            new Response(JSON.stringify({ ok: true, message: "OK" }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+      });
+
+    // The first message is already in events (from previous send)
+    const run = makeRun("awaiting_plan_approval");
+    const { container, rerender } = render(
+      <RunChat
+        run={run}
+        events={[
+          ev(1, "status", { status: "awaiting_plan_approval" }),
+          ev(2, "chat_user", { text: "Same message" }),
+        ]}
+      />,
+    );
+    const form = composer(container).closest("form") as HTMLFormElement;
+
+    // Send the second message with the exact same text
+    typeInto(composer(container), "Same message");
+    await act(async () => {
+      fireEvent.submit(form);
+    });
+
+    // The second message MUST be visible as a local echo while awaiting confirmation
+    const messages = within(log(container)).getAllByText("Same message");
+    expect(messages).toHaveLength(2);
+
+    // Now server confirms the second message
+    await act(async () => {
+      confirmSend?.();
+    });
+
+    // And second event arrives in events
+    rerender(
+      <RunChat
+        run={run}
+        events={[
+          ev(1, "status", { status: "awaiting_plan_approval" }),
+          ev(2, "chat_user", { text: "Same message" }),
+          ev(3, "chat_user", { text: "Same message" }),
+        ]}
+      />,
+    );
+    const confirmedMessages = within(log(container)).getAllByText(
+      "Same message",
+    );
+    expect(confirmedMessages).toHaveLength(2);
+  });
+
+  it("keeps a sent message after the server accepts it, until its own event arrives (#317, user story 15)", async () => {
+    respond = () =>
+      Promise.resolve(
+        new Response(JSON.stringify({ ok: true, message: "OK" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+    const run = makeRun("awaiting_plan_approval");
+    const { container } = render(
+      <RunChat
+        run={run}
+        events={[ev(1, "status", { status: "awaiting_plan_approval" })]}
+      />,
+    );
+    typeInto(composer(container), "Hold me");
+    await act(async () => {
+      fireEvent.submit(composer(container).closest("form") as HTMLFormElement);
+    });
+    expect(within(log(container)).getAllByText("Hold me")).toHaveLength(1);
+  });
+
+  it("clears the rework hint when the run status changes (#317)", async () => {
+    const run = makeRun("awaiting_review");
+    const { container, rerender } = render(
+      <RunChat run={run} events={[]} onAction={() => {}} />,
+    );
+
+    const reworkButton = within(container).getByRole("button", {
+      name: /request changes/i,
+    });
+    fireEvent.click(reworkButton);
+
+    expect(
+      within(container).getByText(
+        "Describe the changes needed. Your next message goes back to planning.",
+      ),
+    ).toBeTruthy();
+
+    rerender(
+      <RunChat run={makeRun("planning")} events={[]} onAction={() => {}} />,
+    );
+
+    expect(
+      within(container).queryByText(
+        "Describe the changes needed. Your next message goes back to planning.",
+      ),
+    ).toBeNull();
   });
 });
 

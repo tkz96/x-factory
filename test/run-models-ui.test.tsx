@@ -8,7 +8,7 @@ registerHappyDom();
 
 import { afterAll, afterEach, describe, expect, it } from "bun:test";
 import { cleanup, render } from "@testing-library/react";
-import { ChatThread } from "../src/frontend/components/runs/ChatThread.js";
+import { RawLog } from "../src/frontend/components/runs/RawLog.js";
 import { TokenUsage } from "../src/frontend/components/runs/TokenUsage.js";
 import { formatUsd } from "../src/frontend/lib/format-money.js";
 import {
@@ -132,7 +132,7 @@ describe("run model helpers (#279)", () => {
   });
 });
 
-describe("ChatThread stage_started (#279)", () => {
+describe("RawLog stage_started (#279)", () => {
   it("shows a stage start as a system line naming the model", () => {
     const event: RunEvent = {
       id: 3,
@@ -140,7 +140,7 @@ describe("ChatThread stage_started (#279)", () => {
       payload: { stage: "execute", attempt: 1, model: BUILDER },
       timestamp: "2026-10-11T10:00:00.000Z",
     };
-    const { container } = render(<ChatThread events={[event]} />);
+    const { container } = render(<RawLog events={[event]} />);
     expect(container.textContent).toContain(
       "Coding with gemini-flash-lite-latest via Gemini",
     );

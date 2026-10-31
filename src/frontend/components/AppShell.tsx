@@ -56,7 +56,7 @@ import { Button } from "./ui/Button.js";
 import { Icon } from "./ui/Icon.js";
 import { PageHeader } from "./ui/PageHeader.js";
 import { SegmentedControl } from "./ui/SegmentedControl.js";
-import { useMediaQuery } from "./ui/useMediaQuery.js";
+import { PHONE_QUERY, useMediaQuery } from "./ui/useMediaQuery.js";
 
 /** Scrolling past this many pixels moves the page title into the toolbar. */
 const COMPACT_TITLE_SCROLL = 32;
@@ -357,7 +357,7 @@ function AppShellHeader({
   // re-renders the bar and the heading — never the view that made it.
   const providedHeader = usePageHeaderContent();
   // The breadcrumb and the search label take the phone and compact sizes.
-  const phoneWidth = useMediaQuery("(max-width: 768px)");
+  const phoneWidth = useMediaQuery(PHONE_QUERY);
   const compactSearch = useMediaQuery("(max-width: 1320px)");
   const headingTitle = providedHeader?.title ?? title;
   const headingSubtitle = providedHeader?.subtitle ?? subtitle;
@@ -403,12 +403,15 @@ function AppShellHeader({
             >
               {headingTitle}
             </h1>
-            <span
-              id="toolbar-subtitle"
-              className="toolbar-subtitle text-caption-1"
-            >
-              {headingSubtitle}
-            </span>
+            {/* At phone width the branch moves to Run details: the toolbar keeps the title only. */}
+            {!phoneWidth && (
+              <span
+                id="toolbar-subtitle"
+                className="toolbar-subtitle text-caption-1"
+              >
+                {headingSubtitle}
+              </span>
+            )}
           </div>
         ) : (
           // The screen's large title is the one h1 here. This copy is for the

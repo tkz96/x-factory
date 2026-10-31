@@ -1,13 +1,15 @@
 // src/frontend/components/runs/RunChatComposer.tsx — The run chat's message box: the textarea (Return
 // sends, Shift-Return adds a line, Mod-Return sends), the tips tooltip, and the send button.
 
-import type { KeyboardEvent, RefObject } from "react";
+import { type KeyboardEvent, type RefObject, useId } from "react";
 import { Tooltip, TooltipTrigger } from "../overlays/Tooltip.js";
 import { IconButton } from "../ui/IconButton.js";
 
+/** The keys the textarea responds to; its own description, so a screen reader hears them (US20, #319). */
+const KEYS_HELP = "Return sends. Shift-Return adds a line.";
+
 /** The text of the message-box info button's tooltip: the input's keys and the waiting rule. */
-const TIPS_TEXT =
-  "Return sends. Shift-Return adds a line. You can message the Builder while the run is waiting for you.";
+const TIPS_TEXT = `${KEYS_HELP} You can message the Builder while the run is waiting for you.`;
 
 interface RunChatComposerProps {
   inputRef: RefObject<HTMLTextAreaElement | null>;
@@ -38,6 +40,8 @@ export function RunChatComposer({
     onSend();
   };
 
+  const keysId = useId();
+
   return (
     <form
       className="run-chat-input"
@@ -51,6 +55,7 @@ export function RunChatComposer({
         className="text-body"
         id="input-understanding-chat"
         aria-label="Message"
+        aria-describedby={keysId}
         rows={1}
         placeholder={placeholder}
         value={value}
@@ -58,6 +63,9 @@ export function RunChatComposer({
         onKeyDown={handleKeyDown}
         disabled={inputDisabled}
       />
+      <span id={keysId} className="sr-only">
+        {KEYS_HELP}
+      </span>
       <TooltipTrigger delay={300}>
         <IconButton
           label="Message Tips"

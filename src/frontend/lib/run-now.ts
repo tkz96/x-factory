@@ -4,11 +4,14 @@
 // pull request, and the failure with its recovery.
 
 import { type DiffSummary, summarizeDiff } from "../../shared/diff-summary.js";
+import type { FailureCategory } from "../../shared/failure-reason.js";
 import type { PullRequestOutcome, Run, RunEvent } from "../../shared/types.js";
 import { STATUS_COPY } from "../components/feedback/copy-map.js";
 import { runStatusUi } from "./run-status-ui.js";
 
 export interface RunNowFailure {
+  /** What kind of failure it was, or null when the status event does not say. */
+  category: FailureCategory | null;
   message: string;
   recovery: string;
 }
@@ -26,6 +29,10 @@ export function isWaitingForWorker(run: Run): boolean {
   return run.waitingForWorker === true && run.status !== "queued";
 }
 
+/** The recovery of a failure with no recorded cause; the card's Start New Run button says it already. */
+export const GENERIC_FAILURE_RECOVERY =
+  "Start a new run for this ticket to try again.";
+
 export interface RunNow {
   /** The status map's plain title, e.g. "Review the plan". */
   title: string;
@@ -38,7 +45,24 @@ export interface RunNow {
   pullRequestUrl: string | null;
   pullRequestOutcome: PullRequestOutcome | null;
   failure: RunNowFailure | null;
+  /** When the run was stopped (the stopped status event's time), or null. */
+  stoppedAt: string | null;
+  /** True when the stopped status event says the reader stopped the run. */
+  stoppedByUser: boolean;
 }
+
+/** The plain name of a failure category, for the terminal card. */
+export const FAILURE_CATEGORY_LABEL: Record<FailureCategory, string> = {
+  model: "Model failure",
+  sandbox: "Sandbox failure",
+  timeout: "Timed out",
+  verification: "Verification failure",
+  review: "Review failure",
+  git: "Git failure",
+  project: "Project failure",
+  operator: "Operator action",
+  unknown: "Run failed",
+};
 
 /** The newest event of one type, read as the payload shape the caller expects. */
 function latest<T>(events: readonly RunEvent[], type: string): T | null {
@@ -60,19 +84,22 @@ function failureFor(
     }>(events, "status");
     if (payload?.failure) {
       return {
+        category: payload.failure.category,
         message: payload.failure.message,
         recovery: payload.failure.recovery,
       };
     }
     return {
+      category: null,
       message: "This run failed and can't continue.",
-      recovery: "Start a new run for this ticket to try again.",
+      recovery: GENERIC_FAILURE_RECOVERY,
     };
   }
   if (run.status === "review_retry_required") {
     // The last model error is the status event's reason; the code is kept.
     const payload = latest<{ reason?: string }>(events, "status");
     return {
+      category: null,
       message:
         payload?.reason ??
         "The reviewer model failed three times in a row, so the review did not finish.",
@@ -86,6 +113,7 @@ function failureFor(
       text?: string;
     }>(events, "status");
     return {
+      category: null,
       message:
         payload?.reason ??
         payload?.text ??
@@ -114,34 +142,9 @@ export function runNow(run: Run, events: readonly RunEvent[]): RunNow {
     diff = summary.files.length > 0 ? summary : null;
   }
 
-  const mergedEvent = latest<{
-    url: string;
-    mergedAt: string;
-    mergedBy?: string;
-  }>(events, "pr_merged");
-  const closedEvent = latest<{ url: string; closedAt: string }>(
-    events,
-    "pr_closed",
-  );
-
-  const outcome: PullRequestOutcome | null =
-    run.pullRequestOutcome ??
-    (mergedEvent
-      ? {
-          status: "merged",
-          state: "merged",
-          url: mergedEvent.url,
-          mergedAt: mergedEvent.mergedAt,
-          mergedBy: mergedEvent.mergedBy,
-        }
-      : closedEvent
-        ? {
-            status: "closed",
-            state: "closed",
-            url: closedEvent.url,
-            closedAt: closedEvent.closedAt,
-          }
-        : null);
+  // The outcome the server recorded on the run (the PR checker writes it); the
+  // events that once rebuilt it here are its redundant shadow (#312 ticket 10).
+  const outcome: PullRequestOutcome | null = run.pullRequestOutcome ?? null;
 
   let title = ui.header;
   let sentence = ui.now;
@@ -157,6 +160,18 @@ export function runNow(run: Run, events: readonly RunEvent[]): RunNow {
     sentence = "The pull request was closed without merging.";
   }
 
+  const stoppedEvent =
+    run.status === "stopped"
+      ? events.findLast(
+          (event) =>
+            event.type === "status" && event.payload.status === "stopped",
+        )
+      : undefined;
+  const stoppedText =
+    stoppedEvent?.type === "status"
+      ? (stoppedEvent.payload as { text?: string }).text
+      : undefined;
+
   return {
     title,
     sentence,
@@ -165,5 +180,10 @@ export function runNow(run: Run, events: readonly RunEvent[]): RunNow {
     pullRequestUrl: run.pullRequest?.url ?? outcome?.url ?? null,
     pullRequestOutcome: outcome,
     failure: failureFor(run, events),
+    stoppedAt:
+      run.status === "stopped"
+        ? (stoppedEvent?.timestamp ?? run.updatedAt)
+        : null,
+    stoppedByUser: /stopped by user/i.test(stoppedText ?? ""),
   };
 }
