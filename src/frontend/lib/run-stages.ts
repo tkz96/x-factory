@@ -36,9 +36,32 @@ export function formatTook(ms: number): string {
   return `${sec}s`;
 }
 
-/** How many stages are done: the count the run page's header reads as "N of 6". */
-export function stagesDoneCount(groups: readonly StageGroup[]): number {
-  return groups.filter((group) => group.state === "done").length;
+/**
+ * The stage a reader is looking at: the current stage, else the failed or stopped one, else the
+ * last stage that has any items. Null when no stage qualifies.
+ */
+export function focusStage(
+  groups: readonly StageGroup[],
+): WorkflowStage | null {
+  const focus =
+    groups.find((group) => group.state === "current") ??
+    groups.find((group) => group.state === "failed") ??
+    groups.find((group) => group.state === "stopped");
+  if (focus) return focus.stage;
+  const lastWithItems = [...groups]
+    .reverse()
+    .find((group) => group.items.length > 0);
+  return lastWithItems?.stage ?? null;
+}
+
+/**
+ * The stages a reader sees open at first: the focus stage (see `focusStage`).
+ */
+export function defaultOpenStages(
+  groups: readonly StageGroup[],
+): Set<WorkflowStage> {
+  const stage = focusStage(groups);
+  return new Set(stage ? [stage] : []);
 }
 
 /**

@@ -1,7 +1,7 @@
-// test/diff-parser.test.ts — Unit tests for unified git diff parsing utility.
+// test/diff-parser.test.ts — Unit tests for the one unified git diff parser, as the run page reads it.
 
 import { describe, expect, it } from "bun:test";
-import { parseDiffToFiles } from "../src/frontend/lib/diff-parser.js";
+import { parseDiffToFiles } from "../src/shared/diff-summary.js";
 
 describe("diff-parser", () => {
   it("returns empty array for empty or null diff", () => {

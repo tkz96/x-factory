@@ -1,7 +1,7 @@
 // test/diff-summary.test.ts — Unit tests for the shared unified-diff parser and its summary (#256).
 
 import { describe, expect, it } from "bun:test";
-import { parseUnifiedDiff, summarizeDiff } from "../src/shared/diff-summary.js";
+import { parseDiffToFiles, summarizeDiff } from "../src/shared/diff-summary.js";
 
 const TWO_FILE_DIFF = `diff --git a/src/cart.ts b/src/cart.ts
 index 1234567..89abcdef 100644
@@ -84,12 +84,12 @@ index 1234567..0000000
   });
 });
 
-describe("parseUnifiedDiff (#256)", () => {
+describe("parseDiffToFiles (#256)", () => {
   it("keeps each file's body so callers can render hunks", () => {
-    const files = parseUnifiedDiff(TWO_FILE_DIFF);
-    expect(files.map((f) => f.path)).toEqual(["src/cart.ts", "README.md"]);
-    expect(files[0]?.body).toContain("@@ -1,3 +1,4 @@");
-    expect(files[0]?.body).toContain("+const c = 4;");
-    expect(files[1]?.body).not.toContain("@@ -1,3 +1,4 @@");
+    const files = parseDiffToFiles(TWO_FILE_DIFF);
+    expect(files.map((f) => f.file)).toEqual(["src/cart.ts", "README.md"]);
+    expect(files[0]?.hunks).toContain("@@ -1,3 +1,4 @@");
+    expect(files[0]?.hunks).toContain("+const c = 4;");
+    expect(files[1]?.hunks).not.toContain("@@ -1,3 +1,4 @@");
   });
 });

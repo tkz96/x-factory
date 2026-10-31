@@ -11,15 +11,15 @@ import { afterAll, afterEach, describe, expect, it, mock } from "bun:test";
 import { cleanup, fireEvent, render, within } from "@testing-library/react";
 import {
   defaultDecisionStage,
-  defaultOpenStages,
   RunStageTimeline,
   type RunStageTimelineProps,
 } from "../src/frontend/components/runs/RunStageTimeline.js";
 import type { ChatItem } from "../src/frontend/lib/run-chat-items.js";
-import type {
-  Attempt,
-  StageGroup,
-  StageState,
+import {
+  type Attempt,
+  defaultOpenStages,
+  type StageGroup,
+  type StageState,
 } from "../src/frontend/lib/run-stages.js";
 import {
   STAGE_LABELS,
@@ -137,9 +137,9 @@ describe("RunStageTimeline", () => {
     const body = prepare.querySelector<HTMLElement>(".run-stage-body");
     expect(body?.getAttribute("data-open")).toBe("false");
     expect(body?.hasAttribute("inert")).toBe(true);
-    // A <section> with a name is the region landmark.
-    expect(body?.tagName).toBe("SECTION");
-    expect(body?.getAttribute("aria-labelledby")).toBe(header.id);
+    // Plain content under the heading: no region landmark (#319, US20).
+    expect(body?.tagName).toBe("DIV");
+    expect(body?.hasAttribute("aria-labelledby")).toBe(false);
     expect(body?.id).toBe(header.getAttribute("aria-controls") ?? "");
   });
 
@@ -172,7 +172,9 @@ describe("RunStageTimeline", () => {
   });
 
   it("shows the stage's items inside its body, and Nothing yet. for an empty stage", () => {
-    const { container } = renderTimeline();
+    const { container } = renderTimeline({
+      open: new Set<WorkflowStage>(["plan", "execute"]),
+    });
     const plan = stageItem(container, "plan");
     expect(within(plan).getByText("Drafting the plan")).toBeTruthy();
     expect(plan.querySelector(".run-stage-empty")).toBeNull();
@@ -191,21 +193,6 @@ describe("RunStageTimeline", () => {
     );
     expect(holders).toHaveLength(1);
     expect(holders[0]?.getAttribute("data-state")).toBe("current");
-  });
-
-  it("renders the decision in the stage it is given, wherever that stage is", () => {
-    const { container } = renderTimeline({
-      decision: <p>Decision card</p>,
-      decisionStage: "review",
-      open: new Set<WorkflowStage>(["review"]),
-    });
-    const holders = Array.from(
-      container.querySelectorAll("li.run-stage"),
-    ).filter((li) => li.textContent?.includes("Decision card"));
-    expect(holders).toHaveLength(1);
-    expect(holders[0]?.querySelector(".run-stage-label")?.textContent).toBe(
-      "Review",
-    );
   });
 
   it("renders the decision in the failed stage of a run that has no current stage", () => {
@@ -250,6 +237,29 @@ describe("RunStageTimeline", () => {
     const { container } = renderTimeline({ groups });
     expect(headerOf(container, "plan").textContent).toBe("PlanTook 5sFailed");
     expect(headerOf(container, "execute").textContent).toBe("Code");
+  });
+});
+
+describe("the stage header path for keyboard readers (#319, US20)", () => {
+  it("sits every stage header button inside an h3", () => {
+    const { container } = renderTimeline();
+    const headers = Array.from(
+      container.querySelectorAll<HTMLButtonElement>("button.run-stage-header"),
+    );
+    expect(headers.length).toBe(STAGE_ORDER.length);
+    for (const button of headers) {
+      expect(button.closest("h3")).not.toBeNull();
+    }
+  });
+
+  it("gives the stage bodies no region role", () => {
+    const { container } = renderTimeline();
+    // A <section> with aria-labelledby is announced as a region; the body is
+    // plain content under the heading now, not its own landmark.
+    const body = container.querySelector(".run-stage-body");
+    expect(body).not.toBeNull();
+    expect(body?.tagName).toBe("DIV");
+    expect(body?.hasAttribute("aria-labelledby")).toBe(false);
   });
 });
 
@@ -362,6 +372,19 @@ describe("RunStageTimeline: attempts", () => {
     expect(getByText("Second review")).toBeTruthy();
     fireEvent.click(first);
     expect(first.getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("renders nothing for a folded earlier attempt until it is opened", () => {
+    const attempts = twoAttempts();
+    const { getByRole, container } = renderTimeline({
+      attempts,
+      groups: attempts[1]?.groups ?? [],
+      open: new Set<WorkflowStage>(["review"]),
+    });
+    const earlier = container.querySelectorAll(".run-attempt-body")[0];
+    expect(earlier?.children.length).toBe(0);
+    fireEvent.click(getByRole("button", { name: /Attempt 1/ }));
+    expect(earlier?.children.length).toBeGreaterThan(0);
   });
 
   it("puts the decision in the latest attempt only", () => {

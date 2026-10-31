@@ -137,10 +137,18 @@
 /* The stage's header is the shared quiet button, drawn as a row: it takes the
    full column, keeps a finger's height, and states its hover and press as a
    row fill rather than a lift. */
-/* Higher than the shared disclosure row, which it refines. */
-.ui-button.run-disclosure.run-stage-header {
+/* The header button sits inside an h3, so each stage is a heading a keyboard
+   reader can jump to (#319, US20). The heading takes the grid cell the button
+   had, and drops the heading's own margins. */
+.run-stage-heading {
   grid-column: 2;
   grid-row: 1;
+  min-width: 0;
+  margin: 0;
+}
+
+/* Higher than the shared disclosure row, which it refines. */
+.ui-button.run-disclosure.run-stage-header {
   min-height: var(--run-stage-row);
   padding-block: 0;
 }

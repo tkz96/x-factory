@@ -11,12 +11,14 @@ import type { ChatItem } from "../../lib/run-chat-items.js";
 import { groupRows } from "../../lib/run-chat-rows.js";
 import {
   type Attempt,
+  focusStage,
   formatTook,
   type StageGroup,
   type StageState,
 } from "../../lib/run-stages.js";
 import { STATUS_COPY } from "../feedback/copy-map.js";
 import { Badge, type BadgeTone } from "../ui/Badge.js";
+import { Button } from "../ui/Button.js";
 import { EmptyState } from "../ui/EmptyState.js";
 import { Icon } from "../ui/Icon.js";
 import { Spinner } from "../ui/Spinner.js";
@@ -34,46 +36,16 @@ export interface RunStageTimelineProps {
   /** The stages whose bodies are open. */
   open: ReadonlySet<WorkflowStage>;
   onToggle: (stage: WorkflowStage) => void;
-  /** The clock the chat rows' relative times read from. */
-  now: number;
+  /** Pins the clock the rows' relative times read from; by default they read the shared minute ticker. */
+  now?: number | undefined;
   /** The retry offered for a trailing error row, if any. */
   retryFor?: (item: ChatItem) => (() => void) | undefined;
   /** Rendered after the header of the decision stage (see `defaultDecisionStage`), outside the collapsible body. */
   decision?: ReactNode;
-  /** The stage the decision renders in; defaults to `defaultDecisionStage(groups)`. */
-  decisionStage?: WorkflowStage | undefined;
   /** True once the stream has opened or any event has arrived (#313). Defaults to true. */
   eventsLoaded?: boolean | undefined;
   /** The note shown when the current stage is empty and events are loaded (#313). */
   emptyNote?: string | undefined;
-}
-
-/**
- * The stage a reader is looking at: the current stage, else the failed or stopped one, else the
- * last stage that has any items. Null when no stage qualifies.
- */
-export function focusStage(
-  groups: readonly StageGroup[],
-): WorkflowStage | null {
-  const focus =
-    groups.find((group) => group.state === "current") ??
-    groups.find((group) => group.state === "failed") ??
-    groups.find((group) => group.state === "stopped");
-  if (focus) return focus.stage;
-  const lastWithItems = [...groups]
-    .reverse()
-    .find((group) => group.items.length > 0);
-  return lastWithItems?.stage ?? null;
-}
-
-/**
- * The stages a reader sees open at first: the focus stage (see `focusStage`).
- */
-export function defaultOpenStages(
-  groups: readonly StageGroup[],
-): Set<WorkflowStage> {
-  const stage = focusStage(groups);
-  return new Set(stage ? [stage] : []);
 }
 
 /**
@@ -95,7 +67,13 @@ const STATE_STATUS: Partial<
 };
 
 /** A folded run of agent updates: one disclosure row, closed until the reader opens it. */
-function ActivityGroup({ items, now }: { items: ChatItem[]; now: number }) {
+function ActivityGroup({
+  items,
+  now,
+}: {
+  items: ChatItem[];
+  now?: number | undefined;
+}) {
   const [isOpen, setOpen] = useState(false);
   const id = useId();
   return (
@@ -110,13 +88,18 @@ function ActivityGroup({ items, now }: { items: ChatItem[]; now: number }) {
         <span className="text-subhead">{`${items.length} agent updates`}</span>
       </RunDisclosure>
       <div id={`${id}-body`} className="run-chat-group-body" hidden={!isOpen}>
-        {items.map((item) => (
-          <RunChatRow key={item.id} item={item} now={now} />
-        ))}
+        {/* A folded group renders nothing until it is opened (#321). */}
+        {isOpen &&
+          items.map((item) => (
+            <RunChatRow key={item.id} item={item} now={now} />
+          ))}
       </div>
     </div>
   );
 }
+
+/** How many of a stage's latest items show at first, and how many each "Show Earlier" adds (#321). */
+const STAGE_PAGE = 50;
 
 function StageRows({
   items,
@@ -124,12 +107,24 @@ function StageRows({
   retryFor,
 }: {
   items: ChatItem[];
-  now: number;
+  now?: number | undefined;
   retryFor?: ((item: ChatItem) => (() => void) | undefined) | undefined;
 }) {
+  const [shown, setShown] = useState(STAGE_PAGE);
+  const hidden = Math.max(0, items.length - shown);
+  const visible = hidden > 0 ? items.slice(hidden) : items;
   return (
     <>
-      {groupRows(items).map((row) =>
+      {hidden > 0 && (
+        <Button
+          variant="secondary"
+          size="sm"
+          onPress={() => setShown((count) => count + STAGE_PAGE)}
+        >
+          Show Earlier
+        </Button>
+      )}
+      {groupRows(visible).map((row) =>
         row.kind === "item" ? (
           <RunChatRow
             key={row.item.id}
@@ -149,10 +144,9 @@ interface StageListProps {
   groups: StageGroup[];
   open: ReadonlySet<WorkflowStage>;
   onToggle: (stage: WorkflowStage) => void;
-  now: number;
+  now?: number | undefined;
   retryFor?: ((item: ChatItem) => (() => void) | undefined) | undefined;
   decision?: ReactNode;
-  decisionStage?: WorkflowStage | undefined;
   label?: string;
   eventsLoaded?: boolean | undefined;
   emptyNote?: string | undefined;
@@ -206,7 +200,8 @@ function AttemptSection({
         </RunDisclosure>
       </h3>
       <div id={`${id}-body`} className="run-attempt-body" hidden={!isOpen}>
-        {children}
+        {/* A folded attempt renders nothing until it is opened (#321). */}
+        {isOpen ? children : null}
       </div>
     </section>
   );
@@ -220,7 +215,6 @@ export function RunStageTimeline({
   now,
   retryFor,
   decision,
-  decisionStage,
   eventsLoaded = true,
   emptyNote,
 }: RunStageTimelineProps) {
@@ -233,7 +227,6 @@ export function RunStageTimeline({
         now={now}
         retryFor={retryFor}
         decision={decision}
-        decisionStage={decisionStage}
         eventsLoaded={eventsLoaded}
         emptyNote={emptyNote}
       />
@@ -258,7 +251,6 @@ export function RunStageTimeline({
                 now={now}
                 retryFor={retryFor}
                 decision={decision}
-                decisionStage={decisionStage}
                 eventsLoaded={eventsLoaded}
                 emptyNote={emptyNote}
               />
@@ -283,13 +275,12 @@ function StageList({
   now,
   retryFor,
   decision,
-  decisionStage,
   label,
   eventsLoaded = true,
   emptyNote,
 }: StageListProps) {
   const idBase = useId();
-  const decisionAt = decisionStage ?? defaultDecisionStage(groups);
+  const decisionAt = defaultDecisionStage(groups);
 
   return (
     <ol
@@ -315,37 +306,43 @@ function StageList({
                 />
               )}
             </span>
-            <RunDisclosure
-              id={headId}
-              controls={bodyId}
-              isOpen={isOpen}
-              onToggle={() => onToggle(group.stage)}
-              className="run-stage-header"
-            >
-              <span className="run-stage-label text-headline">
-                {group.label}
-              </span>
-              {group.tookMs !== null && (
-                <span className="run-stage-took text-footnote">
-                  {`Took ${formatTook(group.tookMs)}`}
+            <h3 className="run-stage-heading text-headline">
+              <RunDisclosure
+                id={headId}
+                controls={bodyId}
+                isOpen={isOpen}
+                onToggle={() => onToggle(group.stage)}
+                className="run-stage-header"
+              >
+                <span className="run-stage-label text-headline">
+                  {group.label}
                 </span>
-              )}
-              {statusText && (
-                <Badge tone={statusText.tone}>{statusText.text}</Badge>
-              )}
-            </RunDisclosure>
+                {group.tookMs !== null && (
+                  <span className="run-stage-took text-footnote">
+                    {`Took ${formatTook(group.tookMs)}`}
+                  </span>
+                )}
+                {statusText && (
+                  <Badge tone={statusText.tone}>{statusText.text}</Badge>
+                )}
+              </RunDisclosure>
+            </h3>
+            {/* The decision card sits directly after the stage's header, outside
+                the collapsible body (#312 ticket 3). */}
             {holdsDecision && (
               <div className="run-stage-decision">{decision}</div>
             )}
-            <section
+            {/* Plain content under the heading: a labelled <section> would be a
+                region, and six landmarks drown the heading path (#319, US20). */}
+            <div
               id={bodyId}
-              aria-labelledby={headId}
               className="run-stage-body"
               data-open={isOpen ? "true" : "false"}
               inert={!isOpen}
             >
               <div className="run-stage-panel">
-                {showSpinner ? (
+                {/* A closed stage renders nothing: its rows mount when it opens (#321). */}
+                {!isOpen ? null : showSpinner ? (
                   <div className="run-stage-note">
                     <Spinner label="Loading events…" />
                   </div>
@@ -368,7 +365,7 @@ function StageList({
                   </>
                 )}
               </div>
-            </section>
+            </div>
           </li>
         );
       })}
