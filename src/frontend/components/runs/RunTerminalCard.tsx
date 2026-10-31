@@ -55,7 +55,9 @@ function Stopped({ facts }: { facts: RunNow }) {
         {STATUS_COPY.stageStopped}
       </h2>
       <p className="run-terminal-meta text-callout">
-        {facts.stoppedByUser ? "Stopped by you" : "Stopped"}
+        {facts.stoppedByUser
+          ? `${STATUS_COPY.stageStopped} by you`
+          : STATUS_COPY.stageStopped}
         {facts.stoppedAt && (
           <>
             {" · "}
