@@ -64,18 +64,28 @@ function runPageHeader(
 }
 
 /** The page's line while the server cannot be reached: the page keeps what it has. */
-function ConnectionBanner() {
+function ConnectionBanner({ onRetry }: { onRetry: () => void }) {
   return (
-    <FeedbackBanner tone="warning" message={RUN_CONNECTION_COPY.lost}>
+    <FeedbackBanner
+      tone="warning"
+      message={RUN_CONNECTION_COPY.lost}
+      onRetry={onRetry}
+    >
       {RUN_CONNECTION_COPY.retrying}
     </FeedbackBanner>
   );
 }
 
-function RunLoadingState({ connectionLost }: { connectionLost: boolean }) {
+function RunLoadingState({
+  connectionLost,
+  onRetry,
+}: {
+  connectionLost: boolean;
+  onRetry: () => void;
+}) {
   return (
     <section id="area-runs" className="area-view active">
-      {connectionLost && <ConnectionBanner />}
+      {connectionLost && <ConnectionBanner onRetry={onRetry} />}
       <AsyncRegion derived={LOADING} />
     </section>
   );
@@ -118,6 +128,7 @@ function RunDetailPage({
   eventsLoaded,
   notice,
   connectionLost,
+  onRetry,
 }: {
   runId: string | undefined;
   run: LoadedRun;
@@ -126,6 +137,7 @@ function RunDetailPage({
   eventsLoaded: boolean;
   notice: string | undefined;
   connectionLost: boolean;
+  onRetry: () => void;
 }) {
   const { actionError, conflict, pending, onAction } = useRunCheckpointActions(
     runId,
@@ -140,6 +152,7 @@ function RunDetailPage({
       eventsLoaded={eventsLoaded}
       notice={notice}
       connectionLost={connectionLost}
+      onRetry={onRetry}
       actionError={actionError}
       conflict={conflict}
       pending={pending}
@@ -156,6 +169,7 @@ function RunDetailLayout({
   eventsLoaded,
   notice,
   connectionLost,
+  onRetry,
   actionError,
   conflict,
   pending,
@@ -167,6 +181,7 @@ function RunDetailLayout({
   eventsLoaded: boolean;
   notice: string | undefined;
   connectionLost: boolean;
+  onRetry: () => void;
   actionError: string | null;
   conflict: boolean;
   pending: CheckpointAction | null;
@@ -194,7 +209,7 @@ function RunDetailLayout({
           }
         >
           <div className="run-detail-main">
-            {connectionLost && <ConnectionBanner />}
+            {connectionLost && <ConnectionBanner onRetry={onRetry} />}
             {notice && <FeedbackBanner tone="info" message={notice} />}
             {actionError && (
               <div id="run-error">
@@ -246,6 +261,7 @@ export function RunDetailView() {
     connected,
     eventsLoaded,
     reconnecting,
+    retry,
   } = useRunDetail(runId);
   const header = useMemo(() => runPageHeader(run), [run]);
   usePageHeader(header);
@@ -256,7 +272,7 @@ export function RunDetailView() {
 
   if (isRunMissing(error)) return <RunNotFoundState runId={runId} />;
   if (isLoading || !run) {
-    return <RunLoadingState connectionLost={connectionLost} />;
+    return <RunLoadingState connectionLost={connectionLost} onRetry={retry} />;
   }
 
   return (
@@ -268,6 +284,7 @@ export function RunDetailView() {
       eventsLoaded={eventsLoaded}
       notice={notice}
       connectionLost={connectionLost}
+      onRetry={retry}
     />
   );
 }

@@ -410,6 +410,8 @@ export function subscribeRunEvents({
   // A live stream whose run went terminal while it was down may have missed the run's tail: it
   // reopens once from the last applied id, as a replay, and stops when that ends.
   let caughtUp = replayOnly;
+  // True from an error on a run that was still active until the next open: the tail may be missing.
+  let wasDown = false;
   const finish = () => {
     if (caughtUp) {
       stop();
@@ -455,6 +457,7 @@ export function subscribeRunEvents({
       onOpen: () => {
         if (!active || stopped) return;
         attempt = 0;
+        wasDown = false;
         onConnectionChange?.(true);
         onReconnectingChange?.(false);
       },
@@ -466,9 +469,13 @@ export function subscribeRunEvents({
         if (!active || stopped) return;
         onConnectionChange?.(false);
         if (isTerminalRun()) {
-          finish();
+          // The server closing a stream that was up has sent the whole tail; a stream the browser
+          // gave up on, or one that was already down, may have missed it.
+          if (permanent || wasDown) finish();
+          else stop();
           return;
         }
+        wasDown = true;
         onReconnectingChange?.(true);
         if (!permanent) return; // the browser is retrying by itself
         drop();

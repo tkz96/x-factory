@@ -69,5 +69,7 @@ export function useRunDetail(runId: string | null | undefined) {
     connected,
     reconnecting,
     eventsLoaded,
+    /** Asks the server for the run again; a reader's action, not a stream-driven refetch. */
+    retry: () => void runQuery.refetch(),
   };
 }

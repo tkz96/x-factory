@@ -13,7 +13,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   act,
   cleanup,
+  fireEvent,
   render,
+  waitFor,
   waitForElementToBeRemoved,
 } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -155,6 +157,20 @@ describe("the run page through a short server outage", () => {
 
     await view.findByText("Connection lost");
     expect(view.queryByText("Run Not Found")).toBeNull();
+  });
+
+  it("offers Retry on the banner when the first load failed, and a press loads the run", async () => {
+    let reachable = false;
+    const { view } = renderRunPage(() => {
+      if (!reachable) return unreachable();
+      return json(makeRun("run-1", "executing"));
+    }, null);
+
+    await view.findByText("Connection lost");
+    reachable = true;
+    fireEvent.click(view.getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(view.queryByText("Connection lost")).toBeNull());
+    expect(view.getByText(/Ticket run-1/)).toBeTruthy();
   });
 
   it("drops the connection banner once a refresh succeeds again", async () => {
