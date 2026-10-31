@@ -90,8 +90,12 @@
   text-align: end;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: var(--font-mono);
   color: var(--text);
+}
+
+/* Monospace is for identifiers only: a branch, a ticket id, a pull request number. */
+.run-inspector-value--mono {
+  font-family: var(--font-mono);
 }
 
 /* A status word (a verdict, a count) keeps its full width and never shrinks. */
@@ -115,11 +119,11 @@
 }
 
 .run-inspector-value--pass {
-  color: var(--green);
+  color: var(--green-text);
 }
 
 .run-inspector-value--fail {
-  color: var(--red);
+  color: var(--red-text);
 }
 
 .run-inspector-link {
@@ -229,9 +233,19 @@
   transform: none;
 }
 
-/* A finger's target: the row keeps --tap-min under a touch pointer or a phone width. */
+/* A finger's target: the row keeps --tap-min under a touch pointer or a phone width.
+   The copy and link row actions zero their height to sit flush in the row, so they
+   grow back here, as the file rows do (US21, #319). */
 @media (any-pointer: coarse), (max-width: 768px) {
   .ui-button.run-inspector-file {
+    min-height: var(--tap-min);
+  }
+
+  .ui-button.run-inspector-copy {
+    min-height: var(--tap-min);
+  }
+
+  .run-inspector-link.run-inspector-stretch {
     min-height: var(--tap-min);
   }
 }
@@ -253,25 +267,43 @@
 
 .run-inspector-file-counts {
   flex: 0 0 auto;
-  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 
 .run-inspector-add {
-  color: var(--green);
+  color: var(--green-text);
 }
 
 .run-inspector-remove {
-  color: var(--red);
+  color: var(--red-text);
 }
 
-/* The empty note of a section: the EmptyState block, without its own air. */
-/* A one-line "nothing here" inside a list of rows stays inline: the row text style,
-   left-aligned, no region around it (spec #292, item 6). EmptyState is for a region. */
-.run-inspector-none {
-  margin: 0;
+/* A count of nothing is not a change: it reads in the secondary color. */
+.run-inspector-add.run-inspector-zero,
+.run-inspector-remove.run-inspector-zero {
+  color: var(--text-secondary);
+}
+
+/* Evidence is one summary row; the criteria open beneath it. */
+.run-inspector-evidence > summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
+  cursor: pointer;
+  list-style: none;
+}
+
+.run-inspector-evidence > summary::-webkit-details-marker {
+  display: none;
+}
+
+.run-inspector-evidence-total {
   color: var(--text-muted);
-  text-align: start;
+}
+
+.run-inspector-evidence[open] > summary {
+  margin-block-end: var(--space-1);
 }
 
 /* The footer: a full-width "Raw log" button pinned under the scroll area. */
@@ -398,7 +430,7 @@
 }
 
 .token-usage-out {
-  color: var(--green);
+  color: var(--green-text);
 }
 
 .token-usage-cost,

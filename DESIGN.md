@@ -64,6 +64,8 @@ Use Apple's semantic system colors as the base palette — they're accessible by
 | systemRed | `#FF3B30` | `#FF453A` | destructive actions, errors |
 | systemOrange | `#FF9500` | `#FF9F0A` | warnings |
 
+**Status text has its own tokens.** The bright tokens in the table suit icons, dots and fills, but they do not reach 4.5:1 as text on every appearance. Text in a status colour uses `--green-text`, `--red-text` and `--orange-text` (`.text-success`, `.text-danger` and `.text-warning` read them), and `--text-dim` is stronger in the dark appearances for the same reason. The bright tokens stay for icons and dots.
+
 Never hardcode a hex value for a semantic role. Use `label` / `secondaryLabel` / `tertiaryLabel` for text, and `systemBackground` / `secondarySystemBackground` for surfaces — these are the tokens that make dark mode free instead of a rewrite.
 
 **Warnings are always `var(--orange)` (`systemOrange`) and its `--orange-dim` tint — never `var(--yellow)`.** `--yellow` is reserved for non-warning accents only (favorites/stars, in-progress status pills and badges, event-type accents). The full state-coverage contract behind this lives in `docs/reference/state-coverage.md`.

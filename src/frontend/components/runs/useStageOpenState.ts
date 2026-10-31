@@ -8,9 +8,13 @@
 
 import { useEffect, useReducer } from "react";
 import type { WorkflowStage } from "../../../shared/types.js";
-import type { StageGroup, StageState } from "../../lib/run-stages.js";
+import {
+  defaultOpenStages,
+  focusStage,
+  type StageGroup,
+  type StageState,
+} from "../../lib/run-stages.js";
 import { STAGE_ORDER } from "../../lib/workflow-stages.js";
-import { defaultOpenStages, focusStage } from "./RunStageTimeline.js";
 
 interface StageOpenState {
   openStages: ReadonlySet<WorkflowStage>;

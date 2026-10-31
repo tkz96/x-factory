@@ -32,6 +32,7 @@ Global styles are imported once in `src/frontend/main.tsx` via `src/frontend/sty
    - Typography (`.text-headline`, `.text-footnote`, etc.).
    - Layout (`.flex-between`, `.flex-center`, `.flex-col`, `.stack`, `.col-span-full`, `.d-none`, `.m-0`).
    - Colors (`.text-muted`, `.text-dim`, `.text-accent`, `.text-success`, `.text-danger`, `.text-warning`).
+   - Status text uses the text tokens `--green-text`, `--red-text` and `--orange-text`, not the bright `--green`, `--red` and `--orange`. `.text-success`, `.text-danger` and `.text-warning` read them, and they hold 4.5:1 on each appearance. `--text-dim` is stronger in the dark appearances for the same reason. The bright tokens stay for icons and dots, which need only to be seen. Do not set a status colour on text with a bright token.
 
 ---
 

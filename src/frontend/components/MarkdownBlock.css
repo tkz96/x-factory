@@ -169,3 +169,28 @@
   margin: var(--space-2) 0;
   padding: var(--space-1) var(--space-3);
 }
+
+/* A foldable block in a card scrolls inside a height cap; a fade at the bottom edge says there is more.
+   The fade shows only while the text overflows, as a scroll-driven mask. */
+.md-block-foldable .md-block-preview {
+  max-height: 14rem;
+  overflow-y: auto;
+}
+
+.md-block-fade .md-block-preview {
+  mask-image: linear-gradient(
+    to bottom,
+    black calc(100% - var(--space-6)),
+    transparent
+  );
+}
+
+/* Folded at phone width: a shorter cap, no inner scroll, the fade stays until Show All. */
+.md-block-folded .md-block-preview {
+  max-height: 8rem;
+  overflow-y: hidden;
+}
+
+.md-block-fold {
+  align-self: flex-start;
+}

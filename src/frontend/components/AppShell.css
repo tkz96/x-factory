@@ -224,6 +224,27 @@
   max-width: 100%;
 }
 
+/* The other run's activity stands apart from this run's title: a hairline divides them, so the
+   activity never reads as the title's state. */
+.toolbar-run-heading + .toolbar-activity {
+  margin-inline-start: var(--space-1);
+  padding-inline-start: var(--space-3);
+  border-inline-start: var(--hairline) solid var(--separator);
+}
+
+/* Phone width: the title wraps to two lines rather than ellipsising; the branch is in Details. */
+@media (max-width: 768px) {
+  .toolbar-run-heading .toolbar-title {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
 /* The toolbar's search field: it reads as the field the palette opens, so the
    two are obviously the same thing. */
 .toolbar-search {

@@ -7,16 +7,13 @@ import "./RunNowHeader.css";
 
 import type { Run } from "../../../shared/types.js";
 import { formatRelativeTime } from "../../lib/format-timestamp.js";
+import { plural } from "../../lib/plural.js";
 import type { RunNow } from "../../lib/run-now.js";
 import { MarkdownBlock } from "../MarkdownBlock.js";
 
 export interface RunNowHeaderProps {
   run: Run;
   now: RunNow;
-}
-
-function plural(count: number, one: string, many: string): string {
-  return count === 1 ? one : many;
 }
 
 export function RunNowHeader({ run, now }: RunNowHeaderProps) {
@@ -30,7 +27,7 @@ export function RunNowHeader({ run, now }: RunNowHeaderProps) {
 
       {now.plan && (
         <div className="run-now-plan text-callout">
-          <MarkdownBlock content={now.plan} compact />
+          <MarkdownBlock content={now.plan} label="Plan" compact foldable />
         </div>
       )}
 

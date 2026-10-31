@@ -136,6 +136,23 @@ describe("the now header says what the run is doing", () => {
     expect(now.pullRequestOutcome?.status).toBe("closed");
   });
 
+  it("takes the pull request outcome only from the run, never rebuilding it from events (#322)", () => {
+    const now = runNow(makeRun("pr_created"), [
+      ev(1, "pr_merged", {
+        url: "https://github.com/o/r/pull/9",
+        mergedAt: "2026-09-20T12:30:00.000Z",
+        mergedBy: "octocat",
+      }),
+      ev(2, "pr_closed", {
+        url: "https://github.com/o/r/pull/9",
+        closedAt: "2026-09-20T12:40:00.000Z",
+      }),
+    ]);
+    expect(now.pullRequestOutcome).toBeNull();
+    expect(now.title).not.toBe("Merged");
+    expect(now.title).not.toBe("Closed without merging");
+  });
+
   it("explains a failed run with its structured reason and recovery", () => {
     const now = runNow(makeRun("failed"), [
       ev(3, "status", {
@@ -149,6 +166,7 @@ describe("the now header says what the run is doing", () => {
       }),
     ]);
     expect(now.failure).toEqual({
+      category: "verification",
       message: "The change did not pass deterministic verification.",
       recovery: "Read the failing tests, then restart the run.",
     });

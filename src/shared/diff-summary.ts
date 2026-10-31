@@ -1,7 +1,8 @@
-// src/shared/diff-summary.ts — One parser for a unified git diff (#256).
+// src/shared/diff-summary.ts — One parser for a unified git diff (#256, spec #312 ticket 10).
 //
 // The worker needs a summary of what changed (the `diff_summary` run event) and the run page
-// needs the hunks themselves, so both read the same parse instead of keeping two parsers.
+// needs the hunks themselves, so both read the same parse: `summarizeDiff` and the run page's
+// `parseDiffToFiles` are the one function, not two parsers.
 
 export interface DiffFileSummary {
   path: string;
@@ -17,16 +18,19 @@ export interface DiffSummary {
 }
 
 /** One file of a parsed diff, with the body text a caller renders hunks from. */
-interface ParsedDiffFile extends DiffFileSummary {
-  body: string;
+export interface ParsedDiffFile {
+  file: string;
+  added: number;
+  removed: number;
+  hunks: string;
 }
 
 /**
- * Parses a unified git diff into one entry per file, counting added and removed lines.
- * Tolerant on purpose: a patch with no `diff --git` header is read from its `+++` line, and
- * `+++`/`---` file headers are never counted as content.
+ * Parses a unified git diff into one entry per file, counting added and removed lines and
+ * keeping each file's body. Tolerant on purpose: a patch with no `diff --git` header is read
+ * from its `+++` line, and `+++`/`---` file headers are never counted as content.
  */
-export function parseUnifiedDiff(
+export function parseDiffToFiles(
   diff: string | null | undefined,
 ): ParsedDiffFile[] {
   if (!diff?.trim()) {
@@ -44,10 +48,10 @@ export function parseUnifiedDiff(
   const flush = () => {
     if (current) {
       files.push({
-        path: current.path,
+        file: current.path,
         added: current.added,
         removed: current.removed,
-        body: current.body.join("\n").trim(),
+        hunks: current.body.join("\n").trim(),
       });
     }
     current = null;
@@ -87,8 +91,8 @@ export function parseUnifiedDiff(
 
 /** Summarises a diff into per-file counts and totals. An absent diff summarises to zeroes. */
 export function summarizeDiff(diff: string | null | undefined): DiffSummary {
-  const files = parseUnifiedDiff(diff).map(({ path, added, removed }) => ({
-    path,
+  const files = parseDiffToFiles(diff).map(({ file, added, removed }) => ({
+    path: file,
     added,
     removed,
   }));

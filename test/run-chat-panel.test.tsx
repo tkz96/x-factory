@@ -135,12 +135,12 @@ describe("the header strip", () => {
     expect(elapsed?.textContent).toMatch(/\d+s$|\d+m \d+s$|\dh \d+m$/);
   });
 
-  it("counts the stages done, in muted words", () => {
+  it("does not count the stages done: the nodes show the progress", () => {
     const { container } = render(
       <RunChat run={makeRun("executing")} events={executingEvents()} />,
     );
-    const count = container.querySelector(".run-chat-progress-count");
-    expect(count?.textContent).toBe("3 of 6 stages done");
+    expect(container.querySelector(".run-chat-progress-count")).toBeNull();
+    expect(container.textContent).not.toContain("stages done");
   });
 
   it("opens every stage with Expand all, then closes every stage with Collapse all", () => {
@@ -202,24 +202,31 @@ describe("the header strip at phone width", () => {
     }
   }
 
-  it("drops the stages-done count and makes Expand all an icon button with its name", () => {
+  it("drops the stages-done count and moves Expand all into the timeline, leaving Details the strip's one control", () => {
     const { container } = atPhoneWidth(() =>
       render(<RunChat run={makeRun("executing")} events={executingEvents()} />),
     );
     const strip = container.querySelector(".run-chat-header") as HTMLElement;
     expect(container.querySelector(".run-chat-progress-count")).toBeNull();
-    expect(strip.querySelector("button.run-chat-expand-icon")).not.toBeNull();
-    const expand = within(strip).getByRole("button", { name: "Expand all" });
+    // No bare chevron in the strip.
+    expect(strip.querySelector("button")).toBeNull();
+    expect(container.querySelector("button.run-chat-expand-icon")).toBeNull();
+    const expand = within(container).getByRole("button", {
+      name: "Expand all",
+    });
+    expect(strip.contains(expand)).toBe(false);
+    expect(
+      container.querySelector(".run-chat-timeline")?.contains(expand),
+    ).toBe(true);
     fireEvent.click(expand);
     expect(
       stageHeaders(container).every(
         (b) => b.getAttribute("aria-expanded") === "true",
       ),
     ).toBe(true);
-    const collapse = within(strip).getByRole("button", {
-      name: "Collapse all",
-    });
-    expect(collapse.className).toContain("run-chat-expand-open");
+    expect(
+      within(container).getByRole("button", { name: "Collapse all" }),
+    ).toBeTruthy();
   });
 
   it("holds the Details trigger at the end of the strip", () => {
@@ -242,13 +249,13 @@ describe("the header strip at phone width", () => {
     expect(strip.lastElementChild).toBe(details);
   });
 
-  it("keeps the full Expand all text and the count above the phone width", () => {
+  it("keeps the full Expand all text above the phone width", () => {
     const { container } = render(
       <RunChat run={makeRun("executing")} events={executingEvents()} />,
     );
     expect(
-      container.querySelector(".run-chat-progress-count")?.textContent,
-    ).toBe("3 of 6 stages done");
+      within(container).getByRole("button", { name: "Expand all" }),
+    ).toBeTruthy();
     expect(container.querySelector("button.run-chat-expand-icon")).toBeNull();
   });
 });
@@ -339,5 +346,144 @@ describe("the message box's tips button", () => {
       within(form).getByRole("button", { name: "Message Tips" }),
     ).toBeTruthy();
     expect(within(form).getByRole("button", { name: "Send" })).toBeTruthy();
+  });
+
+  it("keeps the key help in the textarea's own description (#319, US20)", () => {
+    const { container } = render(
+      <RunChat run={makeRun("awaiting_plan_approval")} events={[]} />,
+    );
+    const textarea = within(container).getByRole("textbox");
+    const describedBy = textarea.getAttribute("aria-describedby");
+    expect(describedBy).not.toBeNull();
+    const description = document.getElementById(describedBy ?? "");
+    expect(description).not.toBeNull();
+    expect(description?.textContent).toContain(
+      "Return sends. Shift-Return adds a line.",
+    );
+  });
+});
+
+describe("a finished run", () => {
+  const FAILED_AT = "2026-10-20T10:05:00.000Z";
+  function failedEvents(): RunEvent[] {
+    return [
+      executingEvents()[2] as RunEvent,
+      {
+        id: 9,
+        type: "status",
+        payload: {
+          status: "failed",
+          failure: {
+            category: "model",
+            message: "The model call failed.",
+            recovery: "Check the model connection.",
+          },
+        },
+        timestamp: FAILED_AT,
+      } as unknown as RunEvent,
+    ];
+  }
+
+  it("hides the message composer on failed, stopped and pull request runs", () => {
+    for (const status of ["failed", "stopped", "pr_created"] as const) {
+      const { container, unmount } = render(
+        <RunChat run={makeRun(status)} events={[]} />,
+      );
+      expect(container.querySelector("textarea")).toBeNull();
+      unmount();
+    }
+  });
+
+  it("keeps the composer on a run that waits for the reader", () => {
+    const { container } = render(
+      <RunChat run={makeRun("awaiting_plan_approval")} events={[]} />,
+    );
+    expect(container.querySelector("textarea")).not.toBeNull();
+  });
+
+  it("names the stage a failed run failed in", () => {
+    const { container } = render(
+      <RunChat run={makeRun("failed")} events={failedEvents()} />,
+    );
+    const card = container.querySelector(".run-decision") as HTMLElement;
+    expect(within(card).getByText("Model failure")).toBeTruthy();
+    expect(within(card).getByText("Failed in Code")).toBeTruthy();
+  });
+
+  it("reads the pull request outcome in the header, as the card does", () => {
+    const run = makeRun("pr_created", {
+      pullRequest: { url: "https://gh/pr/1" } as Run["pullRequest"],
+      pullRequestOutcome: {
+        status: "merged",
+        state: "merged",
+        url: "https://gh/pr/1",
+        mergedAt: AT,
+      } as Run["pullRequestOutcome"],
+    });
+    const { container } = render(<RunChat run={run} events={[]} />);
+    const strip = container.querySelector(
+      "header.run-chat-header",
+    ) as HTMLElement;
+    expect(within(strip).getByText("Merged")).toBeTruthy();
+  });
+
+  it("stops the header clock at the terminal status, not at a later merge", () => {
+    const run = makeRun("pr_created", { startedAt: AT });
+    const events = [
+      statusEvent(1, "pr_created", "2026-10-20T10:02:00.000Z"),
+      {
+        id: 2,
+        type: "pr_merged",
+        payload: { url: "u", mergedAt: "2026-10-20T14:00:00.000Z" },
+        timestamp: "2026-10-20T14:00:00.000Z",
+      } as unknown as RunEvent,
+    ];
+    const { container } = render(<RunChat run={run} events={events} />);
+    expect(container.querySelector(".run-chat-elapsed")?.textContent).toBe(
+      "2m 0s",
+    );
+  });
+});
+
+describe("a run that waits for the reader", () => {
+  it("says what it asks once in the log: the status row that repeats the card title is dropped", () => {
+    const { container } = render(
+      <RunChat
+        run={makeRun("awaiting_plan_approval")}
+        events={[statusEvent(1, "awaiting_plan_approval", AT)]}
+      />,
+    );
+    const body = container.querySelector(".run-chat-messages") as HTMLElement;
+    expect(within(body).getAllByText("Review the plan")).toHaveLength(1);
+  });
+});
+
+describe("a reworked run's stage controls act on the latest attempt (spec #312 review)", () => {
+  function reworkedEvents(): RunEvent[] {
+    return [
+      statusEvent(1, "executing", "2026-10-20T10:00:10.000Z"),
+      statusEvent(2, "awaiting_review", "2026-10-20T10:02:00.000Z"),
+      statusEvent(3, "executing", "2026-10-20T10:03:00.000Z"),
+      statusEvent(4, "awaiting_review", "2026-10-20T10:04:00.000Z"),
+    ];
+  }
+
+  it("reads Collapse all once every stage the log shows is open, not every stage of the whole run", () => {
+    const { container, getByRole } = render(
+      <RunChat run={makeRun("awaiting_review")} events={reworkedEvents()} />,
+    );
+    const latest = container.querySelector(
+      '.run-attempt[data-latest="true"]',
+    ) as HTMLElement;
+    const headers = Array.from(
+      latest.querySelectorAll<HTMLButtonElement>("button.run-stage-header"),
+    );
+    // The latest attempt starts at Code: Code, Review and Deliver.
+    expect(headers.length).toBeLessThan(6);
+    for (const header of headers) {
+      if (header.getAttribute("aria-expanded") === "false")
+        fireEvent.click(header);
+    }
+    expect(getByRole("button", { name: "Collapse all" })).toBeTruthy();
   });
 });

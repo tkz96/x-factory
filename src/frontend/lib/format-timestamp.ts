@@ -11,6 +11,23 @@ const PART_TYPES = [
   "second",
 ] as const;
 
+const formatters = new Map<string, Intl.DateTimeFormat>();
+
+/** One `Intl.DateTimeFormat` per locale, zone and option set: building one is slow, using one is fast (#321). */
+function formatter(
+  locale: string,
+  timeZone: string | undefined,
+  options: Intl.DateTimeFormatOptions,
+): Intl.DateTimeFormat {
+  const key = `${locale}|${timeZone ?? ""}|${JSON.stringify(options)}`;
+  let format = formatters.get(key);
+  if (!format) {
+    format = new Intl.DateTimeFormat(locale, { timeZone, ...options });
+    formatters.set(key, format);
+  }
+  return format;
+}
+
 /**
  * Formats an ISO instant as `HH:mm:ss DD-MM-YYYY` (24-hour clock, zero-padded) in the
  * viewer's local time zone.
@@ -20,8 +37,7 @@ const PART_TYPES = [
 export function formatTimestamp(iso: string, timeZone?: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone,
+  const parts = formatter("en-CA", timeZone, {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -61,8 +77,7 @@ export function formatRelativeTime(
 export function formatClockTime(iso: string, timeZone?: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
-  return new Intl.DateTimeFormat("en-GB", {
-    timeZone,
+  return formatter("en-GB", timeZone, {
     hour: "2-digit",
     minute: "2-digit",
     hourCycle: "h23",
@@ -93,8 +108,7 @@ export function formatRunDate(
   if (!iso) return "Not started";
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
-  return new Intl.DateTimeFormat("en-GB", {
-    timeZone,
+  return formatter("en-GB", timeZone, {
     day: "numeric",
     month: "short",
     year: "numeric",

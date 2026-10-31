@@ -65,7 +65,6 @@ describe("the stage timeline's glyphs", () => {
         open={new Set<WorkflowStage>()}
         onToggle={() => {}}
         now={0}
-        waiting={false}
       />,
     );
     const done = container.querySelector(
