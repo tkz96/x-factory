@@ -32,33 +32,28 @@
   white-space: nowrap;
 }
 
-/* Phone width: the header holds the status, the elapsed time, the icon for Expand all and the
-   Details icon, all inside one row. The gaps and the side inset come down to fit a 290px window. */
+/* Phone width: the header holds the status, the elapsed time and the one labelled Details control,
+   all inside one row. The gaps and the side inset come down to fit a 290px window. Expand all
+   moves to the top of the stage list. */
 @media (max-width: 768px) {
   .run-panel-header.run-chat-header {
     gap: var(--space-2);
     padding-inline: var(--space-3);
   }
-}
 
-/* The narrow Expand all: an icon that turns to point down while every stage is open. */
-.run-chat-expand-icon {
-  flex: none;
-  margin-inline-start: auto;
-}
-
-.run-chat-expand-icon svg {
-  transition: transform var(--duration-normal) var(--ease-out);
-}
-
-.run-chat-expand-open svg {
-  transform: rotate(90deg);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .run-chat-expand-icon svg {
-    transition: none;
+  .run-chat-header .run-chat-elapsed {
+    margin-inline-end: auto;
   }
+
+  .ui-button.run-chat-expand-all {
+    min-height: var(--tap-min);
+  }
+}
+
+/* Phone width only: the stage list's own Expand all, at the end of its row. */
+.run-chat-expand-all {
+  align-self: flex-end;
+  flex: none;
 }
 
 /* The "Needs you" dot blinks softly; reduced motion keeps it still. */

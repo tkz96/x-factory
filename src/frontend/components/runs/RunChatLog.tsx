@@ -109,6 +109,8 @@ interface RunChatLogProps {
   /** The line for a button just pressed, or null. */
   resolved: string | null;
   sending: boolean;
+  /** Phone width: Expand all / Collapse all, held above the stages because the header strip has no room. */
+  toggleAll?: { allOpen: boolean; onToggle: () => void } | undefined;
   /** The run waits on the reader; feeds the status node's "needs you" (US19, #319). */
   waiting: boolean;
   /** True once the stream has opened or any event has arrived (#313). Defaults to true. */
@@ -174,6 +176,7 @@ export function RunChatLog({
   resolved,
   sending,
   waiting,
+  toggleAll,
   eventsLoaded = true,
   emptyStageNote,
 }: RunChatLogProps) {
@@ -194,6 +197,16 @@ export function RunChatLog({
         ref={scroll.scrollRef}
         onScroll={scroll.onScroll}
       >
+        {toggleAll && (
+          <Button
+            variant="quiet"
+            size="sm"
+            className="run-chat-expand-all"
+            onPress={toggleAll.onToggle}
+          >
+            {toggleAll.allOpen ? "Collapse all" : "Expand all"}
+          </Button>
+        )}
         <RunStageTimeline
           groups={groups}
           attempts={attempts}

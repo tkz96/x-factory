@@ -67,6 +67,12 @@ describe("summary lines and row actions reach --tap-min at phone width (#319, US
     );
   });
 
+  it("the timeline's Expand all grows to --tap-min at phone width (#318)", () => {
+    expect(
+      hasPhoneRule(runChatCss, ".ui-button.run-chat-expand-all", "--tap-min"),
+    ).toBe(true);
+  });
+
   it("the Run details copy row action grows back to --tap-min", () => {
     expect(
       hasPhoneRule(

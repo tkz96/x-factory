@@ -1,5 +1,5 @@
 // src/frontend/components/runs/RunChatHeader.tsx — The run chat's header strip: the status pill, the
-// elapsed time, the stage count (wide only), Expand all / Collapse all, and the phone details control.
+// elapsed time, the stage count (wide only), Expand all / Collapse all (wide), and the phone details control.
 
 import type { ReactNode } from "react";
 import { TERMINAL_RUN_STATUSES } from "../../../shared/run-status-policy.js";
@@ -18,7 +18,6 @@ import {
 import { STATUS_COPY } from "../feedback/copy-map.js";
 import { Badge } from "../ui/Badge.js";
 import { Button } from "../ui/Button.js";
-import { IconButton } from "../ui/IconButton.js";
 
 interface RunChatHeaderProps {
   run: Run;
@@ -26,7 +25,7 @@ interface RunChatHeaderProps {
   lastEventAt: string | null;
   /** The pull request's outcome, so the header says what the card and Run details say. */
   pullRequestOutcome?: PullRequestOutcome | null;
-  /** Phone width: the expand control is an icon. */
+  /** Phone width: the strip holds no expand control; the timeline does. */
   narrow: boolean;
   allOpen: boolean;
   onToggleAll: () => void;
@@ -94,19 +93,9 @@ export function RunChatHeader({
         </span>
       </Badge>
       <RunElapsed startedAt={run.startedAt} endedAt={live ? null : endedAt} />
-      {narrow ? (
-        <IconButton
-          label={expandLabel}
-          icon="icon-chevron-right"
-          variant="plain"
-          className={
-            allOpen
-              ? "run-chat-expand run-chat-expand-icon run-chat-expand-open"
-              : "run-chat-expand run-chat-expand-icon"
-          }
-          onPress={onToggleAll}
-        />
-      ) : (
+      {/* Wide: Expand all sits in the strip. Phone: the timeline holds it, and the strip's one
+          control is the labelled Details button. */}
+      {!narrow && (
         <Button
           variant="quiet"
           size="sm"

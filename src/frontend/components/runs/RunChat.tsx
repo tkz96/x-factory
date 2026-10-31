@@ -348,6 +348,11 @@ export function RunChat({
         resolved={flow.resolved}
         sending={chat.sending}
         waiting={NEEDS_YOU_STATUSES.has(run.status)}
+        toggleAll={
+          narrow
+            ? { allOpen: stages.allOpen, onToggle: stages.toggleAllStages }
+            : undefined
+        }
         eventsLoaded={eventsLoaded}
         emptyStageNote={emptyStageNote}
       />

@@ -202,24 +202,31 @@ describe("the header strip at phone width", () => {
     }
   }
 
-  it("drops the stages-done count and makes Expand all an icon button with its name", () => {
+  it("drops the stages-done count and moves Expand all into the timeline, leaving Details the strip's one control", () => {
     const { container } = atPhoneWidth(() =>
       render(<RunChat run={makeRun("executing")} events={executingEvents()} />),
     );
     const strip = container.querySelector(".run-chat-header") as HTMLElement;
     expect(container.querySelector(".run-chat-progress-count")).toBeNull();
-    expect(strip.querySelector("button.run-chat-expand-icon")).not.toBeNull();
-    const expand = within(strip).getByRole("button", { name: "Expand all" });
+    // No bare chevron in the strip.
+    expect(strip.querySelector("button")).toBeNull();
+    expect(container.querySelector("button.run-chat-expand-icon")).toBeNull();
+    const expand = within(container).getByRole("button", {
+      name: "Expand all",
+    });
+    expect(strip.contains(expand)).toBe(false);
+    expect(
+      container.querySelector(".run-chat-timeline")?.contains(expand),
+    ).toBe(true);
     fireEvent.click(expand);
     expect(
       stageHeaders(container).every(
         (b) => b.getAttribute("aria-expanded") === "true",
       ),
     ).toBe(true);
-    const collapse = within(strip).getByRole("button", {
-      name: "Collapse all",
-    });
-    expect(collapse.className).toContain("run-chat-expand-open");
+    expect(
+      within(container).getByRole("button", { name: "Collapse all" }),
+    ).toBeTruthy();
   });
 
   it("holds the Details trigger at the end of the strip", () => {
