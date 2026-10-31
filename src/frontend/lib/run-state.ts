@@ -39,8 +39,20 @@ const INVALIDATING_EVENT_TYPES = new Set<RunEventType>([
 
 // ─── Pure reducer ────────────────────────────────────────────────────────────
 
-/** A replayed historical event older than the snapshot's updatedAt is ignored. */
+/**
+ * A replayed historical event older than the snapshot's updatedAt is ignored. A verification or
+ * review is held back only when the snapshot already holds a result it could overwrite: any status
+ * event moves updatedAt, so the time alone says nothing about whether a result is in the snapshot.
+ * A verification the snapshot's own result has already passed (a lower repair attempt) is stale too.
+ */
 function isEventStale(run: Run, event: RunEvent): boolean {
+  if (event.type === "verification") {
+    if (!run.verification) return false;
+    if (event.payload.result.repairAttempt > run.verification.repairAttempt) {
+      return false;
+    }
+  }
+  if (event.type === "review" && !run.review) return false;
   if (run.updatedAt && event.timestamp) {
     const eventTime = new Date(event.timestamp).getTime();
     const runTime = new Date(run.updatedAt).getTime();
@@ -395,9 +407,22 @@ export function subscribeRunEvents({
     return Boolean(currentRun && TERMINAL_RUN_STATUSES.has(currentRun.status));
   };
 
+  // A live stream whose run went terminal while it was down may have missed the run's tail: it
+  // reopens once from the last applied id, as a replay, and stops when that ends.
+  let caughtUp = replayOnly;
+  const finish = () => {
+    if (caughtUp) {
+      stop();
+      return;
+    }
+    caughtUp = true;
+    dropOpen?.();
+    connect(lastAppliedId(queryClient, runId));
+  };
+
   const scheduleReconnect = () => {
     if (isTerminalRun()) {
-      stop();
+      finish();
       return;
     }
     onReconnectingChange?.(true);
@@ -406,7 +431,7 @@ export function subscribeRunEvents({
     retryTimer = timers.setTimeout(() => {
       retryTimer = null;
       if (isTerminalRun()) {
-        stop();
+        finish();
         return;
       }
       connect(lastAppliedId(queryClient, runId));
@@ -441,7 +466,7 @@ export function subscribeRunEvents({
         if (!active || stopped) return;
         onConnectionChange?.(false);
         if (isTerminalRun()) {
-          stop();
+          finish();
           return;
         }
         onReconnectingChange?.(true);

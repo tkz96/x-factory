@@ -282,6 +282,37 @@ describe("client run-state module (#191)", () => {
     expect(updated.updatedAt).toBe("2026-10-01T10:35:00.000Z");
   });
 
+  it("a live verification or review the snapshot does not hold applies, even when a status event moved updatedAt past it", () => {
+    const run: Run = {
+      ...runSnapshot("awaiting_review"),
+      updatedAt: "2026-10-01T10:30:00.000Z",
+      verification: { ...sampleVerification, repairAttempt: 1 },
+      review: null,
+    };
+    const newerVerification: RunEvent = {
+      id: 40,
+      timestamp: "2026-10-01T10:20:00.000Z",
+      type: "verification",
+      payload: {
+        result: {
+          ...sampleVerification,
+          repairAttempt: 2,
+          summary: "Newer verification",
+        },
+      },
+    };
+    const liveReview: RunEvent = {
+      id: 41,
+      timestamp: "2026-10-01T10:21:00.000Z",
+      type: "review",
+      payload: { result: { ...sampleReview, summary: "Live review" } },
+    };
+    expect(reduceRun(run, newerVerification).verification?.summary).toBe(
+      "Newer verification",
+    );
+    expect(reduceRun(run, liveReview).review?.summary).toBe("Live review");
+  });
+
   it("a replayed historical verification or review event older than the snapshot does not overwrite the snapshot (#317)", () => {
     const run: Run = {
       ...runSnapshot("awaiting_review"),
@@ -823,6 +854,28 @@ describe("live run stream reopens after a permanent failure (#191)", () => {
     expect(stream.connections).toHaveLength(1);
     expect(stream.connections[0]?.closed).toBe(true);
     expect(clock.delays).toHaveLength(0);
+  });
+
+  it("(f) a run that went terminal while disconnected gets one final catch-up from the last applied id", () => {
+    const { queryClient, stream, clock } = liveSetup();
+    const first = stream.connections[0];
+    first?.handlers.onOpen();
+    first?.handlers.onMessage(wire(1, "one"));
+    // The run finishes while the stream is down: the snapshot is refreshed, the tail is missing.
+    queryClient.setQueryData(queryKeys.run(RUN_ID), runSnapshot("failed"));
+    first?.handlers.onError(true);
+
+    expect(stream.connections).toHaveLength(2);
+    const catchUp = stream.connections[1];
+    expect(catchUp?.cursor).toBe(1);
+    catchUp?.handlers.onMessage(wire(2, "tail"));
+    expect(eventsOf(queryClient).map((e) => e.id)).toEqual([1, 2]);
+
+    // The catch-up ends the way a replay does: no third connection.
+    catchUp?.handlers.onError(true);
+    clock.advance(60_000);
+    expect(stream.connections).toHaveLength(2);
+    expect(catchUp?.closed).toBe(true);
   });
 
   it("(e) repeated permanent failures back off from 1 s, double, cap at 30 s, and reset on a successful open", () => {
