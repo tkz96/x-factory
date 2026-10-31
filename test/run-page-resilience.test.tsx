@@ -170,7 +170,7 @@ describe("the run page through a short server outage", () => {
     reachable = true;
     fireEvent.click(view.getByRole("button", { name: "Try Again" }));
     await waitFor(() => expect(view.queryByText("Connection lost")).toBeNull());
-    expect(view.getByText(/Ticket run-1/)).toBeTruthy();
+    expect(view.container.querySelector("#understanding-chat")).not.toBeNull();
   });
 
   it("drops the connection banner once a refresh succeeds again", async () => {
