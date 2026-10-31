@@ -147,6 +147,34 @@ describe("the run timeline announces through one status node (#319, US19)", () =
     expect(text()).toContain("Needs you");
   });
 
+  it("announces only what changed, not the whole status again", () => {
+    const { container, props, rerender } = renderLog();
+    const text = () =>
+      container.querySelector('.sr-only[role="status"]')?.textContent ?? "";
+    expect(text()).toBe("Plan");
+
+    const result: ChatItem = {
+      id: "r1",
+      at: "2026-10-20T10:04:00.000Z",
+      kind: "result",
+      title: "Verification",
+      passed: true,
+      summary: "9 of 9 passed",
+    };
+    rerender(<RunChatLog {...props} items={[result]} />);
+    expect(text()).toBe("Verification passed");
+
+    // A later error is announced alone: the result is not read out again.
+    const error: ChatItem = {
+      id: "e1",
+      at: "2026-10-20T10:04:30.000Z",
+      kind: "error",
+      text: "The model quota ran out",
+    };
+    rerender(<RunChatLog {...props} items={[result, error]} />);
+    expect(text()).toBe("The model quota ran out");
+  });
+
   it("keeps the decision card outside every live region", () => {
     const { container } = renderLog({
       decision: <div data-testid="decision">Start when ready</div>,

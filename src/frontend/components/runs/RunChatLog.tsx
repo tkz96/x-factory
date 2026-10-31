@@ -118,16 +118,16 @@ interface RunChatLogProps {
 }
 
 /**
- * What the one status node says: the current stage, the stages that ended the run, the latest
+ * What the status node can say: the current stage, the stages that ended the run, the latest
  * result, the latest error, a failed send and "needs you". Progress lines are not announced —
  * the reader sees them in the log (US19, #319).
  */
-function announceText(
+function announceParts(
   items: readonly ChatItem[],
   groups: readonly StageGroup[],
   waiting: boolean,
   failure: { message: string } | null,
-): string {
+): string[] {
   const parts: string[] = [];
   const current = groups.find((g) => g.state === "current");
   if (current) parts.push(current.label);
@@ -143,7 +143,23 @@ function announceText(
   if (error) parts.push(error.text);
   if (failure) parts.push(failure.message);
   if (waiting) parts.push(STATUS_COPY.needsYou);
-  return parts.join(". ");
+  return parts;
+}
+
+/**
+ * The one status node's text: only the parts that are new since the last render, so a reader hears
+ * a new stage, a new result, a new error or "needs you" once, and not the whole state again.
+ */
+function useAnnouncement(parts: readonly string[]): string {
+  const key = parts.join("\n");
+  const [seen, setSeen] = useState({ key, parts, text: parts.join(". ") });
+  if (seen.key !== key) {
+    const added = parts.filter((part) => !seen.parts.includes(part));
+    setSeen({ key, parts, text: added.join(". ") });
+  }
+  return seen.key === key
+    ? seen.text
+    : parts.filter((p) => !seen.parts.includes(p)).join(". ");
 }
 
 export function RunChatLog({
@@ -162,13 +178,16 @@ export function RunChatLog({
   emptyStageNote,
 }: RunChatLogProps) {
   const scroll = useScrollFollow(items.length);
+  const announcement = useAnnouncement(
+    announceParts(items, groups, waiting, failure),
+  );
 
   return (
     <div className="run-chat-timeline">
       {/* One small status node announces what changed; the log itself is not a
           live region, so progress lines are read, not announced (US19, #319). */}
       <div className="sr-only" role="status">
-        {announceText(items, groups, waiting, failure)}
+        {announcement}
       </div>
       <div
         className="run-chat-messages run-panel-scroll text-subhead"
