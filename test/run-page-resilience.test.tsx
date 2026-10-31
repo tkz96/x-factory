@@ -159,7 +159,7 @@ describe("the run page through a short server outage", () => {
     expect(view.queryByText("Run Not Found")).toBeNull();
   });
 
-  it("offers Retry on the banner when the first load failed, and a press loads the run", async () => {
+  it("offers Try Again on the banner when the first load failed, and a press loads the run", async () => {
     let reachable = false;
     const { view } = renderRunPage(() => {
       if (!reachable) return unreachable();
@@ -168,7 +168,7 @@ describe("the run page through a short server outage", () => {
 
     await view.findByText("Connection lost");
     reachable = true;
-    fireEvent.click(view.getByRole("button", { name: "Retry" }));
+    fireEvent.click(view.getByRole("button", { name: "Try Again" }));
     await waitFor(() => expect(view.queryByText("Connection lost")).toBeNull());
     expect(view.getByText(/Ticket run-1/)).toBeTruthy();
   });
