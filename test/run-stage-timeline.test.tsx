@@ -238,6 +238,26 @@ describe("RunStageTimeline", () => {
     expect(headerOf(container, "plan").textContent).toBe("PlanTook 5sFailed");
     expect(headerOf(container, "execute").textContent).toBe("Code");
   });
+
+  it("does not repeat the failure on the stage that holds the decision card", () => {
+    const groups = sampleGroups();
+    groups[2] = group("plan", "failed", [message("m3", "Plan failed")], 5_000);
+    const { container } = renderTimeline({
+      groups,
+      decision: <p>Decision card</p>,
+    });
+    expect(headerOf(container, "plan").textContent).toBe("PlanTook 5s");
+  });
+
+  it("does not repeat a stop on the stage that holds the decision card", () => {
+    const groups = sampleGroups();
+    groups[2] = group("plan", "stopped", [message("m3", "Stopped")], 5_000);
+    const { container } = renderTimeline({
+      groups,
+      decision: <p>Decision card</p>,
+    });
+    expect(headerOf(container, "plan").textContent).toBe("PlanTook 5s");
+  });
 });
 
 describe("the stage header path for keyboard readers (#319, US20)", () => {
@@ -249,6 +269,37 @@ describe("the stage header path for keyboard readers (#319, US20)", () => {
     expect(headers.length).toBe(STAGE_ORDER.length);
     for (const button of headers) {
       expect(button.closest("h3")).not.toBeNull();
+    }
+  });
+
+  it("sits the stage headers of a reworked run in h4, under the attempt's h3", () => {
+    const attempts: Attempt[] = [
+      {
+        number: 1,
+        reworkedFrom: null,
+        label: "Attempt 1",
+        groups: [group("execute", "done", [message("m1", "First try")], 1_000)],
+      },
+      {
+        number: 2,
+        reworkedFrom: "review",
+        label: "Attempt 2 · Reworked from Review",
+        groups: [group("review", "current", [message("m4", "Second")])],
+      },
+    ];
+    const { container, getByRole } = renderTimeline({
+      attempts,
+      groups: attempts[1]?.groups ?? [],
+      open: new Set<WorkflowStage>(["review"]),
+    });
+    fireEvent.click(getByRole("button", { name: /Attempt 1/ }));
+    const headers = Array.from(
+      container.querySelectorAll<HTMLButtonElement>("button.run-stage-header"),
+    );
+    expect(headers.length).toBeGreaterThan(0);
+    for (const button of headers) {
+      expect(button.closest("h4")).not.toBeNull();
+      expect(button.closest("h3.run-stage-heading")).toBeNull();
     }
   });
 

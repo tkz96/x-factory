@@ -6,7 +6,7 @@ import {
   STATUS_TO_STAGE,
   TERMINAL_RUN_STATUSES,
 } from "../../shared/run-status-policy.js";
-import type { Run, RunEvent, WorkflowStage } from "../../shared/types.js";
+import type { Run, WorkflowStage } from "../../shared/types.js";
 import type { ChatItem } from "./run-chat-items.js";
 import { STAGE_LABELS, STAGE_ORDER } from "./workflow-stages.js";
 
@@ -73,7 +73,6 @@ export function defaultOpenStages(
 export function groupItemsByStage(
   items: readonly ChatItem[],
   run: Pick<Run, "status">,
-  _events: readonly RunEvent[],
 ): StageGroup[] {
   return buildGroups(items, run, null);
 }
@@ -98,7 +97,6 @@ export interface Attempt {
 export function groupAttempts(
   items: readonly ChatItem[],
   run: Pick<Run, "status">,
-  events: readonly RunEvent[],
 ): Attempt[] {
   const segments: { from: WorkflowStage | null; items: ChatItem[] }[] = [
     { from: null, items: [] },
@@ -123,7 +121,7 @@ export function groupAttempts(
         number: 1,
         reworkedFrom: null,
         label: "Attempt 1",
-        groups: groupItemsByStage(items, run, events),
+        groups: groupItemsByStage(items, run),
       },
     ];
   }

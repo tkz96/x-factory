@@ -19,7 +19,6 @@ import { runNow } from "../../lib/run-now.js";
 import {
   type Attempt,
   groupAttempts,
-  groupItemsByStage,
   type StageGroup,
 } from "../../lib/run-stages.js";
 import { NEEDS_YOU_STATUSES, runStatusUi } from "../../lib/run-status-ui.js";
@@ -224,24 +223,11 @@ export function RunChat({
     [realItems, chat.localItems, run.status, chat.baselines],
   );
 
-  // The six stages, and which of them are open.
-  const groups = useMemo(
-    () =>
-      withoutRepeatedDeliver(
-        withoutRepeatedStatus(
-          groupItemsByStage(items, run, events),
-          run.status,
-        ),
-        run.status === "pr_created",
-      ),
-    [items, run, events],
-  );
-  const stages = useStageOpenState(groups);
-  // After a rework the timeline shows one disclosure per attempt; the header and open state read
-  // the whole run's stages above.
+  // One disclosure per attempt after a rework; the latest attempt's stages are the ones the header
+  // reads and the open state acts on, so they match what the log shows.
   const attempts: Attempt[] = useMemo(
     () =>
-      groupAttempts(items, run, events).map((attempt, index, all) =>
+      groupAttempts(items, run).map((attempt, index, all) =>
         index === all.length - 1
           ? {
               ...attempt,
@@ -252,9 +238,10 @@ export function RunChat({
             }
           : attempt,
       ),
-    [items, run, events],
+    [items, run],
   );
-  const latestGroups = attempts.at(-1)?.groups ?? groups;
+  const groups = attempts.at(-1)?.groups ?? [];
+  const stages = useStageOpenState(groups);
 
   // Return and Mod-Enter send; Shift-Return is a new line (see RunChatComposer).
   const submitInput = () => {
@@ -342,7 +329,7 @@ export function RunChat({
       />
       <RunChatLog
         items={items}
-        groups={latestGroups}
+        groups={groups}
         attempts={attempts}
         openStages={stages.openStages}
         onToggleStage={stages.toggleStage}

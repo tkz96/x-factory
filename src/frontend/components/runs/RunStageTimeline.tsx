@@ -66,6 +66,24 @@ const STATE_STATUS: Partial<
   stopped: { text: STATUS_COPY.stageStopped, tone: "neutral" },
 };
 
+/**
+ * A stage's heading. Under an attempt's h3 it is an h4, so the heading path never skips a level;
+ * a run with one attempt has no attempt heading and its stages are h3.
+ */
+function StageHeading({
+  nested,
+  children,
+}: {
+  nested: boolean;
+  children: ReactNode;
+}) {
+  return nested ? (
+    <h4 className="run-stage-heading text-headline">{children}</h4>
+  ) : (
+    <h3 className="run-stage-heading text-headline">{children}</h3>
+  );
+}
+
 /** A folded run of agent updates: one disclosure row, closed until the reader opens it. */
 function ActivityGroup({
   items,
@@ -148,6 +166,8 @@ interface StageListProps {
   retryFor?: ((item: ChatItem) => (() => void) | undefined) | undefined;
   decision?: ReactNode;
   label?: string;
+  /** True under an attempt heading: the stage headings are one level lower. */
+  nested?: boolean;
   eventsLoaded?: boolean | undefined;
   emptyNote?: string | undefined;
 }
@@ -245,6 +265,7 @@ export function RunStageTimeline({
             {isLatest ? (
               <StageList
                 label={attempt.label}
+                nested
                 groups={groups}
                 open={open}
                 onToggle={onToggle}
@@ -257,6 +278,7 @@ export function RunStageTimeline({
             ) : (
               <EarlierStages
                 label={attempt.label}
+                nested
                 groups={attempt.groups}
                 now={now}
               />
@@ -276,6 +298,7 @@ function StageList({
   retryFor,
   decision,
   label,
+  nested = false,
   eventsLoaded = true,
   emptyNote,
 }: StageListProps) {
@@ -306,7 +329,7 @@ function StageList({
                 />
               )}
             </span>
-            <h3 className="run-stage-heading text-headline">
+            <StageHeading nested={nested}>
               <RunDisclosure
                 id={headId}
                 controls={bodyId}
@@ -322,11 +345,13 @@ function StageList({
                     {`Took ${formatTook(group.tookMs)}`}
                   </span>
                 )}
-                {statusText && (
+                {/* The stage that holds the decision card does not say the failure or the stop a
+                    second time: the header says it once and the card says it once. */}
+                {statusText && !holdsDecision && (
                   <Badge tone={statusText.tone}>{statusText.text}</Badge>
                 )}
               </RunDisclosure>
-            </h3>
+            </StageHeading>
             {/* The decision card sits directly after the stage's header, outside
                 the collapsible body (#312 ticket 3). */}
             {holdsDecision && (

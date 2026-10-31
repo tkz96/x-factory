@@ -450,3 +450,33 @@ describe("a run that waits for the reader", () => {
     expect(within(body).getAllByText("Review the plan")).toHaveLength(1);
   });
 });
+
+describe("a reworked run's stage controls act on the latest attempt (spec #312 review)", () => {
+  function reworkedEvents(): RunEvent[] {
+    return [
+      statusEvent(1, "executing", "2026-10-20T10:00:10.000Z"),
+      statusEvent(2, "awaiting_review", "2026-10-20T10:02:00.000Z"),
+      statusEvent(3, "executing", "2026-10-20T10:03:00.000Z"),
+      statusEvent(4, "awaiting_review", "2026-10-20T10:04:00.000Z"),
+    ];
+  }
+
+  it("reads Collapse all once every stage the log shows is open, not every stage of the whole run", () => {
+    const { container, getByRole } = render(
+      <RunChat run={makeRun("awaiting_review")} events={reworkedEvents()} />,
+    );
+    const latest = container.querySelector(
+      '.run-attempt[data-latest="true"]',
+    ) as HTMLElement;
+    const headers = Array.from(
+      latest.querySelectorAll<HTMLButtonElement>("button.run-stage-header"),
+    );
+    // The latest attempt starts at Code: Code, Review and Deliver.
+    expect(headers.length).toBeLessThan(6);
+    for (const header of headers) {
+      if (header.getAttribute("aria-expanded") === "false")
+        fireEvent.click(header);
+    }
+    expect(getByRole("button", { name: "Collapse all" })).toBeTruthy();
+  });
+});

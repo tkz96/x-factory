@@ -196,7 +196,7 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
     });
 
     it("RunStageTimeline renders the six stages, the current one open", () => {
-      const groups = groupItemsByStage([], { status: "executing" }, []);
+      const groups = groupItemsByStage([], { status: "executing" });
       const html = renderToString(
         React.createElement(RunStageTimeline, {
           groups,

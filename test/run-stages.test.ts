@@ -35,7 +35,7 @@ function run(status: RunStatus) {
 }
 
 function groupsFor(status: RunStatus, events: RunEvent[]) {
-  return groupItemsByStage(mapEventsToChatItems(events), run(status), events);
+  return groupItemsByStage(mapEventsToChatItems(events), run(status));
 }
 
 describe("STAGE_ORDER and STAGE_LABELS", () => {
@@ -403,7 +403,7 @@ describe("groupAttempts: a rework starts a new attempt", () => {
   ];
   const attemptsFor = (final: RunStatus = "awaiting_review") => {
     const events = reworked(final);
-    return groupAttempts(mapEventsToChatItems(events), run(final), events);
+    return groupAttempts(mapEventsToChatItems(events), run(final));
   };
 
   it("gives a run with no rework one attempt with all six stages", () => {
@@ -411,7 +411,6 @@ describe("groupAttempts: a rework starts a new attempt", () => {
     const attempts = groupAttempts(
       mapEventsToChatItems(events),
       run("executing"),
-      events,
     );
     expect(attempts).toHaveLength(1);
     expect(attempts[0]?.number).toBe(1);
