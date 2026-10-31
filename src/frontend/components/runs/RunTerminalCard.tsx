@@ -4,7 +4,11 @@
 
 import type { Run } from "../../../shared/types.js";
 import { formatRelativeTime } from "../../lib/format-timestamp.js";
-import { FAILURE_CATEGORY_LABEL, type RunNow } from "../../lib/run-now.js";
+import {
+  FAILURE_CATEGORY_LABEL,
+  GENERIC_FAILURE_RECOVERY,
+  type RunNow,
+} from "../../lib/run-now.js";
 import { STATUS_COPY } from "../feedback/copy-map.js";
 import { Card } from "../ui/Card.js";
 import { type CheckpointAction, RunCheckpointBar } from "./RunCheckpointBar.js";
@@ -27,16 +31,19 @@ function Failure({
   failedStage: string | null;
 }) {
   const failure = facts.failure;
-  if (!failure) return null;
-  const category = FAILURE_CATEGORY_LABEL[failure.category ?? "unknown"];
+  const category = FAILURE_CATEGORY_LABEL[failure?.category ?? "unknown"];
   return (
     <>
       <h2 className="run-terminal-title text-title-3">{category}</h2>
       {failedStage && (
         <p className="run-terminal-meta text-footnote">{`Failed in ${failedStage}`}</p>
       )}
-      <p className="run-terminal-message text-body">{failure.message}</p>
-      <p className="run-terminal-recovery text-callout">{failure.recovery}</p>
+      {failure && (
+        <p className="run-terminal-message text-body">{failure.message}</p>
+      )}
+      {failure && failure.recovery !== GENERIC_FAILURE_RECOVERY && (
+        <p className="run-terminal-recovery text-callout">{failure.recovery}</p>
+      )}
     </>
   );
 }
@@ -48,7 +55,7 @@ function Stopped({ facts }: { facts: RunNow }) {
         {STATUS_COPY.stageStopped}
       </h2>
       <p className="run-terminal-meta text-callout">
-        Stopped by you
+        {facts.stoppedByUser ? "Stopped by you" : "Stopped"}
         {facts.stoppedAt && (
           <>
             {" · "}

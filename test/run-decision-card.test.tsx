@@ -190,6 +190,7 @@ describe("the terminal card", () => {
     expect(card.getByText("Model failure")).toBeTruthy();
     expect(card.getByText(/Code/)).toBeTruthy();
     expect(card.getAllByText(failure.message)).toHaveLength(1);
+    // A recovery that names a specific action stays.
     expect(card.getByText(failure.recovery)).toBeTruthy();
     expect(card.getByRole("button", { name: "Start New Run" })).toBeTruthy();
     expect(container.querySelector(".run-now-failure")).toBeNull();
@@ -205,6 +206,45 @@ describe("the terminal card", () => {
     expect(card.getByText(/Stopped by you/)).toBeTruthy();
     expect(container.querySelector("time")?.getAttribute("datetime")).toBe(AT);
     expect(card.getByRole("button", { name: "Start New Run" })).toBeTruthy();
+  });
+
+  it("drops the generic recovery that only repeats the Start New Run button", () => {
+    const { container } = renderTerminal(makeRun("failed"), [], "Code");
+    expect(
+      within(container).queryByText(/Start a new run for this ticket/),
+    ).toBeNull();
+    expect(
+      within(container).getByRole("button", { name: "Start New Run" }),
+    ).toBeTruthy();
+  });
+
+  it("claims no actor for a stop whose event does not say who stopped it", () => {
+    const { container } = renderTerminal(makeRun("stopped"), [
+      statusEvent("stopped", {}),
+    ]);
+    const card = within(container);
+    expect(card.queryByText(/by you/)).toBeNull();
+    expect(container.querySelector(".run-terminal-meta")?.textContent).toMatch(
+      /^Stopped · /,
+    );
+  });
+
+  it("always titles a failed card, even when the facts carry no failure", () => {
+    const run = makeRun("failed");
+    const facts = { ...runNow(run, []), failure: null };
+    const { container } = render(
+      <RunDecisionCard
+        run={run}
+        facts={facts}
+        failedStage="Code"
+        pending={null}
+        conflict={false}
+        reworkReady={false}
+        onAction={() => {}}
+      />,
+    );
+    expect(container.querySelector("h2")?.textContent).toBe("Run failed");
+    expect(within(container).getByText(/Failed in Code/)).toBeTruthy();
   });
 
   it("names the outcome of a merged pull request and links to it", () => {

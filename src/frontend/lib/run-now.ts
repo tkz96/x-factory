@@ -29,6 +29,10 @@ export function isWaitingForWorker(run: Run): boolean {
   return run.waitingForWorker === true && run.status !== "queued";
 }
 
+/** The recovery of a failure with no recorded cause; the card's Start New Run button says it already. */
+export const GENERIC_FAILURE_RECOVERY =
+  "Start a new run for this ticket to try again.";
+
 export interface RunNow {
   /** The status map's plain title, e.g. "Review the plan". */
   title: string;
@@ -43,6 +47,8 @@ export interface RunNow {
   failure: RunNowFailure | null;
   /** When the run was stopped (the stopped status event's time), or null. */
   stoppedAt: string | null;
+  /** True when the stopped status event says the reader stopped the run. */
+  stoppedByUser: boolean;
 }
 
 /** The plain name of a failure category, for the terminal card. */
@@ -86,7 +92,7 @@ function failureFor(
     return {
       category: null,
       message: "This run failed and can't continue.",
-      recovery: "Start a new run for this ticket to try again.",
+      recovery: GENERIC_FAILURE_RECOVERY,
     };
   }
   if (run.status === "review_retry_required") {
@@ -154,6 +160,18 @@ export function runNow(run: Run, events: readonly RunEvent[]): RunNow {
     sentence = "The pull request was closed without merging.";
   }
 
+  const stoppedEvent =
+    run.status === "stopped"
+      ? events.findLast(
+          (event) =>
+            event.type === "status" && event.payload.status === "stopped",
+        )
+      : undefined;
+  const stoppedText =
+    stoppedEvent?.type === "status"
+      ? (stoppedEvent.payload as { text?: string }).text
+      : undefined;
+
   return {
     title,
     sentence,
@@ -164,10 +182,8 @@ export function runNow(run: Run, events: readonly RunEvent[]): RunNow {
     failure: failureFor(run, events),
     stoppedAt:
       run.status === "stopped"
-        ? (events.findLast(
-            (event) =>
-              event.type === "status" && event.payload.status === "stopped",
-          )?.timestamp ?? run.updatedAt)
+        ? (stoppedEvent?.timestamp ?? run.updatedAt)
         : null,
+    stoppedByUser: /stopped by user/i.test(stoppedText ?? ""),
   };
 }
