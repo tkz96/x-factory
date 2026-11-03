@@ -105,9 +105,11 @@ function run(id: string, project: Project, t: Ticket, status: RunStatus): Run {
 }
 
 function makeClient(): QueryClient {
-  return new QueryClient({
+  const client = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity } },
   });
+  client.setQueryData(queryKeys.runs(), []);
+  return client;
 }
 
 function renderWithScope(
@@ -632,5 +634,63 @@ describe("hand-written tickets in the Tickets list", () => {
       }),
     ).toHaveLength(1);
     expect(acme.textContent).not.toContain("Written by hand");
+  });
+
+  it("shows an error region instead of empty state when projects fail to load", async () => {
+    const spy = spyOn(api, "getProjects").mockRejectedValue(
+      new Error("Failed to load projects"),
+    );
+    try {
+      const client = makeClient();
+      renderWithScope(React.createElement(QueueView), client);
+
+      await waitFor(() => {
+        expect(screen().getByRole("alert")).toBeDefined();
+      });
+      expect(screen().queryByText("No projects yet")).toBeNull();
+      expect(
+        screen().queryByRole("button", { name: "Add Project" }),
+      ).toBeNull();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("shows the loading region while a chosen project is still loading", () => {
+    window.localStorage.setItem(PROJECT_SCOPE_STORAGE_KEY, "demo-app");
+    const spy = spyOn(api, "getProjects").mockImplementation(
+      () => new Promise(() => {}),
+    );
+    try {
+      const client = makeClient();
+      renderWithScope(React.createElement(QueueView), client);
+
+      const list = document.getElementById("queue-tickets-list");
+      expect(list?.querySelector(".async-region--loading")).toBeTruthy();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("waits for the runs query before rendering tickets to prevent offering Start Run for active runs", () => {
+    const spy = spyOn(api, "getRuns").mockImplementation(
+      () => new Promise(() => {}),
+    );
+    try {
+      const client = makeClient();
+      seedProjects(client);
+      client.setQueryData(queryKeys.tickets(ACME.id), [
+        ticket("ACME-1", "Checkout copy"),
+      ]);
+      client.removeQueries({ queryKey: queryKeys.runs() });
+      renderWithScope(React.createElement(QueueView), client);
+
+      // The tickets region should be in loading state, not showing "Start Run"
+      expect(screen().queryByRole("button", { name: "Start Run" })).toBeNull();
+      const list = document.getElementById("queue-tickets-list");
+      expect(list?.querySelector(".async-region--loading")).toBeTruthy();
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

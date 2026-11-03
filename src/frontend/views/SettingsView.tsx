@@ -11,10 +11,12 @@ import { Link, useSearchParams } from "react-router-dom";
 import type { Project } from "../../shared/types.js";
 import { ConnectionComboLine } from "../components/connections/ConnectionComboLine.js";
 import { comboTone } from "../components/connections/connection-state.js";
+import { AsyncRegion } from "../components/feedback/AsyncRegion.js";
 import {
   CONNECTIONS_COPY,
   STATUS_COPY,
 } from "../components/feedback/copy-map.js";
+import { deriveAsyncState } from "../components/feedback/derive-async-state.js";
 import { RetryAction } from "../components/feedback/RetryAction.js";
 import { AlertDialog } from "../components/overlays/AlertDialog.js";
 import {
@@ -346,12 +348,18 @@ function GeneralTabContent({
 interface ConnectionsTabContentProps {
   projects: Project[];
   isLoading: boolean;
+  isError?: boolean | undefined;
+  error?: unknown;
+  onRetry?: (() => void) | undefined;
   onOnboardProject: () => void;
 }
 
 function ConnectionsTabContent({
   projects,
   isLoading,
+  isError = false,
+  error,
+  onRetry,
   onOnboardProject,
 }: ConnectionsTabContentProps) {
   const { data: descriptors = [] } = useProviderDescriptors();
@@ -396,6 +404,16 @@ function ConnectionsTabContent({
 
       {isLoading ? (
         <PlaceholderRows count={3} group />
+      ) : isError ? (
+        <AsyncRegion
+          derived={deriveAsyncState({
+            data: undefined,
+            isPending: false,
+            isError: true,
+            error,
+          })}
+          onRetry={onRetry}
+        />
       ) : projects.length === 0 ? (
         <EmptyState title={CONNECTIONS_COPY.registryEmpty} headingLevel={3} />
       ) : (
@@ -507,7 +525,13 @@ function GitTabContent() {
 export function SettingsView() {
   const { data: settings } = useSettings();
   const { data: diagnostics, isLoading: isDiagLoading } = useDiagnostics();
-  const { data: projects = [], isLoading: isProjectsLoading } = useProjects();
+  const {
+    data: projects = [],
+    isLoading: isProjectsLoading,
+    isError: isProjectsError,
+    error: projectsError,
+    refetch: refetchProjects,
+  } = useProjects();
   const { openOnboardingModal } = useModal();
   const saveSettingsMutation = useSaveSettings();
 
@@ -595,6 +619,9 @@ export function SettingsView() {
             <ConnectionsTabContent
               projects={projects}
               isLoading={isProjectsLoading}
+              isError={isProjectsError}
+              error={projectsError}
+              onRetry={() => refetchProjects()}
               onOnboardProject={openOnboardingModal}
             />
           )}

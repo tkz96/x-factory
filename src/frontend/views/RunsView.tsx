@@ -153,13 +153,14 @@ export function RunsView() {
   const [params, setParams] = useSearchParams();
   const [lastChosen] = useState(readLastChosenFilter);
 
-  const counts = countRunsByFilter(runs);
+  const counts =
+    runsQuery.data !== undefined ? countRunsByFilter(runs) : undefined;
   const filter: RunsFilterId =
     parseRunsFilter(params.get("filter")) ??
     defaultRunsFilter({
       // The same unscoped count the Runs badge shows, so a run waiting in another
       // project still makes Needs you the default (#259).
-      needsYouCount: countRunsByFilter(allRuns)["needs-you"],
+      needsYouCount: counts ? countRunsByFilter(allRuns)["needs-you"] : 0,
       lastChosen,
     });
 
@@ -188,7 +189,7 @@ export function RunsView() {
           options={RUNS_FILTERS.map((f) => ({
             id: f.id,
             label: f.label,
-            count: counts[f.id],
+            count: counts ? counts[f.id] : undefined,
           }))}
         />
       </div>

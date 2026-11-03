@@ -126,6 +126,36 @@ describe("Runs filter segments", () => {
     expect(segment(view, /^All\s*3$/)).toBeTruthy();
   });
 
+  it("hides counts on segments while loading or after an error", () => {
+    const loadingClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+    });
+    loadingClient.setQueryDefaults(queryKeys.runs(), {
+      queryFn: () => new Promise(() => {}),
+    });
+    loadingClient.setQueryData(queryKeys.projects(), [PROJECT]);
+    const loadingView = renderRuns(loadingClient);
+    expect(
+      loadingView.container.querySelectorAll(".ui-segment-count"),
+    ).toHaveLength(0);
+    expect(segment(loadingView, /^Running$/)).toBeTruthy();
+    expect(segment(loadingView, /^Needs you$/)).toBeTruthy();
+
+    cleanup();
+    const errorClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+    });
+    errorClient.setQueryDefaults(queryKeys.runs(), {
+      queryFn: () => Promise.reject(new Error("Network error")),
+    });
+    errorClient.setQueryData(queryKeys.projects(), [PROJECT]);
+    const errorView = renderRuns(errorClient);
+    expect(
+      errorView.container.querySelectorAll(".ui-segment-count"),
+    ).toHaveLength(0);
+    expect(segment(errorView, /^Running$/)).toBeTruthy();
+  });
+
   it("defaults to Needs you when a run waits for the user", () => {
     const view = renderRuns(
       makeClient([run("a", "awaiting_plan_approval"), run("b", "executing")]),
@@ -409,6 +439,31 @@ describe("Runs badge and tab title (#259)", () => {
     await waitFor(() =>
       expect(view.getByRole("radio", { name: /^Runs$/ })).toBeTruthy(),
     );
+    expect(document.title).toBe("X-Factory");
+  });
+
+  it("shows no count and the plain title while runs load or after an error", () => {
+    const loadingClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+    });
+    loadingClient.setQueryDefaults(queryKeys.runs(), {
+      queryFn: () => new Promise(() => {}),
+    });
+    loadingClient.setQueryData(queryKeys.projects(), [PROJECT]);
+    const loadingView = renderShell(loadingClient);
+    expect(loadingView.getByRole("radio", { name: /^Runs$/ })).toBeTruthy();
+    expect(document.title).toBe("X-Factory");
+
+    cleanup();
+    const errorClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+    });
+    errorClient.setQueryDefaults(queryKeys.runs(), {
+      queryFn: () => Promise.reject(new Error("Network error")),
+    });
+    errorClient.setQueryData(queryKeys.projects(), [PROJECT]);
+    const errorView = renderShell(errorClient);
+    expect(errorView.getByRole("radio", { name: /^Runs$/ })).toBeTruthy();
     expect(document.title).toBe("X-Factory");
   });
 });

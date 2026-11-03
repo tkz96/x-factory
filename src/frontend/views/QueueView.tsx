@@ -90,15 +90,16 @@ function ProjectTickets({
   const { openNewRunModal } = useModal();
   const navigate = useNavigate();
   const ticketsQuery = useTickets(project.id);
+  const runsQuery = useRuns();
   const trackerTickets = ticketsQuery.data ?? EMPTY_TICKETS;
   // Tickets the operator wrote by hand, read from this project's runs. They can
   // only be told apart once the tracker has answered, so none are derived before.
   const handWritten = useMemo(
     () =>
-      ticketsQuery.data
+      ticketsQuery.data && !runsQuery.isPending
         ? handWrittenTicketsOf(runs, project.id, trackerTickets)
         : EMPTY_TICKETS,
-    [ticketsQuery.data, runs, project.id, trackerTickets],
+    [ticketsQuery.data, runsQuery.isPending, runs, project.id, trackerTickets],
   );
   const handWrittenIds = useMemo(
     () => new Set(handWritten.map((t) => t.id)),
@@ -122,11 +123,19 @@ function ProjectTickets({
   // The integrity failure is primary over every async condition: the list
   // cannot be loaded at all, so it must never read as successfully empty.
   const derived = applyConnectionIntegrity(
-    deriveAsyncState(ticketsQuery, {
-      isEmpty: (query) =>
-        Array.isArray(query.data) &&
-        (searching ? filtered.length === 0 : tickets.length === 0),
-    }),
+    deriveAsyncState(
+      {
+        data: ticketsQuery.data,
+        isPending: ticketsQuery.isPending || runsQuery.isPending,
+        isError: ticketsQuery.isError,
+        error: ticketsQuery.error,
+      },
+      {
+        isEmpty: (query) =>
+          Array.isArray(query.data) &&
+          (searching ? filtered.length === 0 : tickets.length === 0),
+      },
+    ),
     integrity,
   );
   const integrityFailure = integrity.hasIntegrityFailure;
@@ -223,8 +232,15 @@ function ProjectTickets({
 }
 
 export function QueueView() {
-  const { projects, isProjectsLoading, isAllProjects, selectedProject } =
-    useCurrentProject();
+  const {
+    projects,
+    isProjectsLoading,
+    isError: isProjectsError,
+    error: projectsError,
+    refetch: refetchProjects,
+    isAllProjects,
+    selectedProject,
+  } = useCurrentProject();
   const { openOnboardingModal } = useModal();
   // The page heading belongs to the screen (#298): Tickets claims the shell's
   // title through the slot and renders no heading of its own. The subtitle and
@@ -243,7 +259,8 @@ export function QueueView() {
 
   // With no project at all there is no tracker to query: an empty workspace,
   // not a load, so say how to add one.
-  const noProjects = !isProjectsLoading && projects.length === 0;
+  const noProjects =
+    !isProjectsLoading && !isProjectsError && projects.length === 0;
   // The toolbar names the label the search filters by: the one selected project's
   // label, or the default when the scope is every project.
   const toolbarWorkflowLabel = selectedProject
@@ -259,6 +276,26 @@ export function QueueView() {
       workflowLabel={toolbarWorkflowLabel}
     />
   );
+
+  if (isProjectsError) {
+    const errorState: DerivedAsyncState = deriveAsyncState({
+      data: undefined,
+      isPending: false,
+      isError: true,
+      error: projectsError,
+    });
+    return (
+      <section id="area-queue" className="area-view active">
+        {searchToolbar}
+        <div id="queue-tickets-list" className="tickets-region" data-list>
+          <AsyncRegion
+            derived={errorState}
+            onRetry={refetchProjects ? () => refetchProjects() : undefined}
+          />
+        </div>
+      </section>
+    );
+  }
 
   if (noProjects) {
     const empty: DerivedAsyncState = deriveAsyncState(
@@ -295,29 +332,27 @@ export function QueueView() {
       {searchToolbar}
 
       <div id="queue-tickets-list" className="ticket-groups">
-        {isAllProjects ? (
-          isProjectsLoading ? (
-            <AsyncRegion
-              derived={deriveAsyncState({
-                data: undefined,
-                isPending: true,
-                isError: false,
-                error: null,
-              })}
+        {isProjectsLoading ? (
+          <AsyncRegion
+            derived={deriveAsyncState({
+              data: undefined,
+              isPending: true,
+              isError: false,
+              error: null,
+            })}
+          />
+        ) : isAllProjects ? (
+          projects.map((project) => (
+            <ProjectTickets
+              key={project.id}
+              project={project}
+              searchQuery={searchQuery}
+              runs={runs}
+              onClearSearch={() => setSearchQuery("")}
+              descriptors={descriptors}
+              heading
             />
-          ) : (
-            projects.map((project) => (
-              <ProjectTickets
-                key={project.id}
-                project={project}
-                searchQuery={searchQuery}
-                runs={runs}
-                onClearSearch={() => setSearchQuery("")}
-                descriptors={descriptors}
-                heading
-              />
-            ))
-          )
+          ))
         ) : (
           selectedProject && (
             <ProjectTickets

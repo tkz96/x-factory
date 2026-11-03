@@ -324,7 +324,7 @@ interface AppShellHeaderProps {
   section: SectionId | "";
   onSelectSection: (id: string) => void;
   /** Runs in a Needs-you status: the Runs segment's count (#259). */
-  needsYouCount: number;
+  needsYouCount?: number | undefined;
   /** True when the workbench is degraded: the toolbar then says so, once. */
   isDegraded: boolean;
   activeRunId: string | undefined;
@@ -446,7 +446,11 @@ function AppShellHeader({
             id: s.id,
             label: s.label,
             count:
-              s.id === "runs" && needsYouCount > 0 ? needsYouCount : undefined,
+              s.id === "runs" &&
+              needsYouCount !== undefined &&
+              needsYouCount > 0
+                ? needsYouCount
+                : undefined,
           }))}
           className="toolbar-sections desktop-only"
         />
@@ -526,7 +530,11 @@ function AppShellHeader({
   );
 }
 
-function AppShellMobileTabBar({ needsYouCount }: { needsYouCount: number }) {
+function AppShellMobileTabBar({
+  needsYouCount,
+}: {
+  needsYouCount?: number | undefined;
+}) {
   return (
     <nav
       id="mobile-tab-bar"
@@ -543,9 +551,11 @@ function AppShellMobileTabBar({ needsYouCount }: { needsYouCount: number }) {
         >
           <Icon name={section.icon} size="lg" />
           <span>{section.label}</span>
-          {section.id === "runs" && needsYouCount > 0 && (
-            <span className="tab-count text-caption-2">{needsYouCount}</span>
-          )}
+          {section.id === "runs" &&
+            needsYouCount !== undefined &&
+            needsYouCount > 0 && (
+              <span className="tab-count text-caption-2">{needsYouCount}</span>
+            )}
         </NavLink>
       ))}
     </nav>
@@ -580,10 +590,15 @@ function AppShellContent() {
   // Runs badge and the tab title follow a run from any section (#259). It is
   // opened once, by the NotificationProvider that wraps this shell (#264).
   const { data: runsList } = useRuns();
-  const needsYouCount = countRunsByFilter(runsList ?? [])["needs-you"];
+  const needsYouCount =
+    runsList !== undefined
+      ? countRunsByFilter(runsList)["needs-you"]
+      : undefined;
   useEffect(() => {
     document.title =
-      needsYouCount > 0 ? `(${needsYouCount}) X-Factory` : "X-Factory";
+      needsYouCount !== undefined && needsYouCount > 0
+        ? `(${needsYouCount}) X-Factory`
+        : "X-Factory";
   }, [needsYouCount]);
 
   const runIdMatch = location.pathname.match(/^\/runs\/([^/]+)/);
