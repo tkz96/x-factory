@@ -21,13 +21,27 @@
 }
 
 @media (max-width: 768px) {
+  /* The title shrinks and wraps; the activity keeps its short label whole. */
+  .toolbar-activity {
+    flex-shrink: 0;
+    min-width: max-content;
+    gap: var(--space-1);
+    padding-inline: 0;
+  }
+
+  /* The short label carries the meaning (the link's name says "Running"); the glyph gives
+     its room to the title. */
+  .toolbar-activity > .icon-spin {
+    display: none;
+  }
+
   .toolbar-activity-long {
     display: none;
   }
 
   .toolbar-activity-short {
     display: inline;
-    max-width: 7rem;
+    max-width: none;
   }
 }
 

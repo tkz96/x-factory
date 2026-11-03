@@ -333,6 +333,49 @@ describe("scroll position and Jump to Latest", () => {
     ).toBeNull();
   });
 
+  it("never offers Jump to Latest over the decision card's actions while they are in view", () => {
+    const original = globalThis.IntersectionObserver;
+    globalThis.IntersectionObserver = class {
+      constructor(private callback: (entries: unknown[]) => void) {}
+      observe() {
+        this.callback([{ isIntersecting: true }]);
+      }
+      disconnect() {}
+      unobserve() {}
+      takeRecords() {
+        return [];
+      }
+    } as unknown as typeof IntersectionObserver;
+    try {
+      const events = [ev(1, "plan_ready", { plan: "1. Do it." })];
+      const { container, rerender } = render(
+        <RunChat run={makeRun("awaiting_plan_approval")} events={events} />,
+      );
+      const list = log(container);
+      Object.defineProperty(list, "scrollHeight", {
+        value: 1000,
+        configurable: true,
+      });
+      Object.defineProperty(list, "clientHeight", {
+        value: 200,
+        configurable: true,
+      });
+      list.scrollTop = 0;
+      fireEvent.scroll(list);
+      rerender(
+        <RunChat
+          run={makeRun("awaiting_plan_approval")}
+          events={[...events, ev(2, "chat_agent", { text: "more" })]}
+        />,
+      );
+      expect(
+        within(container).queryByRole("button", { name: "Jump to Latest" }),
+      ).toBeNull();
+    } finally {
+      globalThis.IntersectionObserver = original;
+    }
+  });
+
   it("brings the newest item into view when the content grows, while at the end", () => {
     const callbacks: Array<() => void> = [];
     const original = globalThis.ResizeObserver;
