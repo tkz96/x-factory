@@ -149,6 +149,7 @@ describe("a checkpoint button says what was just pressed", () => {
     expect(container.textContent).toContain(
       "Changes approved",
     );
+    expect(container.textContent).not.toContain("opening a pull request");
   });
 
   it("starts a new run without a line of its own", () => {
