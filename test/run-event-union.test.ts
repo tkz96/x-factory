@@ -119,6 +119,7 @@ describe("Shared run-event union (#171)", () => {
     expect(feedbackEvt?.payload).toEqual({
       failingTasks: ["Task 1"],
       notes: "Please fix edge case handling",
+      stage: "plan",
       text: "Feedback provided: 1 failing tasks.",
     });
 
