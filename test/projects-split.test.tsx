@@ -262,7 +262,7 @@ describe("Project facts — repository, tracker, branch in plain words (#267)", 
     expect(facts[2]?.value).toBe("release/2");
 
     const fallback = projectFacts(makeProject({ defaultBranch: "" }), MANIFEST);
-    expect(fallback[2]?.value).toBe(PROJECT_DETAIL_COPY.defaultBranchFallback);
+    expect(fallback[2]?.value).toBe("Not set");
   });
 
   it("keeps the three facts in reading order: repository, tracker, branch", () => {

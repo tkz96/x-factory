@@ -328,7 +328,7 @@ export const PROJECT_DETAIL_COPY = {
   workspacePath: "Workspace Path",
   defaultWorkspace: "Default",
   defaultBranch: "Default Branch",
-  defaultBranchFallback: "main",
+  defaultBranchFallback: "Not set",
   repositories: "Repositories",
   repositoriesConnected: (count: number) => `${count} connected`,
   repositoriesEmpty:
