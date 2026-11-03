@@ -2,14 +2,6 @@
 /* The rows, buttons and text are blocks (Button, IconButton, Card, EmptyState,
    Icon) and text styles; this file only lays them out for the sidebar. */
 
-.docs-sidebar-nav-container {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  width: 100%;
-  overflow-x: hidden;
-}
-
 .docs-sidebar-brand {
   display: flex;
   align-items: center;

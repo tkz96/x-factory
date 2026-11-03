@@ -149,8 +149,6 @@ export const REPOSITORIES_COPY = {
   /** Brief helper text explaining repository requirements (#160). */
   requirementsHelp:
     "An application repository is the primary codebase where workflows run. Select at least one to continue.",
-  previous: "Back",
-  next: "Continue to Inspection",
 } as const;
 
 /**
@@ -321,16 +319,10 @@ export const PROJECT_DETAIL_COPY = {
   notFound: (projectId: string) =>
     `The project “${projectId}” does not exist or has been removed.`,
   backToProjects: "Back to Projects",
-  allProjects: "All Projects",
-  backToProjectsTitle: "Back to all projects",
   archived: "Archived",
   projectId: "Project ID",
-  workspacePath: "Workspace Path",
-  defaultWorkspace: "Default",
-  defaultBranch: "Default Branch",
   defaultBranchFallback: "Not set",
   repositories: "Repositories",
-  repositoriesConnected: (count: number) => `${count} connected`,
   repositoriesEmpty:
     "No separate sub-repositories configured. Using primary workspace repository.",
   repositoryNameColumn: "Repository Name",
@@ -412,7 +404,6 @@ export const INSPECTION_COPY = {
     path
       ? `A Git identity (author name and email) is needed for ${path} so X-Factory can author commits and open pull requests on your behalf.`
       : "A Git identity (author name and email) is needed so X-Factory can author commits and open pull requests on your behalf.",
-  identityTitle: "Resolved git identity",
   nameLabel: "Name",
   emailLabel: "Email",
   pathLabel: "Read from",
@@ -458,10 +449,6 @@ export const INSPECTION_COPY = {
     `Configured git identity for ${configured.join(", ")}, but failed for ${failed.join(", ")}.`,
   configureButton: "Configure Git Identity",
   configuringButton: "Configuring…",
-  /** The explicit re-inspection affordance (never an automatic retry loop). */
-  inspectAction: "Inspect Again",
-  previous: "Back",
-  next: "Continue to Review",
 } as const;
 
 /**
@@ -473,16 +460,13 @@ export const REVIEW_COPY = {
   title: "Review Project Setup",
   subtitle:
     "Confirm the configuration. Creating the project uses your connections and the resolved git identity.",
-  projectSectionTitle: "Project",
   nameLabel: "Project Name",
   identifierLabel: "Identifier",
   descriptionLabel: "Description",
   workspacePathLabel: "Workspace Path",
   identitySectionTitle: "Git identity",
-  identityNameLabel: "Name",
   identityEmailLabel: "Email",
   repositoriesSectionTitle: "Repositories",
-  repositoryRolesLabel: "Listed as",
   primaryBadge: "Primary",
   unsetName: "Untitled",
   unsetValue: "—",
@@ -509,7 +493,6 @@ export const REVIEW_COPY = {
   },
   submit: "Create Project",
   submitting: "Creating project…",
-  previous: "Back",
   /** The 409 envelope's own codes carry the detail as banner items. */
   conflictTitle: "The project could not be created.",
   /** Any other rejected request (400, 5xx): the request itself was refused. */
@@ -688,10 +671,7 @@ export const MODEL_CONNECTIONS_COPY = {
   modelsFound: (count: number) =>
     count === 1 ? "1 model found" : `${count} models found`,
   addModel: "Add",
-  added: "Added",
   addModelLabel: (model: string) => `Add ${model}`,
-  addedModelLabel: (model: string) => `Added ${model}`,
-  chosenModels: "Chosen models",
   contextWindow: "Context window (tokens)",
   maxOutputTokens: "Max output (tokens)",
   inputPricePerMTok: "Input price ($ / 1M tokens)",
@@ -702,7 +682,6 @@ export const MODEL_CONNECTIONS_COPY = {
   tpd: "Tokens / day",
   budgetUsd: "Budget ($ / day)",
   budgetRequests: "Budget (model calls / day)",
-  todayUsageLabel: (todayText: string) => `Today’s usage: ${todayText}`,
   saveModel: "Save Model",
   removeModel: "Remove",
   // The models table (UI round 2).
@@ -711,7 +690,6 @@ export const MODEL_CONNECTIONS_COPY = {
   columnContext: "Context",
   columnMaxOutput: "Max output",
   columnPrice: "Price in / out",
-  columnPriceHint: "$ per 1M tokens",
   columnRole: "Role",
   columnToday: "Today",
   columnAction: "Action",
@@ -790,11 +768,6 @@ export const REPOSITORY_STEP_COPY = {
     "A link like https://github.com/owner/repository. The provider is matched from it.",
   urlRequired: "Paste a repository URL.",
   urlInvalid: "That does not look like a URL. Paste the repository's link.",
-  /** Parsed, but no registered provider claims the URL. Informational, never a block. */
-  urlUnmatched:
-    "No provider recognises this URL. Connect one in the next step.",
-  parseFailed:
-    "The URL could not be checked. Connect a provider in the next step.",
   detailsTitle: "Project",
   nameLabel: "Project Name",
   nameRequired: "Project name is required.",

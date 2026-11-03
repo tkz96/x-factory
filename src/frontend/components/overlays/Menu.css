@@ -52,10 +52,3 @@
   background: var(--red);
   color: var(--text-on-accent);
 }
-
-/* A group header inside a menu: footnote, 600, --text-secondary, in the case it
-   was written in. */
-.xf-menu-header {
-  color: var(--text-secondary);
-  padding: var(--space-1) var(--space-3);
-}

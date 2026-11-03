@@ -1,10 +1,5 @@
 /* ── Queue View Styles (Apple HIG) ────────────────────────────────── */
 
-.queue-error-message {
-  margin: var(--space-4) auto;
-  max-width: var(--content-max-md);
-}
-
 /* The manual path stays open when the queue cannot load (#147). */
 .queue-manual-actions {
   display: flex;
