@@ -53,7 +53,7 @@ function runKnip(args: string[]): KnipIssue[] {
 
 // Pass 1 counts test/** as entry points. Pass 2 is production mode: only the
 // server, the worker and the frontend entry count, so an export that only a
-// test imports shows up. Pass 2 is limited to src/frontend/ (spec #312).
+// test imports shows up. Pass 2 is limited to src/frontend/ (spec #312; the backend has about 100 findings, see docs/agents/ci-checks.md).
 const current = [
   ...new Set([
     ...findingKeys(runKnip([])),
