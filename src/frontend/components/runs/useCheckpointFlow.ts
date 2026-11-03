@@ -14,9 +14,7 @@ function resolvedTextFor(
 ): string | null {
   switch (action) {
     case "approve":
-      return status === "awaiting_review"
-        ? "Changes approved — opening a pull request"
-        : "Approved";
+      return status === "awaiting_review" ? "Changes approved" : "Approved";
     case "restart":
       return "Changes requested";
     case "deliver":

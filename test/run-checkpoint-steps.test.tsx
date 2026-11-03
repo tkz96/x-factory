@@ -133,7 +133,7 @@ describe("a checkpoint button says what was just pressed", () => {
     expect(container.textContent).toContain("Retrying the review");
   });
 
-  it("Approve Changes on a review says the pull request is opening", () => {
+  it("Approve Changes on a review says the changes are approved", () => {
     const actions: string[] = [];
     const { container } = render(
       <RunChat
@@ -147,7 +147,7 @@ describe("a checkpoint button says what was just pressed", () => {
     );
     expect(actions).toEqual(["approve"]);
     expect(container.textContent).toContain(
-      "Changes approved — opening a pull request",
+      "Changes approved",
     );
   });
 
@@ -266,7 +266,7 @@ describe("a new status starts the chat's pending steps over", () => {
       <RunChat run={makeRun("executing")} events={[]} onAction={onAction} />,
     );
     expect(container.textContent).not.toContain(
-      "Changes approved — opening a pull request",
+      "Changes approved",
     );
     // The notice that stays in the log is history; the composer no longer waits for rework notes.
     expect(
