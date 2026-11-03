@@ -47,12 +47,6 @@ export const queryClient = new QueryClient({
 // Rules: Mutations must only invalidate affected query keys.
 // Never call queryClient.invalidateQueries() without key filters.
 
-export async function invalidateProjects(
-  client: QueryClient = queryClient,
-): Promise<void> {
-  await client.invalidateQueries({ queryKey: queryKeys.projects() });
-}
-
 export async function invalidateProject(
   id: string,
   client: QueryClient = queryClient,
@@ -61,13 +55,6 @@ export async function invalidateProject(
     client.invalidateQueries({ queryKey: queryKeys.project(id) }),
     client.invalidateQueries({ queryKey: queryKeys.projects() }),
   ]);
-}
-
-export async function invalidateTickets(
-  projectId: string,
-  client: QueryClient = queryClient,
-): Promise<void> {
-  await client.invalidateQueries({ queryKey: queryKeys.tickets(projectId) });
 }
 
 export async function invalidateRuns(

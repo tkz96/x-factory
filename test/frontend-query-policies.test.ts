@@ -6,11 +6,9 @@ import type { ProviderDescriptor } from "../src/frontend/connection/types.js";
 import { ApiError } from "../src/frontend/lib/api-client.js";
 import {
   invalidateProject,
-  invalidateProjects,
   invalidateRun,
   invalidateRuns,
   invalidateSettings,
-  invalidateTickets,
   patchRunCache,
   queryClient,
   shouldRetryQuery,
@@ -296,7 +294,7 @@ describe("Explicit Targeted Invalidation (XFM-43)", () => {
     client.setQueryData(queryKeys.settings(), { limits: { maxRuns: 5 } });
 
     // Target invalidation of projects
-    await invalidateProjects(client);
+    await client.invalidateQueries({ queryKey: queryKeys.projects() });
 
     const projectsQuery = client
       .getQueryCache()
@@ -330,7 +328,7 @@ describe("Explicit Targeted Invalidation (XFM-43)", () => {
     expect(singleProjectQuery?.isStale()).toBe(true);
 
     // Target invalidation of tickets for p1
-    await invalidateTickets("p1", client);
+    await client.invalidateQueries({ queryKey: queryKeys.tickets("p1") });
     expect(ticketsQuery?.isStale()).toBe(true);
     expect(runsQuery?.isStale()).toBe(false);
 

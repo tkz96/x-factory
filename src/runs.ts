@@ -13,9 +13,7 @@ import type { Repositories } from "./composition-root.js";
 import type { CommandRepository } from "./db/command-repository.js";
 import type { EventRecord } from "./db/event-repository.js";
 import type { JobRecord, JobRepository } from "./db/job-repository.js";
-import type { OperationLedgerRecord } from "./db/operation-ledger-repository.js";
 import type { RunRecord, RunRepository } from "./db/run-repository.js";
-import type { StageAttemptRecord } from "./db/stage-attempt-repository.js";
 import {
   ActiveRunExistsError,
   ConflictError,
@@ -105,20 +103,6 @@ export function getAppEvents(
   limit?: number,
 ): AppEventEnvelope[] {
   return repos.events.getAppEventsSince(sinceId, limit);
-}
-
-export function getStageAttempts(
-  repos: Repositories,
-  runId: string,
-): StageAttemptRecord[] {
-  return repos.stageAttempts.listForRun(runId);
-}
-
-export function getOperationLedger(
-  repos: Repositories,
-  runId: string,
-): OperationLedgerRecord[] {
-  return repos.operationLedger.listForRun(runId);
 }
 
 /**

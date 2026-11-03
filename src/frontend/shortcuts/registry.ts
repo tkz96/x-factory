@@ -132,36 +132,6 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
   },
 ];
 
-/**
- * Combinations the operating system or the browser keeps for itself, or that
- * the browser does not let a page take over. An application shortcut must not
- * use these (spec #241, conflict rule).
- */
-export const RESERVED_BINDINGS: readonly string[] = [
-  "mod+n",
-  "mod+t",
-  "mod+w",
-  "mod+q",
-  "mod+r",
-  "mod+l",
-  "mod+d",
-  "mod+p",
-  "mod+s",
-  "mod+f",
-  "mod+h",
-  "mod+m",
-  "mod+tab",
-  "ctrl+tab",
-  "mod+shift+t",
-  "mod+shift+n",
-];
-
-/**
- * Combinations a page can override, but only once verified with real keyboard
- * input on every supported browser and OS. Mod+K is the one shipped here.
- */
-export const OVERRIDABLE_BINDINGS: readonly string[] = ["mod+k"];
-
 export function getShortcut(id: ShortcutId): ShortcutDefinition {
   const found = SHORTCUTS.find((s) => s.id === id);
   if (!found) throw new Error(`Unknown shortcut: ${id}`);

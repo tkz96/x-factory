@@ -15,10 +15,7 @@ import { act, cleanup, render } from "@testing-library/react";
 import { MotionConfigContext } from "motion/react";
 import { type ReactNode, useContext } from "react";
 import { MotionEntry } from "../src/frontend/motion/MotionEntry.js";
-import {
-  MotionList,
-  MotionListItem,
-} from "../src/frontend/motion/MotionList.js";
+import { MotionListItem } from "../src/frontend/motion/MotionList.js";
 import { MotionProvider } from "../src/frontend/motion/MotionProvider.js";
 import { loadMotionFeatures } from "../src/frontend/motion/motion-features.js";
 
@@ -91,9 +88,7 @@ describe("motion system (#252)", () => {
 
   it("renders a list whose rows keep their place when the order changes", async () => {
     const view = await renderInProvider(
-      <MotionList className="run-list">
-        <MotionListItem className="run-row">First run</MotionListItem>
-      </MotionList>,
+      <MotionListItem className="run-row">First run</MotionListItem>,
     );
 
     expect(view.getByText("First run").className).toBe("run-row");

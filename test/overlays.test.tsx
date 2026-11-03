@@ -33,7 +33,6 @@ import {
   DialogTitle,
   Menu,
   MenuItem,
-  MenuSeparator,
   MenuTrigger,
   OverlayTriggerButton,
   Popover,
@@ -379,7 +378,6 @@ describe("Overlay building blocks on React Aria (#250)", () => {
                 <MenuItem id="menu-item-copy" textValue="Copy">
                   Copy
                 </MenuItem>
-                <MenuSeparator />
                 <MenuItem id="menu-item-delete" textValue="Delete" isDanger>
                   Delete
                 </MenuItem>

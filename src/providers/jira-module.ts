@@ -44,9 +44,6 @@ import {
 /** Remediated JQL search endpoint name constant (#140). */
 export const SEARCH_JQL_ENDPOINT = "/rest/api/3/search/jql" as const;
 
-/** Canonical search capability token (#140). */
-export const SEARCH_JQL = "SEARCH_JQL" as const;
-
 // ---------------------------------------------------------------------------
 // Configuration Schema with presentation metadata
 // ---------------------------------------------------------------------------
