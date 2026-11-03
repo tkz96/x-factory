@@ -130,7 +130,11 @@ function withoutRepeatedStatus(
   groups: StageGroup[],
   status: RunStatus,
 ): StageGroup[] {
-  if (!NEEDS_YOU_STATUSES.has(status)) return groups;
+  // A failed or stopped run's card (failure, stopped) says the state too.
+  const cardSaysIt =
+    NEEDS_YOU_STATUSES.has(status) ||
+    (TERMINAL_RUN_STATUSES.has(status) && status !== "pr_created");
+  if (!cardSaysIt) return groups;
   const last = groups
     .flatMap((group) => group.items)
     .findLast((item) => item.kind === "status");
