@@ -9,7 +9,14 @@ import { registerHappyDom, unregisterHappyDom } from "./setup-happy-dom.js";
 
 registerHappyDom();
 
-import { afterAll, afterEach, beforeEach, describe, expect, it } from "bun:test";
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "bun:test";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, render, waitFor } from "@testing-library/react";
 import React from "react";
@@ -148,7 +155,9 @@ describe("Settings › Diagnostics reports what the checks produced (#323)", () 
     const view = renderSettingsDiagnostics();
 
     await waitFor(() =>
-      expect(view.container.textContent ?? "").toContain("DELETE mode · 7 runs"),
+      expect(view.container.textContent ?? "").toContain(
+        "DELETE mode · 7 runs",
+      ),
     );
     expect(view.container.textContent ?? "").not.toContain("WAL mode");
   });

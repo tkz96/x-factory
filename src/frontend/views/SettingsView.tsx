@@ -15,12 +15,12 @@ import type {
 } from "../../shared/types.js";
 import { ConnectionComboLine } from "../components/connections/ConnectionComboLine.js";
 import { comboTone } from "../components/connections/connection-state.js";
+import { AsyncRegion } from "../components/feedback/AsyncRegion.js";
 import {
   CONNECTIONS_COPY,
   STATE_COPY,
   STATUS_COPY,
 } from "../components/feedback/copy-map.js";
-import { AsyncRegion } from "../components/feedback/AsyncRegion.js";
 import { deriveAsyncState } from "../components/feedback/derive-async-state.js";
 import { RetryAction } from "../components/feedback/RetryAction.js";
 import { AlertDialog } from "../components/overlays/AlertDialog.js";
@@ -113,7 +113,11 @@ interface DiagnosticStatusProps {
 /** The health of one diagnostic service, as a badge in the row's trailing slot. */
 function DiagnosticStatus({ health }: DiagnosticStatusProps) {
   const tone =
-    health === "healthy" ? "success" : health === "unavailable" ? "error" : "neutral";
+    health === "healthy"
+      ? "success"
+      : health === "unavailable"
+        ? "error"
+        : "neutral";
   const label: Record<ServiceHealth, string> = {
     healthy: STATUS_COPY.healthy,
     unavailable: STATUS_COPY.unavailable,
@@ -201,7 +205,9 @@ function DiagnosticsReport({
               subtitle={check.message}
               trailing={
                 <Badge tone={check.status === "fail" ? "error" : "warning"}>
-                  {check.status === "fail" ? "Failed" : "Warning"}
+                  {check.status === "fail"
+                    ? STATUS_COPY.stageFailed
+                    : "Warning"}
                 </Badge>
               }
             />

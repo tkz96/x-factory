@@ -99,7 +99,7 @@ describe("ReadinessBanner when the check itself fails (#323)", () => {
   });
 
   it("shows the error with a retry, never Ready, when the readiness query fails", async () => {
-    globalThis.fetch = (async () =>
+    globalThis.fetch = (async (_input: RequestInfo | URL) =>
       new Response(JSON.stringify({ error: "boom" }), {
         status: 500,
         headers: { "content-type": "application/json" },
