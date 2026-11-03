@@ -73,9 +73,7 @@ function ConnectionForm({
     setApiType(next);
     const known = Object.values(DEFAULT_BASE_URLS);
     if (!baseUrl.trim() || known.includes(baseUrl)) {
-      setBaseUrl(
-        next === "openai-compatible" ? "" : DEFAULT_BASE_URLS[next],
-      );
+      setBaseUrl(next === "openai-compatible" ? "" : DEFAULT_BASE_URLS[next]);
     }
   };
 

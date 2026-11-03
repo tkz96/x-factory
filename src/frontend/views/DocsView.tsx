@@ -11,8 +11,8 @@ import { MarkdownViewer } from "../components/MarkdownViewer.js";
 import { Badge } from "../components/ui/Badge.js";
 import { Icon } from "../components/ui/Icon.js";
 import { scrollBehavior } from "../hooks/scroll-behavior.js";
-import { resolveDocsLocation } from "../lib/docs-location.js";
 import { api } from "../lib/api-client.js";
+import { resolveDocsLocation } from "../lib/docs-location.js";
 
 interface AzureDocScope {
   category: string;

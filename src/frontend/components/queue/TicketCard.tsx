@@ -14,10 +14,10 @@ import type { Ticket } from "../../../shared/types.js";
 import { useModal } from "../../context/ModalContext.js";
 import { useProviderDescriptors } from "../../hooks/useProviderDescriptors.js";
 import type { TicketRunLink } from "../../lib/ticket-runs.js";
+import { resolveProviderLabel } from "../connections/connection-state.js";
 import { Badge } from "../ui/Badge.js";
 import { Button } from "../ui/Button.js";
 import { Card } from "../ui/Card.js";
-import { resolveProviderLabel } from "../connections/connection-state.js";
 
 /** How many criteria and labels a card lists before it says "+N more". */
 const PREVIEW_LIMIT = 3;

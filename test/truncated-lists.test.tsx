@@ -112,7 +112,11 @@ describe("CommandPalette", () => {
         ({
           id: `run-${i}`,
           project,
-          ticket: { id: `T-${i}`, title: `Ticket ${i}`, acceptanceCriteria: [] },
+          ticket: {
+            id: `T-${i}`,
+            title: `Ticket ${i}`,
+            acceptanceCriteria: [],
+          },
           status: "awaiting_plan_approval",
           startedAt: "2026-10-01T00:00:00.000Z",
         }) as unknown as Run,
