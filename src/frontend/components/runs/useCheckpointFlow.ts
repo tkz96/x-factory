@@ -32,6 +32,36 @@ function resolvedTextFor(
   }
 }
 
+/**
+ * What Request Changes sends from a status, and the notice that asks for the notes. The server
+ * routes each the same way (`RESTART_ROUTES` and `REQUEUE_ROUTE` in src/workflow.ts): Review goes
+ * back to planning, Understand and Plan run again.
+ */
+const REWORK_BY_STATUS: Partial<
+  Record<RunStatus, { action: "requeue" | "restart"; notice: string }>
+> = {
+  awaiting_review: {
+    action: "requeue",
+    notice:
+      "Describe the changes needed. Your next message goes back to planning.",
+  },
+  awaiting_understanding_approval: {
+    action: "restart",
+    notice:
+      "Describe the changes needed. Your next message goes back to Understand.",
+  },
+  awaiting_plan_approval: {
+    action: "restart",
+    notice: "Describe the changes needed. Plan runs again with it.",
+  },
+};
+
+const DEFAULT_REWORK = {
+  action: "restart",
+  notice:
+    "Describe the changes needed. Your next message goes into the next try.",
+} as const;
+
 interface CheckpointFlowOptions {
   status: RunStatus;
   onAction?: ((action: CheckpointAction, notes?: string) => void) | undefined;
@@ -61,6 +91,8 @@ export function useCheckpointFlow({
     }
   }, [status]);
 
+  const rework = REWORK_BY_STATUS[status] ?? DEFAULT_REWORK;
+
   const handleAction = (action: CheckpointAction) => {
     // Abandoning cannot be undone: ask first, naming the branch (#262).
     if (action === "abandon") {
@@ -73,23 +105,16 @@ export function useCheckpointFlow({
         id,
         at,
         kind: "notice",
-        text:
-          status === "awaiting_review"
-            ? "Describe the changes needed. Your next message goes back to planning."
-            : "Describe the changes needed. Your next message goes into the next try.",
+        text: rework.notice,
         warning: false,
       }));
       setTimeout(() => inputRef.current?.focus(), 50);
       return;
     }
     if (action === "confirm-rework") {
-      // Review sends the run back to planning; Understand and Plan run again.
-      onAction?.(
-        status === "awaiting_review" ? "requeue" : "restart",
-        pendingRework ?? undefined,
-      );
+      onAction?.(rework.action, pendingRework ?? undefined);
       setPendingRework(null);
-      setResolved(resolvedTextFor("requeue", status));
+      setResolved(resolvedTextFor(rework.action, status));
       return;
     }
     onAction?.(action);

@@ -237,6 +237,48 @@ describe("Request Changes on a review asks for the changes before it acts", () =
   });
 });
 
+describe("Request Changes names the stage that runs again and says what was sent", () => {
+  it.each([
+    [
+      "awaiting_understanding_approval",
+      "Describe the changes needed. Your next message goes back to Understand.",
+    ],
+    [
+      "awaiting_plan_approval",
+      "Describe the changes needed. Plan runs again with it.",
+    ],
+  ] as const)(
+    "%s: the notice names the stage, and confirming sends restart",
+    (status, notice) => {
+      const actions: Array<[string, string | undefined]> = [];
+      const { container } = render(
+        <RunChat
+          run={makeRun(status)}
+          events={[
+            {
+              id: 1,
+              type: "status",
+              payload: { status },
+              timestamp: AT,
+            } as RunEvent,
+          ]}
+          onAction={(action, notes) => actions.push([action, notes])}
+        />,
+      );
+      fireEvent.click(
+        within(container).getByRole("button", { name: "Request Changes" }),
+      );
+      expect(container.textContent).toContain(notice);
+      typeAndSend(container, "Use the cache");
+      fireEvent.click(
+        within(container).getByRole("button", { name: "Confirm Rework" }),
+      );
+      expect(actions).toEqual([["restart", "Use the cache"]]);
+      expect(container.textContent).toContain("Changes requested");
+    },
+  );
+});
+
 describe("a new status starts the chat's pending steps over", () => {
   it("clears the line and the rework prompt the old status left behind", () => {
     const onAction = () => {};
