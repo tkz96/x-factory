@@ -175,3 +175,7 @@
 .xf-dialog-overlay.command-palette-overlay[data-exiting] .xf-dialog-content {
   animation: none;
 }
+
+.command-palette-more {
+  padding: var(--space-2) var(--space-3);
+}

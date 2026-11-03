@@ -8,6 +8,7 @@ import { NavLink, useSearchParams } from "react-router-dom";
 import type { DocCategory, DocSearchResult } from "../../../shared/types.js";
 import { scrollBehavior } from "../../hooks/scroll-behavior.js";
 import { api } from "../../lib/api-client.js";
+import { resolveDocsLocation } from "../../lib/docs-location.js";
 import { AsyncRegion } from "../feedback/AsyncRegion.js";
 import { deriveAsyncState } from "../feedback/derive-async-state.js";
 import { Tooltip, TooltipTrigger } from "../overlays/Tooltip.js";
@@ -79,8 +80,8 @@ export function DocsSidebarNav() {
   const [searchParams, setSearchParams] = useSearchParams();
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  const activeCategory = searchParams.get("cat") || "tutorials";
-  const activeSlug = searchParams.get("slug") || "first-agent-run";
+  const { category: activeCategory, slug: activeSlug } =
+    resolveDocsLocation(searchParams);
   const isSecurity = activeCategory === "security";
 
   // Search state with debounced visual delay and motion

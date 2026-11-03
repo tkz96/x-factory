@@ -40,6 +40,9 @@ export interface CommandPaletteProps {
   onToggleAppearance: () => void;
 }
 
+/** The palette lists this many of the newest runs. */
+const PALETTE_RUN_LIMIT = 200;
+
 export function CommandPalette(props: CommandPaletteProps) {
   return (
     <Dialog
@@ -83,7 +86,7 @@ function PaletteBody({
       filterPaletteItems(
         buildPaletteItems({
           projects,
-          runs: runs.slice(0, 200),
+          runs: runs.slice(0, PALETTE_RUN_LIMIT),
           stopRunAvailable,
         }),
         query,
@@ -126,6 +129,7 @@ function PaletteBody({
     }
   };
 
+  const hiddenRuns = Math.max(runs.length - PALETTE_RUN_LIMIT, 0);
   const current = Math.min(activeIndex, Math.max(items.length - 1, 0));
   const optionId = (index: number) => `${listId}-option-${index}`;
 
@@ -223,6 +227,11 @@ function PaletteBody({
               ))}
             </fieldset>
           ))}
+          {hiddenRuns > 0 && (
+            <div className="command-palette-more text-footnote text-muted">
+              +{hiddenRuns} more runs not listed
+            </div>
+          )}
         </div>
       )}
     </div>
