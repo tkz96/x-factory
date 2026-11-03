@@ -173,4 +173,30 @@ describe("Settings in the System Settings layout (#266)", () => {
       ).toBeTruthy();
     });
   });
+
+  it("shows an error region instead of empty state when projects fail to load", async () => {
+    globalThis.fetch = ((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/settings")) {
+        return Promise.resolve(
+          jsonResponse({ theme: "default", appearance: "automatic" }),
+        );
+      }
+      if (url.includes("/api/projects")) {
+        return Promise.resolve(
+          jsonResponse({ error: "Failed to load projects" }, 500),
+        );
+      }
+      return Promise.resolve(jsonResponse({ error: "unreachable" }, 500));
+    }) as typeof fetch;
+
+    const { getByRole, queryByRole } = renderSettings("/settings?tab=trackers");
+
+    await waitFor(() => {
+      expect(getByRole("alert")).toBeTruthy();
+    });
+    expect(
+      queryByRole("heading", { level: 3, name: "No projects configured." }),
+    ).toBeNull();
+  });
 });

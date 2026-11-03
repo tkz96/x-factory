@@ -180,13 +180,8 @@ describe("the run chat shows real events and nothing invented", () => {
     const page = within(container);
     expect(page.getAllByText("The model call failed.")).toHaveLength(1);
     expect(page.getAllByText(failure.recovery)).toHaveLength(1);
-    expect(
-      log(container).querySelector('[data-kind="status"]')?.textContent,
-    ).not.toContain("The model call failed.");
-    // The log still records the moment the run failed.
-    expect(
-      log(container).querySelector('[data-kind="status"]')?.textContent,
-    ).toContain("Failed");
+    // The state is said once on the card (spec #312, story 6): no closing Failed row in the log.
+    expect(log(container).querySelector('[data-kind="status"]')).toBeNull();
   });
 
   it("keeps an earlier failure in the log once the run has moved on", () => {
@@ -336,6 +331,49 @@ describe("scroll position and Jump to Latest", () => {
     expect(
       within(container).queryByRole("button", { name: "Jump to Latest" }),
     ).toBeNull();
+  });
+
+  it("never offers Jump to Latest over the decision card's actions while they are in view", () => {
+    const original = globalThis.IntersectionObserver;
+    globalThis.IntersectionObserver = class {
+      constructor(private callback: (entries: unknown[]) => void) {}
+      observe() {
+        this.callback([{ isIntersecting: true }]);
+      }
+      disconnect() {}
+      unobserve() {}
+      takeRecords() {
+        return [];
+      }
+    } as unknown as typeof IntersectionObserver;
+    try {
+      const events = [ev(1, "plan_ready", { plan: "1. Do it." })];
+      const { container, rerender } = render(
+        <RunChat run={makeRun("awaiting_plan_approval")} events={events} />,
+      );
+      const list = log(container);
+      Object.defineProperty(list, "scrollHeight", {
+        value: 1000,
+        configurable: true,
+      });
+      Object.defineProperty(list, "clientHeight", {
+        value: 200,
+        configurable: true,
+      });
+      list.scrollTop = 0;
+      fireEvent.scroll(list);
+      rerender(
+        <RunChat
+          run={makeRun("awaiting_plan_approval")}
+          events={[...events, ev(2, "chat_agent", { text: "more" })]}
+        />,
+      );
+      expect(
+        within(container).queryByRole("button", { name: "Jump to Latest" }),
+      ).toBeNull();
+    } finally {
+      globalThis.IntersectionObserver = original;
+    }
   });
 
   it("brings the newest item into view when the content grows, while at the end", () => {
@@ -1003,6 +1041,40 @@ describe("run chat text reads as Markdown and sits at the start of a stage", () 
     expect(card.textContent).not.toContain("# Execution");
     fireEvent.click(within(card).getByRole("radio", { name: "Raw" }));
     expect(card.querySelector("pre.md-block-raw")?.textContent).toBe(plan);
+  });
+
+  it("drops a plan heading that repeats the block label (story 23)", () => {
+    const plan = "## Plan\n\n1. Add a toggle.";
+    const { container } = render(
+      <RunChat
+        run={makeRun("awaiting_plan_approval")}
+        events={[ev(1, "plan_ready", { plan })]}
+      />,
+    );
+    const card =
+      log(container).querySelector<HTMLElement>('[data-kind="plan"]');
+    if (!card) throw new Error("the plan card is missing");
+    expect(within(card).queryByRole("heading", { name: "Plan" })).toBeNull();
+    expect(card.textContent).toContain("Add a toggle.");
+    fireEvent.click(within(card).getByRole("radio", { name: "Raw" }));
+    expect(card.querySelector("pre.md-block-raw")?.textContent).toBe(plan);
+  });
+
+  it("says a failed run's state once: the terminal card, not a closing Failed row", () => {
+    const { container } = render(
+      <RunChat
+        run={makeRun("failed")}
+        events={[
+          ev(1, "status", { status: "executing" }),
+          ev(2, "status", {
+            status: "failed",
+            failure: { category: "verification", message: "Tests failed." },
+          }),
+        ]}
+      />,
+    );
+    const rows = [...log(container).querySelectorAll('[data-kind="status"]')];
+    expect(rows.some((row) => row.textContent?.includes("Failed"))).toBe(false);
   });
 
   it("reads evidence as Markdown, without repeating the stage name its stage header shows", () => {

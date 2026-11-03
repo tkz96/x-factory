@@ -68,7 +68,7 @@ Use Apple's semantic system colors as the base palette — they're accessible by
 
 Never hardcode a hex value for a semantic role. Use `label` / `secondaryLabel` / `tertiaryLabel` for text, and `systemBackground` / `secondarySystemBackground` for surfaces — these are the tokens that make dark mode free instead of a rewrite.
 
-**Warnings are always `var(--orange)` (`systemOrange`) and its `--orange-dim` tint — never `var(--yellow)`.** `--yellow` is reserved for non-warning accents only (favorites/stars, in-progress status pills and badges, event-type accents). The full state-coverage contract behind this lives in `docs/reference/state-coverage.md`.
+**Warnings are always `var(--orange)` (`systemOrange`) and its `--orange-dim` tint — never yellow.** There is no yellow token. The full state-coverage contract behind this lives in `docs/reference/state-coverage.md`.
 
 ### Typography
 HIG: `/design/human-interface-guidelines/typography`
@@ -281,15 +281,13 @@ Drop-in baseline for a web implementation — adjust values only against the HIG
      stays concentric if the ladder moves. */
   --corner-shape: superellipse(0.8);
 
-  /* Motion — the implemented ladder: 160 / 220 / 300 ms on the spring curve,
+  /* Motion — the implemented ladder: 160 / 220 ms on the spring curve,
      which decelerates and settles without overshooting. A window arrives over
      --duration-modal; a side or bottom sheet travels on the drawer curve */
   --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
-  --spring: var(--ease-spring);
-  --transition-fast: 160ms var(--spring);
-  --transition: 220ms var(--spring);
-  --transition-slow: 300ms var(--spring);
+  --transition-fast: 160ms var(--ease-spring);
+  --transition: 220ms var(--ease-spring);
   --duration-modal: 280ms;
 
   /* The one window (SYS-13): every sheet and dialog — New Run, the add-project
@@ -320,7 +318,7 @@ Drop-in baseline for a web implementation — adjust values only against the HIG
     /* Reduced motion is gentler motion, not none: every duration collapses to
        one short 120 ms crossfade and each keyframe's reduced path keeps its
        opacity change. Nothing travels, resizes or loops. */
-    --transition-fast: 120ms; --transition: 120ms; --transition-slow: 120ms;
+    --transition-fast: 120ms; --transition: 120ms;
   }
 }
 ```

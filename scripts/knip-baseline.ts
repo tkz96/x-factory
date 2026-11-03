@@ -35,20 +35,39 @@ function findingKeys(issues: KnipIssue[]): string[] {
   return [...new Set(keys)].sort();
 }
 
-const proc = Bun.spawnSync(["bunx", "knip", "--reporter", "json"], {
-  cwd: ROOT,
-  stderr: "inherit",
-});
-const output = proc.stdout.toString();
-let current: string[];
-try {
-  current = findingKeys((JSON.parse(output) as { issues: KnipIssue[] }).issues);
-} catch {
-  console.error(
-    `knip did not produce JSON (exit ${proc.exitCode}):\n${output}`,
-  );
-  process.exit(2);
+function runKnip(args: string[]): KnipIssue[] {
+  const proc = Bun.spawnSync(["bunx", "knip", ...args, "--reporter", "json"], {
+    cwd: ROOT,
+    stderr: "inherit",
+  });
+  const output = proc.stdout.toString();
+  try {
+    return (JSON.parse(output) as { issues: KnipIssue[] }).issues;
+  } catch {
+    console.error(
+      `knip did not produce JSON (exit ${proc.exitCode}):\n${output}`,
+    );
+    process.exit(2);
+  }
 }
+
+// Pass 1 counts test/** as entry points. Pass 2 is production mode: only the
+// server, the worker and the frontend entry count, so an export that only a
+// test imports shows up. Pass 2 is limited to src/frontend/ (spec #312; the backend has about 100 findings, see docs/agents/ci-checks.md).
+const current = [
+  ...new Set([
+    ...findingKeys(runKnip([])),
+    ...findingKeys(
+      runKnip([
+        "--config",
+        "scripts/knip-production.json",
+        "--production",
+        "--include",
+        "exports,types,files",
+      ]).filter((issue) => issue.file.startsWith("src/frontend/")),
+    ),
+  ]),
+].sort();
 
 if (process.argv.includes("--update")) {
   writeFileSync(BASELINE_PATH, `${JSON.stringify(current, null, 2)}\n`);

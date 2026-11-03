@@ -564,16 +564,40 @@ describe("the Evidence section of a finished run", () => {
       const { container, unmount } = render(
         <RunInspector run={makeRun(status)} events={[]} connected={false} />,
       );
-      expect(within(container).getAllByText("Not run").length).toBe(2);
+      // Two check rows and the Evidence total.
+      expect(within(container).getAllByText("Not run").length).toBe(3);
       expect(within(container).queryByText("Awaiting")).toBeNull();
       unmount();
     }
+  });
+
+  it("totals the checks as Not run on a finished run with no result, never 0 of N passed", () => {
+    const { container } = render(
+      <RunInspector run={makeRun("failed")} events={[]} connected={false} />,
+    );
+    expect(within(container).queryByText(/of \d+ passed/)).toBeNull();
+    expect(
+      container.querySelector(".run-inspector-evidence-total")?.textContent,
+    ).toBe("Not run");
+  });
+
+  it("totals the checks as Awaiting on a live run with no result", () => {
+    const { container } = render(
+      <RunInspector
+        run={makeRun("awaiting_plan_approval")}
+        events={[]}
+        connected={false}
+      />,
+    );
+    expect(
+      container.querySelector(".run-inspector-evidence-total")?.textContent,
+    ).toBe("Awaiting");
   });
 
   it("still says Awaiting on a run that has not got there yet", () => {
     const { container } = render(
       <RunInspector run={makeRun("executing")} events={[]} connected={false} />,
     );
-    expect(within(container).getAllByText("Awaiting").length).toBe(2);
+    expect(within(container).getAllByText("Awaiting").length).toBe(3);
   });
 });

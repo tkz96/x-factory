@@ -75,7 +75,7 @@ export function checkpointBarEntries(
     const bar = BAR_ACTION_FOR[action];
     if (!bar || !label) continue;
     // Once the reader has written the rework, the bar offers to confirm it instead.
-    if (reworkReady && bar === "requeue") {
+    if (reworkReady && (bar === "requeue" || bar === "restart")) {
       entries.push({ action: "confirm-rework", label: "Confirm Rework" });
     } else {
       entries.push({ action: bar, label });
@@ -128,7 +128,8 @@ export function RunCheckpointBar({
           {entries.map(({ action, label }) => {
             const isPending =
               pending === action ||
-              (action === "confirm-rework" && pending === "requeue");
+              (action === "confirm-rework" &&
+                (pending === "requeue" || pending === "restart"));
             return (
               <Button
                 key={action}

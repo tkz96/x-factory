@@ -306,7 +306,8 @@ describe("HTTP Routing & Controllers (src/http)", () => {
         const res = await dispatchHttp(req, repos);
         assert.ok(res);
         assert.equal(res.status, 409);
-        const data = (await res.json()) as { error: string };
+        const data = (await res.json()) as { error: string; code?: string };
+        assert.equal(data.code, "MODEL_ROLES_UNAVAILABLE");
         assert.match(data.error, /Builder has no model/);
         assert.match(data.error, /Reviewer has no model/);
         assert.match(data.error, /Settings › Models/);

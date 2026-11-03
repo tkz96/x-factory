@@ -152,7 +152,10 @@ describe("a refused run start links to Settings › Models (#278)", () => {
   }
 
   it("shows the refusal and a link that opens Settings › Models", async () => {
-    stubCreateRun(409, { error: ROLE_REFUSAL });
+    stubCreateRun(409, {
+      error: ROLE_REFUSAL,
+      code: "MODEL_ROLES_UNAVAILABLE",
+    });
     await submitRun();
 
     // The modal is portalled to <body>.
@@ -163,6 +166,14 @@ describe("a refused run start links to Settings › Models (#278)", () => {
     if (!link) throw new Error("Settings › Models link missing");
     expect(link.textContent).toBe("Open Settings › Models");
     expect(link.getAttribute("href")).toBe("/settings?tab=models");
+  });
+
+  it("matches the error code, not the server's wording", async () => {
+    stubCreateRun(409, { error: ROLE_REFUSAL });
+    await submitRun();
+
+    expect(document.body.textContent).toContain("Builder has no model");
+    expect(document.getElementById("link-settings-models")).toBeNull();
   });
 
   it("shows no such link for any other failure", async () => {

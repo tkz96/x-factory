@@ -1,10 +1,15 @@
 // src/frontend/lib/query-policies.ts — Explicit TanStack Query freshness policies (XFM-41).
 
+import type { ReadinessResponse } from "../../shared/types.js";
 import type { ProviderDescriptor } from "../connection/types.js";
 import { connectionConfigFingerprint } from "./connection-fingerprint.js";
+import { readinessNeedsAttention } from "./readiness-state.js";
 
 /** Polling fallback for an active run's detail query (docs/explanation/ui-state-and-event-streaming.md). */
 export const ACTIVE_RUN_POLL_INTERVAL_MS = 2000;
+
+/** While readiness reports a problem, it is checked again this often, so the toolbar clears itself (#323). */
+export const READINESS_RECHECK_INTERVAL_MS = 60 * 1000;
 
 export const queryKeys = {
   projects: (options?: { includeArchived?: boolean }) =>
@@ -146,10 +151,18 @@ export const QUERY_POLICIES = {
     refetchOnReconnect: false,
   },
 
-  // Readiness diagnostics
+  // Readiness diagnostics: refreshed when the window regains focus and when the
+  // network returns, and re-checked every minute while it reports a problem (#323).
   readiness: {
     staleTime: 60 * 1000, // 60 seconds
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+    refetchInterval: (query: {
+      state: { data: ReadinessResponse | undefined };
+    }) =>
+      readinessNeedsAttention(query.state.data)
+        ? READINESS_RECHECK_INTERVAL_MS
+        : false,
   },
 
   // System runtime diagnostics (XFM-70)

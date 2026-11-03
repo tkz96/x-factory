@@ -3,8 +3,10 @@
 // only from the shared run-status policy; this module adds wording on top and
 // never a second workflow.
 
+import { REVIEW_ATTEMPTS } from "../../shared/review-attempts.js";
 import {
   allowedActionsFor,
+  NEEDS_YOU_RUN_STATUSES,
   type RunAction,
   TERMINAL_RUN_STATUSES,
 } from "../../shared/run-status-policy.js";
@@ -36,7 +38,8 @@ export interface RunStatusUi {
   label: string;
   /** The step highlighted for this status; null keeps the last step. */
   step: RunStep | null;
-  filter: RunFilter;
+  /** The Runs list group; null for a status this client does not know. */
+  filter: RunFilter | null;
   now: string;
   /** The run chat header title: what the run is doing, in plain words. */
   header: string;
@@ -60,7 +63,7 @@ const ACTION_LABELS: Record<RunAction, string | null> = {
   stop: "Stop Run",
 };
 
-type StatusRow = Omit<RunStatusUi, "actions" | "ticketCommand"> & {
+type StatusRow = Omit<RunStatusUi, "actions" | "ticketCommand" | "filter"> & {
   approveLabel?: string;
 };
 
@@ -68,8 +71,7 @@ const ROWS: Record<RunStatus, StatusRow> = {
   queued: {
     label: "Waiting to start",
     step: "Prepare",
-    filter: "Running",
-    now: "Waiting for a free slot. It starts as soon as the run ahead of it finishes.",
+    now: "Waiting for a free worker.",
     header: "Waiting to start",
     placeholder: "This run is queued behind other work.",
     notification: null,
@@ -77,7 +79,6 @@ const ROWS: Record<RunStatus, StatusRow> = {
   preparing: {
     label: "Preparing",
     step: "Prepare",
-    filter: "Running",
     now: "Setting up the branch and the workspace.",
     header: "Preparing the workspace",
     placeholder: "Setting up the branch and workspace…",
@@ -86,7 +87,6 @@ const ROWS: Record<RunStatus, StatusRow> = {
   understanding: {
     label: "Reading the ticket",
     step: "Understand",
-    filter: "Running",
     now: "Reading the ticket and the code it touches.",
     header: "Reading the ticket",
     placeholder: "Reading the ticket…",
@@ -95,7 +95,6 @@ const ROWS: Record<RunStatus, StatusRow> = {
   awaiting_understanding_approval: {
     label: "Check understanding",
     step: "Understand",
-    filter: "Needs you",
     now: "Approve it, or ask for changes.",
     header: "Check the understanding",
     placeholder: "Ask about what it found, or challenge an assumption…",
@@ -105,7 +104,6 @@ const ROWS: Record<RunStatus, StatusRow> = {
   planning: {
     label: "Planning",
     step: "Plan",
-    filter: "Running",
     now: "Drafting the plan from the ticket.",
     header: "Planning",
     placeholder: "Drafting the plan…",
@@ -114,7 +112,6 @@ const ROWS: Record<RunStatus, StatusRow> = {
   awaiting_plan_approval: {
     label: "Review the plan",
     step: "Plan",
-    filter: "Needs you",
     now: "Approve it, or request changes.",
     header: "Review the plan",
     placeholder: "Ask about the plan, or request changes…",
@@ -124,7 +121,6 @@ const ROWS: Record<RunStatus, StatusRow> = {
   executing: {
     label: "Writing code",
     step: "Code",
-    filter: "Running",
     now: "Writing the code changes for the plan.",
     header: "Writing code",
     placeholder: "Writing the code changes…",
@@ -133,7 +129,6 @@ const ROWS: Record<RunStatus, StatusRow> = {
   awaiting_review: {
     label: "Review the changes",
     step: "Review",
-    filter: "Needs you",
     now: "Approve them, or request changes.",
     header: "Review the changes",
     placeholder: "Ask about the changes, or request changes…",
@@ -143,7 +138,6 @@ const ROWS: Record<RunStatus, StatusRow> = {
   ready_for_pr: {
     label: "Ready for a pull request",
     step: "Deliver",
-    filter: "Needs you",
     now: "Create a pull request to deliver it.",
     header: "Ready for a pull request",
     placeholder: "Open the pull request when you're ready.",
@@ -152,7 +146,6 @@ const ROWS: Record<RunStatus, StatusRow> = {
   pr_created: {
     label: "Pull request opened",
     step: "Deliver",
-    filter: "Done",
     now: "The pull request is open.",
     header: "Pull request opened",
     placeholder: "The pull request is open.",
@@ -161,7 +154,6 @@ const ROWS: Record<RunStatus, StatusRow> = {
   recovery_required: {
     label: "Needs recovery",
     step: null,
-    filter: "Needs you",
     now: "The run stopped before it finished.",
     header: "Needs recovery",
     placeholder: "Resume the run to carry on.",
@@ -170,8 +162,7 @@ const ROWS: Record<RunStatus, StatusRow> = {
   review_retry_required: {
     label: "Review needs a retry",
     step: "Review",
-    filter: "Needs you",
-    now: "The review could not reach the model after three tries. The code is kept; retry the review to continue.",
+    now: `The review could not reach the model after ${REVIEW_ATTEMPTS} tries. The code is kept; retry the review to continue.`,
     header: "The review could not finish",
     placeholder: "Retry the review to continue, or abandon the run.",
     notification: { group: "Needs you", text: "Review needs a retry" },
@@ -179,7 +170,6 @@ const ROWS: Record<RunStatus, StatusRow> = {
   failed: {
     label: "Failed",
     step: null,
-    filter: "Done",
     now: "This run failed and can't continue.",
     header: "Failed",
     placeholder: "This run failed and can't continue.",
@@ -188,13 +178,19 @@ const ROWS: Record<RunStatus, StatusRow> = {
   stopped: {
     label: "Stopped",
     step: null,
-    filter: "Done",
     now: "This run was stopped and can't continue.",
     header: "Stopped",
     placeholder: "This run was stopped and can't continue.",
     notification: { group: "Finished", text: "Run stopped" },
   },
 };
+
+/** Which Runs group a status is in: from the shared status sets, never set by hand. */
+function filterFor(status: RunStatus): RunFilter {
+  if (NEEDS_YOU_RUN_STATUSES.has(status)) return "Needs you";
+  if (TERMINAL_RUN_STATUSES.has(status)) return "Done";
+  return "Running";
+}
 
 function actionsFor(status: RunStatus): readonly RunActionUi[] {
   const approveLabel = ROWS[status].approveLabel ?? ACTION_LABELS.approve;
@@ -211,6 +207,7 @@ export const RUN_STATUS_UI: Record<RunStatus, RunStatusUi> = Object.fromEntries(
       status,
       {
         ...row,
+        filter: filterFor(status),
         actions: actionsFor(status),
         ticketCommand: TERMINAL_RUN_STATUSES.has(status)
           ? "Start New Run"
@@ -226,7 +223,7 @@ export function runStatusUi(status: RunStatus): RunStatusUi {
     RUN_STATUS_UI[status] ?? {
       label: "Unknown status",
       step: null,
-      filter: "Running",
+      filter: null,
       now: "",
       header: "Unknown status",
       placeholder: "",

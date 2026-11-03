@@ -13,9 +13,7 @@ import type { Repositories } from "./composition-root.js";
 import type { CommandRepository } from "./db/command-repository.js";
 import type { EventRecord } from "./db/event-repository.js";
 import type { JobRecord, JobRepository } from "./db/job-repository.js";
-import type { OperationLedgerRecord } from "./db/operation-ledger-repository.js";
 import type { RunRecord, RunRepository } from "./db/run-repository.js";
-import type { StageAttemptRecord } from "./db/stage-attempt-repository.js";
 import {
   ActiveRunExistsError,
   ConflictError,
@@ -44,6 +42,7 @@ import type {
   ModelRoleName,
   ModelUsage,
   ModelUse,
+  RequestChangesPayload,
 } from "./shared/types.js";
 import { initializeRunArtifacts, removeRunArtifacts } from "./store.js";
 import type { Project, PullRequest, Run, Ticket } from "./types.js";
@@ -51,7 +50,7 @@ import {
   APPROVE_ROUTES,
   assertRunAction,
   REQUEUE_ROUTE,
-  RESTART_ROUTE,
+  RESTART_ROUTES,
   RETRY_REVIEW_ROUTE,
   resumeRouteFor,
   resumeStageName,
@@ -104,20 +103,6 @@ export function getAppEvents(
   limit?: number,
 ): AppEventEnvelope[] {
   return repos.events.getAppEventsSince(sinceId, limit);
-}
-
-export function getStageAttempts(
-  repos: Repositories,
-  runId: string,
-): StageAttemptRecord[] {
-  return repos.stageAttempts.listForRun(runId);
-}
-
-export function getOperationLedger(
-  repos: Repositories,
-  runId: string,
-): OperationLedgerRecord[] {
-  return repos.operationLedger.listForRun(runId);
 }
 
 /**
@@ -809,7 +794,7 @@ export async function handleTransition(
   repos: Repositories,
   id: string,
   action: "approve" | "restart" | "abort" | "requeue",
-  _payload?: unknown,
+  rawPayload?: unknown,
 ): Promise<RunRecord> {
   if (action === "abort") {
     return stopRun(repos, id);
@@ -866,29 +851,36 @@ export async function handleTransition(
         );
       }
 
-      const transitionResult = runRepo.transitionRun(
-        id,
-        run.status,
-        RESTART_ROUTE.to,
-        {
-          event: {
-            type: "status",
-            payload: {
-              status: RESTART_ROUTE.to,
-              text: RESTART_ROUTE.text,
-            },
-          },
+      const route = RESTART_ROUTES[run.status as keyof typeof RESTART_ROUTES];
+      if (!route) {
+        throw new Error(
+          `Restart is allowed in status "${run.status}" but has no route.`,
+        );
+      }
+
+      const transitionResult = runRepo.transitionRun(id, run.status, route.to, {
+        event: {
+          type: "status",
+          payload: { status: route.to, text: route.text },
         },
-      );
-      jobRepo.createJob({ runId: id, stage: RESTART_ROUTE.nextStage });
+      });
+      const notes = (
+        rawPayload as RequestChangesPayload | undefined
+      )?.chatNotes?.trim();
+      if (notes) {
+        eventRepo.appendEvent(id, "user_feedback", {
+          notes,
+          text: notes,
+          stage: route.nextStage,
+        });
+      }
+      jobRepo.createJob({ runId: id, stage: route.nextStage });
       return transitionResult.run;
     }
 
     if (action === "requeue") {
       assertRunAction(run.status, "requeue");
-      const payload = _payload as
-        | { failingTasks?: string[]; chatNotes?: string }
-        | undefined;
+      const payload = rawPayload as RequestChangesPayload | undefined;
       let requeueText = REQUEUE_ROUTE.text;
       if (payload?.chatNotes) {
         requeueText += ` Notes: ${payload.chatNotes}`;
@@ -927,6 +919,7 @@ export async function handleTransition(
         eventRepo.appendEvent(id, "user_feedback", {
           failingTasks: payload.failingTasks,
           notes: payload.chatNotes,
+          stage: REQUEUE_ROUTE.nextStage,
           text: `Feedback provided: ${payload.failingTasks?.length || 0} failing tasks.`,
         });
       }

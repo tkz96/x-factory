@@ -21,7 +21,7 @@ It prints one line per gate. If a gate fails, it also prints the last lines of t
 | Cycles | `bun run check:cycles` | No circular imports from the server, worker or frontend entry points |
 | Build | `bun run build` | Frontend and asset build into `dist/`. Runs before the test gates, as in CI |
 | Tests | `bun run test:coverage` | Full test suite with line and function coverage of at least 80% (`bunfig.toml`) |
-| Frontend smoke | `bun run test:frontend-smoke` | App shell and views render, no inline styles, no reference to a third-party host in any page, stylesheet or frontend module, no motion duration or easing written outside the token file, a reduced-motion path beside every moving keyframe and every infinite animation, the motion library loaded lazily with only the features in use, and no request to another host when a real browser loads every screen |
+| Frontend smoke | `bun run test:frontend-smoke` | App shell and views render, no inline styles, no reference to a third-party host in any page, stylesheet or frontend module, no motion duration or easing written outside the token file, a reduced-motion path beside every moving keyframe and every infinite animation, the motion library loaded lazily with only the features in use, no copy-map key, CSS class or design token that nothing uses, and no request to another host when a real browser loads every screen |
 | Integration | `bun run test:integration`, `bun run test:integration:production` | End-to-end runs in development and production mode |
 
 Fallow also reports a maintainability score. The target is 90 or higher. No gate enforces it yet, so check the score in the `check:fallow` output.
@@ -39,11 +39,21 @@ The keyboard tests in `test/shortcuts-browser.test.ts` run in Chromium and WebKi
 
 The API Reference viewer (`@scalar/api-reference`) is vendored rather than fetched: `bun run vendor:api-reference` downloads the pinned tarball, checks the npm integrity string and both SHA-256 hashes recorded in `public/assets/api-reference/provenance.json`, and writes `public/assets/api-reference/scalar-api-reference.min.js`. The page sets `withDefaultFonts: false`, so the viewer uses the fonts X-Factory already serves instead of fonts.scalar.com. Run `bun run vendor:api-reference --check` to verify the committed file against the pin; only that command needs the network.
 
+## Dead copy, classes and tokens
+
+`test/unused-names.test.ts` (in the frontend smoke gate) fails when:
+
+- a key of an exported `*_COPY` object has no reader (`MAP.key`, `MAP["key"]`, a destructure, or an `import { MAP as X }` alias);
+- a class defined in a `src/frontend/**/*.css` selector is named nowhere in `src/` or `index.html`;
+- a custom property defined in `src/frontend/styles/tokens.css` is read nowhere (`var(--x)` in any stylesheet, or the bare name in code or `public/`).
+
+Comments do not count as a use. A name the code builds at run time cannot be seen, so each is listed with a reason in `test/helpers/unused-names.ts`: `DYNAMIC_COPY_MAPS` and `DYNAMIC_COPY_KEYS` (a copy map read as `COPY[field]`), `ALLOWED_CLASS_PREFIXES` (library classes, the `text-<key>` type scale) and `DYNAMIC_TOKEN_PREFIXES`. A class built as `prefix-${x}` in a class expression covers one-word variants only (`icon-sm`), not `icon-status-passed`. Fix a finding by deleting the dead name. Add an allowlist entry only for a name that is really built at run time, and say why.
+
 ## Lint baselines
 
 Main has known knip and fallow findings. Each gate compares the current findings with a committed baseline in `scripts/baselines/`:
 
-- `scripts/baselines/knip.json`: one key per finding, `<file>:<category>:<name>`. The wrapper `scripts/knip-baseline.ts` compares it with the current run. It counts every knip category, including the ones that `knip.json` downgrades to warnings.
+- `scripts/baselines/knip.json`: one key per finding, `<file>:<category>:<name>`. The wrapper `scripts/knip-baseline.ts` compares it with the current run. It counts every knip category, including the ones that `knip.json` downgrades to warnings. `knip.json` makes an unused export an error. The wrapper also runs knip in production mode (`scripts/knip-production.json`) over `src/frontend/`, so an export that only a test imports is a finding. The backend is not in that pass. Run over all of `src/`, it reports about 100 findings (about 35 whole files that the server reaches through a route table or other indirect import, which knip's production mode does not follow, and about 70 exports that only tests call). Fixing those means rewiring entry points or deleting tested backend code, which is out of scope for the run page work. Do not add them to the baseline; extend the pass when the backend entry points resolve.
 - `scripts/baselines/fallow-dead-code.json`, `scripts/baselines/fallow-dupes.json` and `scripts/baselines/fallow-health.json`: fallow's own baseline format, one file for each analysis.
 
 A gate fails in two cases:

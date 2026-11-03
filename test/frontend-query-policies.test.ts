@@ -6,11 +6,9 @@ import type { ProviderDescriptor } from "../src/frontend/connection/types.js";
 import { ApiError } from "../src/frontend/lib/api-client.js";
 import {
   invalidateProject,
-  invalidateProjects,
   invalidateRun,
   invalidateRuns,
   invalidateSettings,
-  invalidateTickets,
   patchRunCache,
   queryClient,
   shouldRetryQuery,
@@ -48,6 +46,27 @@ describe("TanStack Query Freshness Policies (XFM-41)", () => {
 
     // Readiness: 60s
     expect(QUERY_POLICIES.readiness.staleTime).toBe(60000);
+    // Readiness refreshes on focus and reconnect, and while it reports a
+    // problem it re-checks every minute so the toolbar clears itself (#323).
+    expect(QUERY_POLICIES.readiness.refetchOnWindowFocus).toBe(true);
+    expect(QUERY_POLICIES.readiness.refetchOnReconnect).toBe(true);
+    const interval = QUERY_POLICIES.readiness.refetchInterval;
+    expect(typeof interval).toBe("function");
+    const pollWith = (data: unknown) =>
+      (interval as (query: { state: { data: unknown } }) => number | false)({
+        state: { data },
+      });
+    expect(pollWith({ ready: false, status: "unavailable", checks: [] })).toBe(
+      60000,
+    );
+    expect(
+      pollWith({
+        ready: true,
+        status: "ready",
+        checks: [{ name: "Sandbox", status: "warn", message: "x" }],
+      }),
+    ).toBe(60000);
+    expect(pollWith({ ready: true, status: "ready", checks: [] })).toBe(false);
 
     // Repository discovery (#144): 60s, no background refetching — a
     // connection-config edit changes the KEY instead, which fetches afresh.
@@ -275,7 +294,7 @@ describe("Explicit Targeted Invalidation (XFM-43)", () => {
     client.setQueryData(queryKeys.settings(), { limits: { maxRuns: 5 } });
 
     // Target invalidation of projects
-    await invalidateProjects(client);
+    await client.invalidateQueries({ queryKey: queryKeys.projects() });
 
     const projectsQuery = client
       .getQueryCache()
@@ -309,7 +328,7 @@ describe("Explicit Targeted Invalidation (XFM-43)", () => {
     expect(singleProjectQuery?.isStale()).toBe(true);
 
     // Target invalidation of tickets for p1
-    await invalidateTickets("p1", client);
+    await client.invalidateQueries({ queryKey: queryKeys.tickets("p1") });
     expect(ticketsQuery?.isStale()).toBe(true);
     expect(runsQuery?.isStale()).toBe(false);
 

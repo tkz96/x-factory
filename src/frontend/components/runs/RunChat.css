@@ -204,12 +204,6 @@
   min-width: 0;
 }
 
-/* The empty line of the log: the EmptyState block, centred in the free space. */
-.run-chat-note {
-  margin: auto;
-  width: 100%;
-}
-
 .run-chat-time {
   color: var(--text-dim);
   white-space: nowrap;

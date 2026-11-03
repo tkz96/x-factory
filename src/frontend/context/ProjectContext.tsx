@@ -14,6 +14,10 @@ import {
 interface ProjectContextValue {
   projects: Project[];
   isProjectsLoading: boolean;
+  /** True only when no project list has loaded: a failed refetch keeps the old list. */
+  isError: boolean;
+  error?: unknown;
+  refetch?: (() => void) | undefined;
   /** ALL_PROJECTS, or the id of the project the scope names. */
   scope: string;
   isAllProjects: boolean;
@@ -30,7 +34,13 @@ interface ProjectContextValue {
 const ProjectContext = createContext<ProjectContextValue | null>(null);
 
 export function ProjectProvider({ children }: { children: ReactNode }) {
-  const { data, isLoading: isProjectsLoading } = useProjects();
+  const {
+    data,
+    isLoading: isProjectsLoading,
+    isError,
+    error,
+    refetch,
+  } = useProjects();
   const projects = data ?? [];
   const [storedScope, setStoredScope] = useState<string>(
     readStoredProjectScope,
@@ -57,6 +67,11 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       value={{
         projects,
         isProjectsLoading,
+        isError: isError && data === undefined,
+        error,
+        refetch: () => {
+          void refetch();
+        },
         scope,
         isAllProjects,
         selectedProjectId,

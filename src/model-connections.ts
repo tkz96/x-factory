@@ -28,14 +28,7 @@ import type {
   ModelRecord,
   ModelRecordPatch,
 } from "./shared/model-connection-types.js";
-
-/** Base URLs pre-filled for API types with one well-known endpoint. */
-export const DEFAULT_BASE_URLS: Readonly<
-  Record<Exclude<ModelApiType, "openai-compatible">, string>
-> = {
-  gemini: "https://generativelanguage.googleapis.com/v1beta",
-  anthropic: "https://api.anthropic.com",
-};
+import { DEFAULT_BASE_URLS } from "./shared/model-connection-types.js";
 
 /** Official endpoints for each API type. Provider env vars override only these. */
 export const OFFICIAL_BASE_URLS: Readonly<Record<ModelApiType, string>> = {

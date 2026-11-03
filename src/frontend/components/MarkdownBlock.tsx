@@ -38,6 +38,16 @@ const VIEW_OPTIONS: readonly SegmentedControlOption[] = [
   { id: "raw", label: "Raw", icon: "icon-code", iconOnly: true },
 ];
 
+/** The text without a first heading that only repeats the block's label ("Plan" over "## Plan"). */
+function withoutRepeatedHeading(content: string, label: string | undefined) {
+  if (label === undefined) return content;
+  const match = /^\s*#{1,6}[ \t]+(.+?)[ \t#]*(?:\r?\n|$)/.exec(content);
+  if (match?.[1]?.trim().toLowerCase() !== label.trim().toLowerCase()) {
+    return content;
+  }
+  return content.slice(match[0].length).replace(/^\s*\n/, "");
+}
+
 export function MarkdownBlock({
   content,
   label,
@@ -101,7 +111,7 @@ export function MarkdownBlock({
       ) : (
         <div className="md-block-preview" ref={previewRef}>
           <MarkdownScaleContext.Provider value={compact ? "compact" : "block"}>
-            <MarkdownViewer content={content} />
+            <MarkdownViewer content={withoutRepeatedHeading(content, label)} />
           </MarkdownScaleContext.Provider>
         </div>
       )}

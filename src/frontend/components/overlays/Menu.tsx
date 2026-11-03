@@ -13,7 +13,6 @@ import {
   type MenuItemProps as RACMenuItemProps,
   type MenuProps as RACMenuProps,
   MenuTrigger as RACMenuTrigger,
-  Separator as RACSeparator,
 } from "react-aria-components";
 
 export const MenuTrigger = RACMenuTrigger;
@@ -55,11 +54,5 @@ export function MenuItem({
     >
       {children}
     </RACMenuItem>
-  );
-}
-
-export function MenuSeparator({ className }: { className?: string }) {
-  return (
-    <RACSeparator className={`xf-menu-separator ${className ?? ""}`.trim()} />
   );
 }

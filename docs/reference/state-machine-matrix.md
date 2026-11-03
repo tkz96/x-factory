@@ -72,7 +72,7 @@ Transitions not listed in this matrix are invalid and fail validation.
 | `understanding` | `awaiting_understanding_approval`, `planning`, `failed`, `stopped`, `recovery_required` | Automatic completion, error, or user stop. The workflow routes a completed `understand` stage to `awaiting_understanding_approval`; the direct edge to `planning` is permitted by the matrix and no route uses it today. |
 | `awaiting_understanding_approval` | `planning`, `understanding` (requeue/restart), `failed`, `stopped` | Human approval, human restart, error, or user stop. |
 | `planning` | `awaiting_plan_approval`, `failed`, `stopped`, `recovery_required` | Automatic completion, error, or user stop. |
-| `awaiting_plan_approval` | `executing`, `understanding` (requeue/restart), `failed`, `stopped` | Human approval, human restart, error, or user stop. |
+| `awaiting_plan_approval` | `executing`, `planning` (restart: Request Changes re-runs Plan), `understanding`, `failed`, `stopped` | Human approval, human Request Changes with notes (goes to `planning`), error, or user stop. The edge to `understanding` is permitted by the matrix and no route uses it today. |
 | `executing` | `awaiting_review`, `failed`, `stopped`, `recovery_required`, `review_retry_required` | Ralph loop completion, error, or user stop. The review's model attempts running out (§13) moves the run to `review_retry_required`. |
 | `review_retry_required` | `executing` (Retry review: the review job alone), `failed` (abandon), `stopped` (user stop) | Human action only. Retry review enqueues one review job; coding is not run again. |
 | `awaiting_review` | `ready_for_pr`, `planning` (requeue), `understanding`, `failed`, `stopped`, `recovery_required` | Human approval, human requeue with feedback (goes to `planning`), error, or user stop. The edge to `understanding` is permitted by the matrix and no route uses it today. |
@@ -90,7 +90,7 @@ State machine transitions adhere to these formal invariants:
 
 ### 1. Monotonic Execution with Explicit Requeues
 Runs advance linearly through configured stages.
-Runs only return to earlier stages when a human explicitly sends them back from `awaiting_understanding_approval`, `awaiting_plan_approval`, or `awaiting_review`. A restart from an approval gate goes back to `understanding` (`RESTART_ROUTE`). A requeue from `awaiting_review` goes back to `planning` (`REQUEUE_ROUTE`) with the reviewer's feedback, so the plan is revised before re-execution.
+Runs only return to earlier stages when a human explicitly sends them back from `awaiting_understanding_approval`, `awaiting_plan_approval`, or `awaiting_review`. A restart (Request Changes) from `awaiting_understanding_approval` goes back to `understanding` (`RESTART_ROUTES`); from `awaiting_plan_approval` it goes back to `planning`. Both carry the reader's notes, recorded as a `user_feedback` event and put in the re-run stage's prompt. A requeue from `awaiting_review` goes back to `planning` (`REQUEUE_ROUTE`) with the reviewer's feedback, so the plan is revised before re-execution.
 
 ### 2. Autonomous Execution Phase (Phase 2)
 The `executing` state collapses the formerly separate `implementing`, `verifying`, and `reviewing` FSM states into a single active FSM state.

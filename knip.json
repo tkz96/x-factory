@@ -5,7 +5,7 @@
   "ignoreDependencies": ["@reticlehq/react", "@testing-library/user-event"],
   "ignoreExportsUsedInFile": true,
   "rules": {
-    "exports": "warn",
+    "exports": "error",
     "types": "warn"
   }
 }

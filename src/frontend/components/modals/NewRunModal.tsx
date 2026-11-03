@@ -10,10 +10,11 @@
 
 import { type ReactNode, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { MODEL_ROLES_UNAVAILABLE_CODE } from "../../../shared/run-creation.js";
 import { type NewRunPrefill, useModal } from "../../context/ModalContext.js";
 import { useCurrentProject } from "../../context/ProjectContext.js";
 import { useCreateRun } from "../../hooks/useQueries.js";
-import { ActiveRunConflictError } from "../../lib/api-client.js";
+import { ActiveRunConflictError, ApiError } from "../../lib/api-client.js";
 import { FeedbackBanner } from "../feedback/FeedbackBanner.js";
 import {
   DialogBody,
@@ -34,7 +35,9 @@ import "./NewRunModal.css";
  * reason points at Settings › Models (#278). That pointer becomes a real link.
  */
 function needsModelSetup(error: unknown): boolean {
-  return error instanceof Error && error.message.includes("Settings › Models");
+  return (
+    error instanceof ApiError && error.code === MODEL_ROLES_UNAVAILABLE_CODE
+  );
 }
 
 /**

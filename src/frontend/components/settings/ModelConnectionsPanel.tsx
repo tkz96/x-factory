@@ -8,6 +8,7 @@ import "./ModelConnectionsPanel.css";
 
 import { useMemo, useState } from "react";
 import {
+  DEFAULT_BASE_URLS,
   type DiscoveredModel,
   MODEL_API_TYPES,
   type ModelApiType,
@@ -45,11 +46,6 @@ import { TextField } from "../ui/TextField.js";
 
 type Mutations = ReturnType<typeof useModelConnectionMutations>;
 
-const DEFAULT_URLS: Partial<Record<ModelApiType, string>> = {
-  gemini: "https://generativelanguage.googleapis.com/v1beta",
-  anthropic: "https://api.anthropic.com",
-};
-
 function errorText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
@@ -75,9 +71,9 @@ function ConnectionForm({
 
   const changeType = (next: ModelApiType) => {
     setApiType(next);
-    const known = Object.values(DEFAULT_URLS);
+    const known = Object.values(DEFAULT_BASE_URLS);
     if (!baseUrl.trim() || known.includes(baseUrl)) {
-      setBaseUrl(DEFAULT_URLS[next] ?? "");
+      setBaseUrl(next === "openai-compatible" ? "" : DEFAULT_BASE_URLS[next]);
     }
   };
 

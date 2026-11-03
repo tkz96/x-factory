@@ -48,10 +48,6 @@ export function splitStatements(sql: string): string[] {
 
 let cachedLatestMigrationVersion: number | null = null;
 
-export function resetMigrationVersionCacheForTesting(): void {
-  cachedLatestMigrationVersion = null;
-}
-
 /**
  * Returns the highest migration version defined in the codebase.
  * Memoizes the result to avoid parsing filesystem migrations repeatedly on diagnostics routes.

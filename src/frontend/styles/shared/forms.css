@@ -105,16 +105,6 @@ select {
   color: var(--text-main);
 }
 
-.form-hint {
-  display: block;
-  font-size: var(--text-subhead);
-  font-weight: var(--text-subhead-weight);
-  line-height: var(--text-subhead-leading);
-  letter-spacing: var(--text-subhead-tracking);
-  color: var(--text-dim);
-  margin-top: var(--space-1);
-}
-
 .required {
   color: var(--red);
 }

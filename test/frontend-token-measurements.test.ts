@@ -137,7 +137,6 @@ const MACOS_METRICS = {
   "--control-height-sm": 22,
   "--control-height-lg": 32,
   "--header-height": 52,
-  "--sidebar-row-height": 28,
 } as const;
 
 interface MediaCondition {

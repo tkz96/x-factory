@@ -40,9 +40,3 @@
   color: var(--text-muted);
   margin-top: var(--space-1);
 }
-
-.wizard-form-error {
-  display: block;
-  color: var(--red);
-  margin-top: var(--space-1);
-}

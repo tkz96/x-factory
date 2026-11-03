@@ -130,7 +130,11 @@ function withoutRepeatedStatus(
   groups: StageGroup[],
   status: RunStatus,
 ): StageGroup[] {
-  if (!NEEDS_YOU_STATUSES.has(status)) return groups;
+  // A failed or stopped run's card (failure, stopped) says the state too.
+  const cardSaysIt =
+    NEEDS_YOU_STATUSES.has(status) ||
+    (TERMINAL_RUN_STATUSES.has(status) && status !== "pr_created");
+  if (!cardSaysIt) return groups;
   const last = groups
     .flatMap((group) => group.items)
     .findLast((item) => item.kind === "status");
@@ -265,8 +269,13 @@ export function RunChat({
   // The placeholder says what to write, never what the status already says above: the status's own
   // line only guides a run that is waiting on you.
   const ui = runStatusUi(run.status);
+  // Review sends the run back to planning; Understand and Plan run their own stage again.
+  const reworkPlaceholder =
+    run.status === "awaiting_review"
+      ? "Describe the changes needed before replanning…"
+      : "Describe the changes needed for the next try…";
   const placeholderText = flow.reworkPrompt
-    ? "Describe the changes needed before replanning…"
+    ? reworkPlaceholder
     : canChat
       ? ui.placeholder
       : "Message the Builder…";

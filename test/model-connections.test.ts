@@ -9,7 +9,6 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import {
   createModelConnection,
-  DEFAULT_BASE_URLS,
   deleteModelConnection,
   getModelConnection,
   importLegacyModelKey,
@@ -18,6 +17,7 @@ import {
   updateModelConnection,
 } from "../src/model-connections.js";
 import { getModelConnectionsPath, getModelSecretsPath } from "../src/paths.js";
+import { DEFAULT_BASE_URLS } from "../src/shared/model-connection-types.js";
 
 const ENV_KEYS = [
   "X_FACTORY_DATA_DIR",

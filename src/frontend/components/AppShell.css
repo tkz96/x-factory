@@ -27,10 +27,6 @@
   border-bottom: var(--hairline) solid var(--separator);
 }
 
-.brand {
-  margin-bottom: var(--space-3);
-}
-
 .brand-title {
   font-family: var(--font-display);
   letter-spacing: -0.024em;
@@ -42,47 +38,6 @@
   flex: 1;
   padding: var(--space-4) var(--space-2-5);
   overflow-y: auto;
-}
-
-/* A section header of the sidebar: footnote, 600, --text-secondary, in the case
-   it was written in. */
-.nav-section-title {
-  color: var(--text-secondary);
-  padding: var(--space-3) var(--space-2-5) var(--space-1-5);
-}
-
-.nav-item {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2-5);
-  min-height: var(--sidebar-row-height);
-  padding: var(--space-2-5) var(--space-3);
-  color: var(--text-muted);
-  text-decoration: none;
-  border-radius: var(--radius-sm);
-  transition:
-    background-color var(--transition),
-    color var(--transition);
-  position: relative;
-}
-
-.nav-item:hover {
-  background: var(--bg-hover);
-  color: var(--text);
-}
-
-.nav-item.active {
-  background: var(--accent-subtle);
-  color: var(--accent);
-}
-
-.nav-item svg {
-  flex-shrink: 0;
-  opacity: 0.8;
-}
-
-.nav-item.active svg {
-  opacity: 1;
 }
 
 .sidebar-footer {
@@ -234,6 +189,12 @@
 
 /* Phone width: the title wraps to two lines rather than ellipsising; the branch is in Details. */
 @media (max-width: 768px) {
+  /* The title takes the room: it wraps to two readable lines. The other run's activity gives way
+     to the Runs tab badge, which already counts the runs in progress. */
+  .toolbar-run-heading + .toolbar-activity {
+    display: none;
+  }
+
   .toolbar-run-heading .toolbar-title {
     white-space: normal;
     display: -webkit-box;
@@ -414,12 +375,6 @@
 
 .view[hidden] {
   display: none;
-}
-
-.view-panel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
 }
 
 /* ── Mobile Navigation & Responsive (Apple HIG) ───────────────────────── */
