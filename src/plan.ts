@@ -64,6 +64,8 @@ export interface PlanRun extends ReadOnlyStageRun {
   project: Project;
   /** The plan the run already has: the operator's draft, or the last plan plus feedback. */
   draft?: string | undefined;
+  /** The reader's notes from Request Changes at Plan (#327). */
+  feedback?: string | undefined;
   /** What the Understand stage learned, when the run has it. */
   understanding?: ImplementationContext | null | undefined;
 }
@@ -81,6 +83,7 @@ export async function planRun(run: PlanRun): Promise<string> {
       ticket: run.ticket,
       project: run.project,
       draft: run.draft,
+      feedback: run.feedback,
       understanding: run.understanding,
     }),
   );

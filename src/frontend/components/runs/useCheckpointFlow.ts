@@ -69,20 +69,27 @@ export function useCheckpointFlow({
       setAbandonOpen(true);
       return;
     }
-    if (action === "requeue") {
+    if (action === "requeue" || action === "restart") {
       setReworkPrompt(true);
       addLocal((id, at) => ({
         id,
         at,
         kind: "notice",
-        text: "Describe the changes needed. Your next message goes back to planning.",
+        text:
+          status === "awaiting_review"
+            ? "Describe the changes needed. Your next message goes back to planning."
+            : "Describe the changes needed. Your next message goes into the next try.",
         warning: false,
       }));
       setTimeout(() => inputRef.current?.focus(), 50);
       return;
     }
     if (action === "confirm-rework") {
-      onAction?.("requeue", pendingRework ?? undefined);
+      // Review sends the run back to planning; Understand and Plan run again.
+      onAction?.(
+        status === "awaiting_review" ? "requeue" : "restart",
+        pendingRework ?? undefined,
+      );
       setPendingRework(null);
       setResolved(resolvedTextFor("requeue", status));
       return;

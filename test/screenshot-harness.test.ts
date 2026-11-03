@@ -185,7 +185,7 @@ describe("isolated instance", () => {
     expect(failedRun?.status).toBe("failed");
     const failedStatus = createRepositories(openProcessDatabase())
       .events.getEventsForRun(instance.failedRunId)
-      .find((e) => e.type === "status");
+      .findLast((e) => e.type === "status");
     const payload = failedStatus?.payload as
       | { failure?: { category?: string } }
       | undefined;

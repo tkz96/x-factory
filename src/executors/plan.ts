@@ -50,6 +50,7 @@ export class PlanExecutor implements StageExecutor {
         ticket: run.ticket,
         project,
         draft: run.plan,
+        feedback: context.feedback,
         understanding: run.implementationContext,
         resolved: model,
         sessionFactory: this.deps.sessionFactory,

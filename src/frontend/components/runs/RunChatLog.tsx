@@ -36,6 +36,9 @@ function useScrollFollow(itemCount: number) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const atBottomRef = useRef(true);
   const [unseen, setUnseen] = useState(false);
+  // True while the decision card's actions are on screen: Jump to Latest would cover them, and
+  // they are the latest thing there is.
+  const [actionsInView, setActionsInView] = useState(false);
 
   const scrollToBottom = () => {
     const el = scrollRef.current;
@@ -79,6 +82,22 @@ function useScrollFollow(itemCount: number) {
     return () => observer.disconnect();
   }, [itemCount]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: look for the actions when the count changes
+  useEffect(() => {
+    const el = scrollRef.current;
+    const actions = el?.querySelector(".run-checkpoint-actions");
+    if (!el || !actions || typeof IntersectionObserver === "undefined") {
+      setActionsInView(false);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      ([entry]) => setActionsInView(entry?.isIntersecting ?? false),
+      { root: el },
+    );
+    observer.observe(actions);
+    return () => observer.disconnect();
+  }, [itemCount]);
+
   const onScroll = () => {
     const el = scrollRef.current;
     if (!el) return;
@@ -93,7 +112,7 @@ function useScrollFollow(itemCount: number) {
     scrollToBottom();
   };
 
-  return { scrollRef, onScroll, unseen, jumpToLatest };
+  return { scrollRef, onScroll, unseen, actionsInView, jumpToLatest };
 }
 
 interface RunChatLogProps {
@@ -244,7 +263,7 @@ export function RunChatLog({
           </div>
         )}
       </div>
-      {scroll.unseen && (
+      {scroll.unseen && !scroll.actionsInView && (
         <div className="run-chat-jump">
           <Button variant="secondary" size="sm" onPress={scroll.jumpToLatest}>
             Jump to Latest

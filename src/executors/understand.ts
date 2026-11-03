@@ -58,6 +58,7 @@ export class UnderstandExecutor implements StageExecutor {
         ticket: run.ticket,
         project,
         plan: run.plan,
+        feedback: context.feedback,
         resolved: model,
         sessionFactory: this.deps.sessionFactory,
         emit: context.emit,

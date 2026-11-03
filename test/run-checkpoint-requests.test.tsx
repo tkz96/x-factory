@@ -152,14 +152,29 @@ describe("each checkpoint button makes the request the server expects", () => {
     });
   });
 
-  it("Request Changes on a plan posts the restart transition", async () => {
+  it("Request Changes on a plan asks for notes, then posts the restart transition with them", async () => {
     const { container, requests } = renderRunPage(
       "awaiting_plan_approval",
       () => okWith("planning"),
     );
     fireEvent.click(await waitForButton(container, "Request Changes"));
+    const area = container.querySelector(
+      "form.run-chat-input textarea",
+    ) as HTMLTextAreaElement;
+    act(() => {
+      area.focus();
+      fireEvent.change(area, { target: { value: "Test the empty case" } });
+      fireEvent.keyUp(area);
+    });
+    act(() => {
+      fireEvent.submit(area.closest("form") as HTMLFormElement);
+    });
+    fireEvent.click(await waitForButton(container, "Confirm Rework"));
     await waitFor(() => expect(writesOf(requests)).toHaveLength(1));
-    expect(writesOf(requests)[0]?.body).toEqual({ action: "restart" });
+    expect(writesOf(requests)[0]?.body).toEqual({
+      action: "restart",
+      payload: { chatNotes: "Test the empty case" },
+    });
   });
 
   it("Confirm Rework posts the requeue transition with the reader's notes", async () => {

@@ -453,6 +453,17 @@ export interface UserFeedbackPayload {
   text: string;
   notes?: string | undefined;
   failingTasks?: string[] | undefined;
+  /** The stage whose prompt the notes go into, for Request Changes at Understand or Plan. */
+  stage?: "understand" | "plan" | undefined;
+}
+
+/**
+ * What Request Changes sends at every checkpoint (#327): the reader's notes, and at Review the
+ * tasks that failed. The same shape for `restart` and `requeue`.
+ */
+export interface RequestChangesPayload {
+  chatNotes?: string | undefined;
+  failingTasks?: string[] | undefined;
 }
 
 export interface PiOutputChunkPayload {

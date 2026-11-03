@@ -65,7 +65,7 @@ function typeAndSend(container: HTMLElement, text: string) {
 }
 
 describe("a checkpoint button says what was just pressed", () => {
-  it("Request Changes on a plan goes back to planning and says so", () => {
+  it("Request Changes on a plan asks for the notes first and sends nothing yet", () => {
     const actions: string[] = [];
     const { container } = render(
       <RunChat
@@ -77,8 +77,12 @@ describe("a checkpoint button says what was just pressed", () => {
     fireEvent.click(
       within(container).getByRole("button", { name: "Request Changes" }),
     );
-    expect(actions).toEqual(["restart"]);
-    expect(container.textContent).toContain("Changes requested");
+    expect(actions).toEqual([]);
+    expect(
+      container
+        .querySelector("form.run-chat-input textarea")
+        ?.getAttribute("placeholder"),
+    ).toContain("Describe the changes needed");
   });
 
   it("Create Pull Request on a ready run says the pull request is opening", () => {

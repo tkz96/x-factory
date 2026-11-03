@@ -126,7 +126,11 @@ export function useRunCheckpointActions(
         return;
       case "restart":
         void runAction(() =>
-          transitionMutation.mutateAsync({ runId: run.id, action: "restart" }),
+          transitionMutation.mutateAsync({
+            runId: run.id,
+            action: "restart",
+            payload: notes ? { chatNotes: notes } : undefined,
+          }),
         );
         return;
       case "requeue":

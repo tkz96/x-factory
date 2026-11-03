@@ -192,6 +192,10 @@ function seedRuns(dataDir: string): DemoRun[] {
     repos.events.appendEvent(id, "chat_agent", {
       text: `I read ${spec.key} and drafted a plan for it.`,
     });
+    // The failed run got as far as Code (verification) before it failed.
+    if (spec.status === "failed") {
+      repos.events.appendEvent(id, "status", { status: "executing" });
+    }
     repos.events.appendEvent(
       id,
       "status",

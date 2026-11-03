@@ -251,6 +251,8 @@ export interface UnderstandRun extends ReadOnlyStageRun {
   project: Project;
   /** The run's plan, when it has one; context for the analysis. */
   plan?: string | undefined;
+  /** The reader's notes from Request Changes at Understand (#327). */
+  feedback?: string | undefined;
 }
 
 /** What the Understand stage produced (#282). */
@@ -289,6 +291,7 @@ export async function understandRun(
       ticket: run.ticket,
       project: run.project,
       plan,
+      feedback: run.feedback,
       namedFiles: extractMentionedFiles(run.ticket, plan, rootFiles),
       rootFiles,
       notes: repositoryNotes,

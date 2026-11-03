@@ -501,6 +501,7 @@ describe("stage runner", () => {
       "assertBudget",
       "attempt",
       "emit",
+      "feedback",
       "ledger",
       "project",
       "recordModel",

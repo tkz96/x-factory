@@ -28,6 +28,7 @@ import {
   useStopRun,
 } from "../hooks/useQueries.js";
 import { resolveInitialTheme, setTheme, useTheme } from "../hooks/useTheme.js";
+import { readinessNeedsAttention } from "../lib/readiness-state.js";
 import { countRunsByFilter } from "../lib/runs-list.js";
 import { type ShortcutId, shortcutLabel } from "../shortcuts/registry.js";
 import { useGlobalShortcuts } from "../shortcuts/useGlobalShortcuts.js";
@@ -507,7 +508,7 @@ function AppShellHeader({
         {!isDocs && isDegraded && (
           <Link
             to="/settings?tab=diagnostics"
-            className="toolbar-readiness desktop-only text-footnote font-semibold"
+            className="toolbar-readiness text-footnote font-semibold"
           >
             <Badge tone="warning">
               <Icon name="icon-alert-circle" size="sm" />
@@ -631,7 +632,7 @@ function AppShellContent() {
   const { data: readiness } = useReadiness();
   // The toolbar says nothing while the workbench is ready; a degraded one gets
   // one orange link to Settings › Diagnostics.
-  const isDegraded = readiness?.ready === false;
+  const isDegraded = readinessNeedsAttention(readiness);
 
   const isDocs = location.pathname.startsWith("/docs");
   const isRunDetail = Boolean(location.pathname.match(/^\/runs\/[^/]+/));

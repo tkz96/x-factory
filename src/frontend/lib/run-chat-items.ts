@@ -160,7 +160,12 @@ function mapEventUncached(event: RunEvent): ChatItem[] {
       ];
     case "user_feedback":
       return [
-        { ...common, kind: "message", role: "user", text: event.payload.text },
+        {
+          ...common,
+          kind: "message",
+          role: "user",
+          text: event.payload.notes || event.payload.text,
+        },
       ];
     case "chat_agent":
       return [
