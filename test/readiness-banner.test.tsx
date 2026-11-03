@@ -90,6 +90,36 @@ describe("ReadinessBanner (#283)", () => {
   });
 });
 
+describe("ReadinessBanner when the check itself fails (#323)", () => {
+  const realFetch = globalThis.fetch;
+
+  afterEach(() => {
+    cleanup();
+    globalThis.fetch = realFetch;
+  });
+
+  it("shows the error with a retry, never Ready, when the readiness query fails", async () => {
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ error: "boom" }), {
+        status: 500,
+        headers: { "content-type": "application/json" },
+      })) as typeof fetch;
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const { container, findByRole } = render(
+      <QueryClientProvider client={client}>
+        <ReadinessBanner />
+      </QueryClientProvider>,
+    );
+
+    await findByRole("alert");
+    expect(container.querySelector(".readiness-banner.ready")).toBeNull();
+    expect(container.textContent ?? "").not.toContain("Ready");
+    expect(container.textContent ?? "").toContain("Try Again");
+  });
+});
+
 afterAll(async () => {
   await unregisterHappyDom();
 });
