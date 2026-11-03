@@ -7,6 +7,9 @@
 
 import { useEffect, useState } from "react";
 
+/** The phone breakpoint (768px, as the stylesheets' phone media queries use). */
+export const PHONE_QUERY = "(max-width: 768px)";
+
 function matchesNow(query: string): boolean {
   return (
     query !== "" &&

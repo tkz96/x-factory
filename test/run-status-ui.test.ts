@@ -6,9 +6,11 @@ import {
   runStatusText,
   runStatusUi,
 } from "../src/frontend/lib/run-status-ui.js";
+import { REVIEW_ATTEMPTS } from "../src/shared/review-attempts.js";
 import {
   ACTIONS_BY_STATUS,
   AWAITING_HUMAN_RUN_STATUSES,
+  NEEDS_YOU_RUN_STATUSES,
   TERMINAL_RUN_STATUSES,
   TRANSITIONS,
 } from "../src/shared/run-status-policy.js";
@@ -87,5 +89,37 @@ describe("run status UI mapping", () => {
       /Start a new run for a terminal ticket \(pull request opened, failed or stopped\)/,
     );
     expect(TERMINAL_RUN_STATUSES.has("pr_created")).toBe(true);
+  });
+});
+
+describe("the filter group comes from the shared status sets", () => {
+  it("is Needs you, Done or Running by the policy sets, for every status", () => {
+    for (const status of ALL) {
+      const expected = NEEDS_YOU_RUN_STATUSES.has(status)
+        ? "Needs you"
+        : TERMINAL_RUN_STATUSES.has(status)
+          ? "Done"
+          : "Running";
+      expect({ status, filter: RUN_STATUS_UI[status].filter }).toEqual({
+        status,
+        filter: expected,
+      });
+    }
+  });
+
+  it("an unknown status is in no group, so it does not count as Running", () => {
+    expect(runStatusUi("mystery" as RunStatus).filter).toBeNull();
+  });
+});
+
+describe("run status copy tells the truth", () => {
+  it("queued says it waits for a free worker and claims no run ahead", () => {
+    expect(RUN_STATUS_UI.queued.now).toBe("Waiting for a free worker.");
+  });
+
+  it("the review retry line interpolates the shared attempt count", () => {
+    expect(RUN_STATUS_UI.review_retry_required.now).toContain(
+      `after ${REVIEW_ATTEMPTS} tries`,
+    );
   });
 });

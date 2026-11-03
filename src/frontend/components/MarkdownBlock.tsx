@@ -4,14 +4,16 @@
 
 import "./MarkdownBlock.css";
 
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { looksLikeMarkdown } from "../lib/markdown-syntax.js";
 import { MarkdownScaleContext, MarkdownViewer } from "./MarkdownViewer.js";
+import { Button } from "./ui/Button.js";
 import { CopyButton } from "./ui/CopyButton.js";
 import {
   SegmentedControl,
   type SegmentedControlOption,
 } from "./ui/SegmentedControl.js";
+import { PHONE_QUERY, useMediaQuery } from "./ui/useMediaQuery.js";
 
 export type MarkdownBlockView = "preview" | "raw";
 
@@ -23,6 +25,11 @@ export interface MarkdownBlockProps {
   defaultView?: MarkdownBlockView | undefined;
   /** Smaller headings and tighter spacing, for text inside the run chat. */
   compact?: boolean | undefined;
+  /**
+   * For long text in a card: the preview scrolls with a fade at its edge, and at phone width it is
+   * folded with a "Show All" control, so the full text is one press away.
+   */
+  foldable?: boolean | undefined;
   className?: string | undefined;
 }
 
@@ -31,17 +38,44 @@ const VIEW_OPTIONS: readonly SegmentedControlOption[] = [
   { id: "raw", label: "Raw", icon: "icon-code", iconOnly: true },
 ];
 
+/** The text without a first heading that only repeats the block's label ("Plan" over "## Plan"). */
+function withoutRepeatedHeading(content: string, label: string | undefined) {
+  if (label === undefined) return content;
+  const match = /^\s*#{1,6}[ \t]+(.+?)[ \t#]*(?:\r?\n|$)/.exec(content);
+  if (match?.[1]?.trim().toLowerCase() !== label.trim().toLowerCase()) {
+    return content;
+  }
+  return content.slice(match[0].length).replace(/^\s*\n/, "");
+}
+
 export function MarkdownBlock({
   content,
   label,
   defaultView = "preview",
   compact = false,
+  foldable = false,
   className,
 }: MarkdownBlockProps) {
   const [view, setView] = useState<MarkdownBlockView>(defaultView);
+  const [expanded, setExpanded] = useState(false);
+  const phone = useMediaQuery(foldable ? PHONE_QUERY : "");
+  const folded = foldable && phone && !expanded;
+  const previewRef = useRef<HTMLDivElement>(null);
+  const [overflows, setOverflows] = useState(false);
+  // The fade is drawn only while the text is cut off at the bottom edge.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the size changes with these inputs
+  useLayoutEffect(() => {
+    const el = previewRef.current;
+    if (el) setOverflows(el.scrollHeight > el.clientHeight + 1);
+  }, [content, view, folded, expanded, phone]);
   const markdown = looksLikeMarkdown(content);
   const classes = ["md-block"];
   if (compact) classes.push("md-block-compact");
+  if (foldable) classes.push("md-block-foldable");
+  if (folded) classes.push("md-block-folded");
+  if (foldable && overflows && !(phone && expanded)) {
+    classes.push("md-block-fade");
+  }
   if (className !== undefined) classes.push(className);
 
   return (
@@ -75,11 +109,22 @@ export function MarkdownBlock({
       ) : view === "raw" ? (
         <pre className="md-block-raw text-caption-1">{content}</pre>
       ) : (
-        <div className="md-block-preview">
+        <div className="md-block-preview" ref={previewRef}>
           <MarkdownScaleContext.Provider value={compact ? "compact" : "block"}>
-            <MarkdownViewer content={content} />
+            <MarkdownViewer content={withoutRepeatedHeading(content, label)} />
           </MarkdownScaleContext.Provider>
         </div>
+      )}
+      {foldable && phone && markdown && view === "preview" && (
+        <Button
+          variant="quiet"
+          size="sm"
+          className="md-block-fold"
+          aria-expanded={expanded}
+          onPress={() => setExpanded((open) => !open)}
+        >
+          {expanded ? "Show Less" : "Show All"}
+        </Button>
       )}
     </div>
   );

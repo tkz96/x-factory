@@ -47,13 +47,14 @@ function makeRun(status: RunStatus, overrides: Partial<Run> = {}): Run {
 
 describe("the plan reads as Markdown", () => {
   it("renders headings and bold text, not the raw Markdown syntax", () => {
-    const plan = "## Plan\n\n1. Add a toggle.\n\n**Files:** `src/settings.tsx`";
+    const plan =
+      "## Steps\n\n1. Add a toggle.\n\n**Files:** `src/settings.tsx`";
     const run = makeRun("awaiting_plan_approval", { plan });
     const { container } = render(
       <RunNowHeader run={run} now={runNow(run, [])} />,
     );
     const panel = container.querySelector(".run-now-plan") as HTMLElement;
-    expect(within(panel).getByRole("heading", { name: "Plan" })).toBeTruthy();
+    expect(within(panel).getByRole("heading", { name: "Steps" })).toBeTruthy();
     expect(panel.querySelector("strong")?.textContent).toBe("Files:");
     expect(panel.textContent).not.toContain("##");
     expect(panel.textContent).not.toContain("**");

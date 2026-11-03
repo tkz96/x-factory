@@ -2,10 +2,7 @@
 
 import { describe, expect, it } from "bun:test";
 import { QueryClient } from "@tanstack/react-query";
-import {
-  invalidateRuns,
-  invalidateTickets,
-} from "../src/frontend/lib/query-client.js";
+import { invalidateRuns } from "../src/frontend/lib/query-client.js";
 import {
   QUERY_POLICIES,
   queryKeys,
@@ -68,7 +65,7 @@ describe("Navigation Persistence & Deterministic Fetch Counting (XFM-60)", () =>
     expect(runsFetchCount).toBe(1); // 0 additional network calls!
 
     // 5. Explicit user action: user clicks refresh or a ticket action invalidates tickets
-    await invalidateTickets("proj-1", client);
+    await client.invalidateQueries({ queryKey: queryKeys.tickets("proj-1") });
 
     // Next fetch MUST issue a fresh network request
     const t3 = await client.fetchQuery({

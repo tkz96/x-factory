@@ -1,10 +1,5 @@
 [
-  "src/db/migrator.ts:exports:resetMigrationVersionCacheForTesting",
-  "src/frontend/hooks/useQueries.ts:exports:useProject",
   "src/providers/azure-module.ts:types:AzureConfig",
-  "src/providers/jira-module.ts:exports:SEARCH_JQL",
-  "src/runs.ts:exports:getOperationLedger",
-  "src/runs.ts:exports:getStageAttempts",
   "src/shared/types.ts:types:AzureConnectionResult",
   "src/shared/types.ts:types:DiscoveredRepo",
   "src/store.ts:types:InternalRun",

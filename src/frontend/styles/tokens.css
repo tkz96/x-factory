@@ -143,7 +143,6 @@
      instead of Inter. */
   --font-display: "Inter", sans-serif;
   --font-sans: "Inter", sans-serif;
-  --font-serif: "IBM Plex Mono", ui-monospace, monospace;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
 
   /* A dimming scrim over content (modal backdrops, the diagram minimap mask). */
@@ -165,14 +164,10 @@
   --space-6: 24px;
   --space-7: 28px;
   --space-8: 32px;
-  --space-9: 36px;
-  --space-10: 40px;
-  --space-11: 44px;
   --space-12: 48px;
   --space-14: 56px;
   --space-16: 64px;
   --space-20: 80px;
-  --space-24: 96px;
 
   /* Line and Border Widths */
   --border-width: 1px;
@@ -187,7 +182,6 @@
   --separator: rgba(60, 60, 67, 0.29);
   /* Filled bezel for a button with no border (spec #292, DESIGN.md §Lines). */
   --fill-control: rgba(120, 120, 128, 0.12);
-  --fill-control-hover: rgba(120, 120, 128, 0.2);
   /* A secondary button on a tinted surface (a decision card, a banner) takes an opaque
      bezel with a hairline, as the macOS bordered button does, so it reads on any fill
      (spec #292, item 2). Each appearance sets its own pair below. */
@@ -303,7 +297,6 @@
   --sidebar-width-narrow: 250px;
   --sidebar-width-sm: 220px;
   --sidebar-width-xs: 180px;
-  --sidebar-width-collapsed: 64px;
   /* The floor every page fits at (#290): below it the page scrolls rather
      than crushing its content. */
   --app-min-width: 290px;
@@ -314,7 +307,6 @@
   --content-max-lg: 680px;
   --content-max-xl: 780px;
   --content-max-2xl: 820px;
-  --content-max-3xl: 900px;
   --content-max-4xl: 1080px;
   --content-max-5xl: 1280px;
   --content-max-6xl: 1400px;
@@ -332,17 +324,12 @@
   --settings-layout-min-height: 380px;
 
   --status-dot-sm: 6px;
-  --status-dot-md: 8px;
-  --status-dot-lg: 10px;
-  --status-dot-size: 6px;
 
   /* A small control is 32px on a pointer device and still 44px under a coarse
      pointer: size="sm" shrinks a row accessory, never a finger's target. */
   --control-height: 44px;
   --control-height-sm: 32px;
   --control-height-lg: 50px;
-  --sidebar-row-height: 44px;
-  --checkbox-size: 18px;
   /* Control blocks (#251): the row height a list row and its static
    * placeholder both reserve, and the switch's geometry. */
   --list-row-height: 72px;
@@ -351,20 +338,12 @@
   --switch-thumb-size: 26px;
   --switch-thumb-inset: 2px;
   --switch-thumb-travel: 20px;
-  --stepper-node-size: 32px;
-
-  --grid-min-col: 200px;
-  --grid-card-min: 360px;
   --grid-card-sm: 220px;
-  --grid-card-xs: 140px;
   --flow-node-min: 190px;
   --flow-node-state-min: 170px;
 
   /* Blurs */
-  --blur-none: blur(0);
-  --blur-sm: blur(6px);
   --blur-md: blur(8px);
-  --blur-lg: blur(20px);
   --blur-xl: blur(24px);
   /* The glass material filter (spec #292). A whole filter value, like --blur-md,
      because Chromium drops a backdrop-filter that wraps var() inside blur(). */
@@ -382,17 +361,13 @@
   --duration-slow: 300ms;
   --duration-modal: 280ms;
   --duration-loader: 1000ms;
-  --duration-loader-slow: 600ms;
   --duration-pulse: 2000ms;
   --duration-typing: 1400ms;
   /* How far apart the typing dots start their beat: the offset, not a duration. */
   --duration-typing-offset: 160ms;
 
-  /* One spring, two names: `--ease-spring` is the name new code uses, `--spring`
-     is the alias a screen may still reach for. The curve decelerates and
-     settles — it never overshoots. */
+  /* The spring curve decelerates and settles — it never overshoots. */
   --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
-  --spring: var(--ease-spring);
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   /* Side and bottom sheets travel along an edge, so they get the drawer curve
      rather than the spring. */
@@ -402,7 +377,6 @@
   --ease-pulse: cubic-bezier(0.4, 0, 0.6, 1);
   --transition: var(--duration-normal) var(--ease-spring);
   --transition-fast: var(--duration-fast) var(--ease-spring);
-  --transition-slow: var(--duration-slow) var(--ease-spring);
 
   /* React Aria writes --trigger-anchor-point inline on each popover, so the
      surface grows from the point of its trigger. This is the fallback for
@@ -410,18 +384,12 @@
   --trigger-anchor-point: 50% 50%;
 
   /* Z-Layers Scale */
-  --z-base: 0;
-  --z-elevated: 1;
-  --z-dropdown: 100;
-  --z-sticky: 200;
   --z-fixed: 500;
   --z-modal-backdrop: 1000;
   --z-modal: 1100;
   --z-popover: 1200;
   --z-tooltip: 1300;
   --modal-backdrop: rgba(0, 0, 0, 0.65);
-
-  --code-chip-bg: rgba(255, 255, 255, 0.06);
 }
 
 /* ── Continuous corners (DESIGN.md §6, spec #292 step 2) ─────────────────────
@@ -499,7 +467,6 @@
     --control-height-sm: 22px;
     --control-height-lg: 32px;
     --header-height: 52px;
-    --sidebar-row-height: 28px;
   }
 }
 
@@ -523,7 +490,6 @@
     -apple-system, BlinkMacSystemFont, system-ui, "Inter", sans-serif;
   --font-sans:
     -apple-system, BlinkMacSystemFont, system-ui, "Inter", sans-serif;
-  --font-serif: ui-monospace, "SF Mono", Menlo, "IBM Plex Mono", monospace;
   --font-mono: ui-monospace, "SF Mono", Menlo, "IBM Plex Mono", monospace;
 }
 
@@ -590,7 +556,6 @@
   --bg-glass: rgba(255, 255, 255, 0.85);
   --border: rgba(60, 60, 67, 0.16);
   --border-control: #8e8e93;
-  --border-color: var(--border);
   --border-subtle: rgba(60, 60, 67, 0.08);
   --border-hover: rgba(60, 60, 67, 0.28);
   --border-focus: #0071e3;
@@ -604,19 +569,19 @@
   --modal-backdrop: rgba(0, 0, 0, 0.45);
   --accent: #0071e3;
   --accent-hover: #005bb5;
-  --accent-pressed: #004b99;
   --accent-dim: rgba(0, 113, 227, 0.12);
   --accent-subtle: var(--accent-dim);
-  --color-primary: var(--accent);
   --green: #28a745;
   --green-dim: rgba(40, 167, 69, 0.14);
-  --green-glow: rgba(40, 167, 69, 0.4);
   --red: #d73a49;
   --red-dim: rgba(215, 58, 73, 0.14);
-  --yellow: #ff9500;
-  --yellow-dim: rgba(255, 149, 0, 0.14);
   --orange: #ff9500;
   --orange-dim: rgba(255, 149, 0, 0.14);
+  /* Status text holds 4.5:1 on this appearance (US18); the bright tokens
+     above stay for icons and dots, which need only to be seen (#319). */
+  --green-text: #1a7f37;
+  --red-text: #cd2b37;
+  --orange-text: #b45309;
   --purple: #8a3ffc;
   --purple-dim: rgba(138, 63, 252, 0.14);
   --bg-circle-btn: #e5e5ea;
@@ -646,7 +611,6 @@
 [data-theme="light"][data-contrast="more"],
 [data-theme="default"][data-appearance="light"][data-contrast="more"] {
   --border: #636366;
-  --border-color: #636366;
   --border-subtle: #8e8e93;
   --border-hover: #000000;
   --border-focus: #004fb3;
@@ -656,7 +620,6 @@
   --text-main: #000000;
   --accent: #005bb5;
   --accent-hover: #004891;
-  --accent-pressed: #00366d;
   --accent-dim: rgba(0, 91, 181, 0.2);
   --accent-subtle: var(--accent-dim);
   --border-width: 2px;
@@ -677,13 +640,13 @@
   --bg-glass: rgba(14, 14, 16, 0.78);
   --border: rgba(255, 255, 255, 0.15);
   --border-control: #8e8e93;
-  --border-color: var(--border);
   --border-subtle: rgba(255, 255, 255, 0.08);
   --border-hover: rgba(255, 255, 255, 0.25);
   --border-focus: #0a84ff;
   --text: #f5f5f7;
   --text-muted: #98989d;
-  --text-dim: #636366;
+  /* Dim text is stronger than it was: timestamps on the card hold 4.5:1 (US18, #319). */
+  --text-dim: #8e8e93;
   --text-main: #f5f5f7;
   --bg-code: rgba(0, 0, 0, 0.45);
   --bg-surface-2: #242426;
@@ -691,19 +654,19 @@
   --modal-backdrop: rgba(0, 0, 0, 0.65);
   --accent: #0a84ff;
   --accent-hover: #409cff;
-  --accent-pressed: #0071e3;
   --accent-dim: rgba(10, 132, 255, 0.16);
   --accent-subtle: var(--accent-dim);
-  --color-primary: var(--accent);
   --green: #30d158;
   --green-dim: rgba(48, 209, 88, 0.15);
-  --green-glow: rgba(48, 209, 88, 0.6);
   --red: #ff453a;
   --red-dim: rgba(255, 69, 58, 0.15);
-  --yellow: #ffd60a;
-  --yellow-dim: rgba(255, 214, 10, 0.15);
   --orange: #ff9f0a;
   --orange-dim: rgba(255, 159, 10, 0.15);
+  /* Status text holds 4.5:1 on every dark card (US18); red lifts a step so
+     it clears the lighter cards of each theme (#319). */
+  --green-text: #30d158;
+  --red-text: #ff6259;
+  --orange-text: #ff9f0a;
   --purple: #bf5af2;
   --purple-dim: rgba(191, 90, 242, 0.15);
   --bg-circle-btn: rgba(255, 255, 255, 0.08);
@@ -727,7 +690,6 @@
 [data-theme="dark"][data-contrast="more"],
 [data-theme="default"][data-appearance="dark"][data-contrast="more"] {
   --border: #8e8e93;
-  --border-color: #8e8e93;
   --border-subtle: #636366;
   --border-hover: #ffffff;
   --border-focus: #409cff;
@@ -737,7 +699,6 @@
   --text-main: #ffffff;
   --accent: #409cff;
   --accent-hover: #66b0ff;
-  --accent-pressed: #0a84ff;
   --accent-dim: rgba(64, 156, 255, 0.25);
   --accent-subtle: var(--accent-dim);
   --border-width: 2px;
@@ -768,7 +729,6 @@
   --modal-backdrop: rgba(15, 23, 42, 0.45);
   --accent: #4f46e5;
   --accent-hover: #4338ca;
-  --accent-pressed: #3730a3;
   --accent-dim: rgba(79, 70, 229, 0.12);
   --bg-circle-btn: #e2e8f0;
   --bg-circle-btn-hover: #cbd5e1;
@@ -778,9 +738,7 @@
   --bg-hover: rgba(15, 23, 42, 0.03);
   --bg-tertiary: rgba(15, 23, 42, 0.04);
   --bg-secondary: rgba(15, 23, 42, 0.06);
-  --border-color: var(--border);
   --accent-subtle: var(--accent-dim);
-  --color-primary: var(--accent);
   --text-secondary: var(--text-muted);
 }
 
@@ -806,7 +764,6 @@
   --modal-backdrop: rgba(15, 23, 42, 0.45);
   --accent: #4338ca;
   --accent-hover: #3730a3;
-  --accent-pressed: #312e81;
   --accent-dim: rgba(67, 56, 202, 0.2);
   --bg-circle-btn: #e2e8f0;
   --bg-circle-btn-hover: #cbd5e1;
@@ -816,9 +773,7 @@
   --bg-hover: rgba(15, 23, 42, 0.03);
   --bg-tertiary: rgba(15, 23, 42, 0.04);
   --bg-secondary: rgba(15, 23, 42, 0.06);
-  --border-color: var(--border);
   --accent-subtle: var(--accent-dim);
-  --color-primary: var(--accent);
   --text-secondary: var(--text-muted);
 }
 
@@ -837,7 +792,8 @@
   --border-focus: #818cf8;
   --text: #f1f5f9;
   --text-muted: #94a3b8;
-  --text-dim: #7d8ba1;
+  /* Stronger dim text: 4.5:1 on the slate card (US18, #319). */
+  --text-dim: #8b98ab;
   --text-main: #f1f5f9;
   --bg-code: rgba(0, 0, 0, 0.35);
   --bg-surface-2: #1e293b;
@@ -845,7 +801,6 @@
   --modal-backdrop: rgba(2, 6, 23, 0.7);
   --accent: #818cf8;
   --accent-hover: #a5b4fc;
-  --accent-pressed: #6366f1;
   --accent-dim: rgba(129, 140, 248, 0.16);
   --bg-circle-btn: rgba(255, 255, 255, 0.08);
   --bg-circle-btn-hover: rgba(255, 255, 255, 0.16);
@@ -855,9 +810,7 @@
   --bg-hover: rgba(255, 255, 255, 0.04);
   --bg-tertiary: rgba(255, 255, 255, 0.06);
   --bg-secondary: rgba(255, 255, 255, 0.08);
-  --border-color: var(--border);
   --accent-subtle: var(--accent-dim);
-  --color-primary: var(--accent);
   --text-secondary: var(--text-muted);
 }
 
@@ -883,7 +836,6 @@
   --modal-backdrop: rgba(2, 6, 23, 0.7);
   --accent: #a5b4fc;
   --accent-hover: #c7d2fe;
-  --accent-pressed: #818cf8;
   --accent-dim: rgba(165, 180, 252, 0.25);
   --bg-circle-btn: rgba(255, 255, 255, 0.08);
   --bg-circle-btn-hover: rgba(255, 255, 255, 0.16);
@@ -893,9 +845,7 @@
   --bg-hover: rgba(255, 255, 255, 0.04);
   --bg-tertiary: rgba(255, 255, 255, 0.06);
   --bg-secondary: rgba(255, 255, 255, 0.08);
-  --border-color: var(--border);
   --accent-subtle: var(--accent-dim);
-  --color-primary: var(--accent);
   --text-secondary: var(--text-muted);
 }
 
@@ -924,7 +874,6 @@
   --modal-backdrop: rgba(43, 33, 24, 0.45);
   --accent: #a8461f;
   --accent-hover: #8f3a19;
-  --accent-pressed: #74300f;
   --accent-dim: rgba(168, 70, 31, 0.12);
   --bg-circle-btn: #ece4d4;
   --bg-circle-btn-hover: #e0d6c2;
@@ -934,9 +883,7 @@
   --bg-hover: rgba(74, 52, 30, 0.03);
   --bg-tertiary: rgba(74, 52, 30, 0.04);
   --bg-secondary: rgba(74, 52, 30, 0.06);
-  --border-color: var(--border);
   --accent-subtle: var(--accent-dim);
-  --color-primary: var(--accent);
   --text-secondary: var(--text-muted);
 }
 
@@ -962,7 +909,6 @@
   --modal-backdrop: rgba(43, 33, 24, 0.45);
   --accent: #8f3a19;
   --accent-hover: #74300f;
-  --accent-pressed: #5c2510;
   --accent-dim: rgba(143, 58, 25, 0.2);
   --bg-circle-btn: #ece4d4;
   --bg-circle-btn-hover: #e0d6c2;
@@ -972,9 +918,7 @@
   --bg-hover: rgba(74, 52, 30, 0.03);
   --bg-tertiary: rgba(74, 52, 30, 0.04);
   --bg-secondary: rgba(74, 52, 30, 0.06);
-  --border-color: var(--border);
   --accent-subtle: var(--accent-dim);
-  --color-primary: var(--accent);
   --text-secondary: var(--text-muted);
 }
 
@@ -993,7 +937,8 @@
   --border-focus: #e0875c;
   --text: #f3ebdd;
   --text-muted: #bfb2a0;
-  --text-dim: #8f8273;
+  /* Stronger dim text: 4.5:1 on the warm card (US18, #319). */
+  --text-dim: #9c8f7e;
   --text-main: #f3ebdd;
   --bg-code: rgba(0, 0, 0, 0.3);
   --bg-surface-2: #2a231b;
@@ -1001,7 +946,6 @@
   --modal-backdrop: rgba(10, 8, 5, 0.7);
   --accent: #e0875c;
   --accent-hover: #ec9d75;
-  --accent-pressed: #c96f45;
   --accent-dim: rgba(224, 135, 92, 0.18);
   --bg-circle-btn: rgba(245, 230, 205, 0.08);
   --bg-circle-btn-hover: rgba(245, 230, 205, 0.16);
@@ -1011,9 +955,7 @@
   --bg-hover: rgba(245, 230, 205, 0.04);
   --bg-tertiary: rgba(245, 230, 205, 0.06);
   --bg-secondary: rgba(245, 230, 205, 0.08);
-  --border-color: var(--border);
   --accent-subtle: var(--accent-dim);
-  --color-primary: var(--accent);
   --text-secondary: var(--text-muted);
 }
 
@@ -1039,7 +981,6 @@
   --modal-backdrop: rgba(10, 8, 5, 0.7);
   --accent: #f0a180;
   --accent-hover: #f7b99c;
-  --accent-pressed: #e0875c;
   --accent-dim: rgba(240, 161, 128, 0.25);
   --bg-circle-btn: rgba(245, 230, 205, 0.08);
   --bg-circle-btn-hover: rgba(245, 230, 205, 0.16);
@@ -1049,9 +990,7 @@
   --bg-hover: rgba(245, 230, 205, 0.04);
   --bg-tertiary: rgba(245, 230, 205, 0.06);
   --bg-secondary: rgba(245, 230, 205, 0.08);
-  --border-color: var(--border);
   --accent-subtle: var(--accent-dim);
-  --color-primary: var(--accent);
   --text-secondary: var(--text-muted);
 }
 
@@ -1067,13 +1006,13 @@
     --bg-input: rgba(255, 255, 255, 0.08);
     --bg-glass: rgba(14, 14, 16, 0.78);
     --border: rgba(255, 255, 255, 0.15);
-    --border-color: var(--border);
     --border-subtle: rgba(255, 255, 255, 0.08);
     --border-hover: rgba(255, 255, 255, 0.25);
     --border-focus: #0a84ff;
     --text: #f5f5f7;
     --text-muted: #98989d;
-    --text-dim: #636366;
+    /* The dark appearance's stronger dim text, mirrored for the OS preference (#319). */
+    --text-dim: #8e8e93;
     --text-main: #f5f5f7;
     --bg-code: rgba(0, 0, 0, 0.45);
     --bg-surface-2: #242426;
@@ -1081,19 +1020,18 @@
     --modal-backdrop: rgba(0, 0, 0, 0.65);
     --accent: #0a84ff;
     --accent-hover: #409cff;
-    --accent-pressed: #0071e3;
     --accent-dim: rgba(10, 132, 255, 0.16);
     --accent-subtle: var(--accent-dim);
-    --color-primary: var(--accent);
     --green: #30d158;
     --green-dim: rgba(48, 209, 88, 0.15);
-    --green-glow: rgba(48, 209, 88, 0.9);
     --red: #ff453a;
     --red-dim: rgba(255, 69, 58, 0.15);
-    --yellow: #ffd60a;
-    --yellow-dim: rgba(255, 214, 10, 0.15);
     --orange: #ff9f0a;
     --orange-dim: rgba(255, 159, 10, 0.15);
+    /* The dark status text tokens, mirrored for the OS preference (#319). */
+    --green-text: #30d158;
+    --red-text: #ff6259;
+    --orange-text: #ff9f0a;
     --purple: #bf5af2;
     --purple-dim: rgba(191, 90, 242, 0.15);
     --bg-circle-btn: rgba(255, 255, 255, 0.08);
@@ -1131,9 +1069,7 @@
     --duration-normal: 120ms;
     --duration-slow: 120ms;
     --duration-modal: 120ms;
-    --duration-backdrop: 120ms;
     --duration-loader: 120ms;
-    --duration-loader-slow: 120ms;
     --duration-pulse: 120ms;
     --duration-typing: 120ms;
     --duration-typing-offset: 0ms;
@@ -1145,7 +1081,6 @@
 [data-appearance="dark"] {
   --separator: rgba(84, 84, 88, 0.65);
   --fill-control: rgba(118, 118, 128, 0.24);
-  --fill-control-hover: rgba(118, 118, 128, 0.34);
   --fill-bezel: #5a5a5e;
   --fill-bezel-hover: #6c6c70;
   --shadow-bezel: inset 0 0 0 var(--hairline) rgba(255, 255, 255, 0.14);
@@ -1155,7 +1090,6 @@
   :root:not([data-appearance]) {
     --separator: rgba(84, 84, 88, 0.65);
     --fill-control: rgba(118, 118, 128, 0.24);
-    --fill-control-hover: rgba(118, 118, 128, 0.34);
     --fill-bezel: #5a5a5e;
     --fill-bezel-hover: #6c6c70;
     --shadow-bezel: inset 0 0 0 var(--hairline) rgba(255, 255, 255, 0.14);

@@ -282,12 +282,17 @@ describe("JobRepository", () => {
 
   it("tells whether a run has a job no worker holds: pending, or claimed past its lease", () => {
     const { jobRepo, run } = setup();
-    // Jobs become available at the real clock's time, so the base is the real clock too.
+    // The job becomes available at t0 exactly; a real-clock stamp can land a millisecond later.
     const t0 = Date.now();
 
     expect(jobRepo.hasUnclaimedJob(run.id, t0)).toBe(false);
 
-    jobRepo.createJob({ runId: run.id, stage: "execute", maxAttempts: 3 });
+    jobRepo.createJob({
+      runId: run.id,
+      stage: "execute",
+      maxAttempts: 3,
+      availableAt: new Date(t0).toISOString(),
+    });
     expect(jobRepo.hasUnclaimedJob(run.id, t0)).toBe(true);
 
     // A worker holds a live lease: the job is not waiting for a worker.

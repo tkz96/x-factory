@@ -64,7 +64,7 @@ On-screen words for internal terms. Code identifiers keep their internal names. 
 | Verifying a connection | Project cards (Add Project › Connect) say Verify Connection; Settings › Models says Check Connection |
 | A connection's model table (Settings › Models) | One table per connection, titled "Models on \<name\>"; columns Model, Context, Max output, Price in / out, Role, Today; the row action is Add, then Edit Limits; the filter is All / Chosen; the search field is Search models |
 | Which model runs each job (Settings › Models) | The Roles section: Builder and Reviewer, each Not set until you pick a model |
-| A run that needs you, kind by kind | Understanding ready, Plan ready, Changes ready, Ready for a pull request, Needs recovery |
+| A run that needs you, kind by kind | Understanding ready, Plan ready, Changes ready, Ready for a pull request, Review needs a retry, Needs recovery |
 | A run that finished, kind by kind | Pull request opened, Run failed (with its reason), Run stopped |
 | The first-run welcome and its checklist (#269) | Welcome — steps: Add Project, Connect a Model, Start Run |
 | A checklist step's own state | Done (announced, screen readers only) when ticked; an unticked step shows the plain gap it waits on, never a state word |
@@ -80,12 +80,13 @@ On-screen words for internal terms. Code identifiers keep their internal names. 
 | executing | Writing code | Code | Running |
 | awaiting_review | Review the changes | Review | Needs you |
 | ready_for_pr | Ready for a pull request | Deliver | Needs you |
+| review_retry_required | Review needs a retry | Review | Needs you |
 | pr_created | Pull request opened | Deliver | Done |
 | recovery_required | Needs recovery | last step | Needs you |
 | failed | Failed | last step | Done |
 | stopped | Stopped | last step | Done |
 
-Buttons use macOS HIG title-style capitalisation, verb-first: Approve Understanding, Approve Plan, Approve Changes, Request Changes, Create Pull Request, Resume Run, Abandon Run, Stop Run.
+Buttons use macOS HIG title-style capitalisation, verb-first: Approve Understanding, Approve Plan, Approve Changes, Request Changes, Create Pull Request, Retry Review, Resume Run, Abandon Run, Stop Run.
 
 ---
 

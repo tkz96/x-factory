@@ -11,17 +11,17 @@ import { App } from "../src/frontend/App.js";
 import { DocsSidebarNav } from "../src/frontend/components/docs/DocsSidebarNav.js";
 import { ModalContainer } from "../src/frontend/components/ModalContainer.js";
 import { ReadinessBanner } from "../src/frontend/components/projects/ReadinessBanner.js";
-import { ChatThread } from "../src/frontend/components/runs/ChatThread.js";
 import { DiffModal } from "../src/frontend/components/runs/DiffModal.js";
+import { RawLog } from "../src/frontend/components/runs/RawLog.js";
 import { RunCheckpointBar } from "../src/frontend/components/runs/RunCheckpointBar.js";
 import { RunInspector } from "../src/frontend/components/runs/RunInspector.js";
-import {
-  defaultOpenStages,
-  RunStageTimeline,
-} from "../src/frontend/components/runs/RunStageTimeline.js";
+import { RunStageTimeline } from "../src/frontend/components/runs/RunStageTimeline.js";
 import { ModalProvider } from "../src/frontend/context/ModalContext.js";
 import { ProjectProvider } from "../src/frontend/context/ProjectContext.js";
-import { groupItemsByStage } from "../src/frontend/lib/run-stages.js";
+import {
+  defaultOpenStages,
+  groupItemsByStage,
+} from "../src/frontend/lib/run-stages.js";
 import { routeDefinitions, router } from "../src/frontend/routes.js";
 import { DocsView } from "../src/frontend/views/DocsView.js";
 import { RunDetailView } from "../src/frontend/views/RunDetailView.js";
@@ -171,8 +171,8 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
       expect(typeof DocsSidebarNav).toBe("function");
     });
 
-    it("ChatThread exports a functional component", () => {
-      expect(typeof ChatThread).toBe("function");
+    it("RawLog exports a functional component", () => {
+      expect(typeof RawLog).toBe("function");
     });
 
     it("DiffModal renders its file and line counts (the run chat's behaviour is in run-chat-view)", () => {
@@ -196,14 +196,13 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
     });
 
     it("RunStageTimeline renders the six stages, the current one open", () => {
-      const groups = groupItemsByStage([], { status: "executing" }, []);
+      const groups = groupItemsByStage([], { status: "executing" });
       const html = renderToString(
         React.createElement(RunStageTimeline, {
           groups,
           open: defaultOpenStages(groups),
           onToggle: () => undefined,
           now: Date.parse("2026-10-20T12:00:00.000Z"),
-          waiting: false,
         }),
       );
 

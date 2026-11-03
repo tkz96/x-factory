@@ -137,10 +137,18 @@
 /* The stage's header is the shared quiet button, drawn as a row: it takes the
    full column, keeps a finger's height, and states its hover and press as a
    row fill rather than a lift. */
-/* Higher than the shared disclosure row, which it refines. */
-.ui-button.run-disclosure.run-stage-header {
+/* The header button sits inside an h3, so each stage is a heading a keyboard
+   reader can jump to (#319, US20). The heading takes the grid cell the button
+   had, and drops the heading's own margins. */
+.run-stage-heading {
   grid-column: 2;
   grid-row: 1;
+  min-width: 0;
+  margin: 0;
+}
+
+/* Higher than the shared disclosure row, which it refines. */
+.ui-button.run-disclosure.run-stage-header {
   min-height: var(--run-stage-row);
   padding-block: 0;
 }
@@ -187,25 +195,6 @@
   white-space: nowrap;
 }
 
-.run-stage-waiting-dot {
-  width: var(--space-1-5);
-  height: var(--space-1-5);
-  border-radius: var(--radius-full);
-  corner-shape: round;
-  background: var(--orange);
-  animation: runStageBlink var(--duration-pulse) var(--ease-in-out) infinite;
-}
-
-@keyframes runStageBlink {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.35;
-  }
-}
-
 .run-disclosure-chevron {
   flex: none;
   margin-inline-start: auto;
@@ -219,9 +208,16 @@
 
 /* ── Body: the open and close motion ───────────────────────────────── */
 
-.run-stage-body {
+/* The decision card sits under the header and outside the body, so collapsing the stage never hides it. */
+.run-stage-decision {
   grid-column: 2;
   grid-row: 2;
+  padding-block: var(--space-1) var(--space-2);
+}
+
+.run-stage-body {
+  grid-column: 2;
+  grid-row: 3;
   display: grid;
   grid-template-rows: 0fr;
   opacity: 0;
@@ -276,18 +272,7 @@
     }
   }
 
-  @keyframes runStageBlink {
-    0%,
-    100% {
-      opacity: 1;
-    }
-  }
-
   .run-stage[data-state="current"] .run-stage-node::before {
-    animation-iteration-count: 1;
-  }
-
-  .run-stage-waiting-dot {
     animation-iteration-count: 1;
   }
 
@@ -318,4 +303,25 @@
     background: CanvasText;
     color: Canvas;
   }
+}
+
+/* A reworked run: each attempt under its own disclosure header. */
+.run-attempts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.run-attempt-heading {
+  margin: 0;
+  font: inherit;
+}
+
+.ui-button.run-disclosure.run-attempt-header {
+  min-height: var(--tap-min);
+  width: 100%;
+}
+
+.run-attempt-body[hidden] {
+  display: none;
 }

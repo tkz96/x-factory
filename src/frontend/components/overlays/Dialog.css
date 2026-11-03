@@ -126,18 +126,6 @@
   }
 }
 
-/* The action row of a window's footer. The divider, the background and the
-   pinning belong to the footer; this only arranges the buttons in it. */
-.xf-dialog-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  row-gap: var(--space-2);
-  width: 100%;
-}
-
 /* The dialog's close control is the icon-button block (#251): its surface, its
    tap size and its focus ring come from controls.css, so nothing is redefined
    here. */

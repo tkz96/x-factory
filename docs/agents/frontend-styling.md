@@ -21,7 +21,7 @@ Global styles are imported once in `src/frontend/main.tsx` via `src/frontend/sty
    - Radii: the six-rung ladder (`--radius-xs` 4 → `--radius-sm` 8 → `--radius-md` 12 → `--radius-card` 16 → `--radius-lg` 20 → `--radius-full`). Where the browser supports it, `--corner-shape: superellipse(1.6)` applies to every box and the ladder's top rungs step up inside `@supports`: `--radius-card` 20 and `--radius-lg` 24. Circles and capsules opt out with `corner-shape: round` (the smoke gate enforces it beside every `--radius-full` rule), and an inner shape's radius = the outer radius − the inset between them.
    - Typography: two type scales, the macOS scale for a fine primary pointer on a viewport wider than 768px and the iOS scale otherwise (`--text-large-title` to `--text-caption-2`, in `rem`). Fonts: `--font-sans` and `--font-display` are Inter, and `--font-mono` is IBM Plex Mono; on Apple platforms (`data-platform="apple"`, set by the pre-paint script) they are the system font and SF Mono. Themes change colour only, and Readable font (`data-font="readable"`) is a setting. See `DESIGN.md` §5 Typography.
    - Lines: `--hairline` (1px, 0.5px on HiDPI) and `--separator` for containers and dividers; `--border-control` (3:1) for fields and other controls that need a boundary; `--fill-control` for a button's bezel. See `DESIGN.md` §5 Lines and borders.
-   - Colors: Functional tokens (`--text`, `--text-muted`, `--accent`, `--green`, `--red`, `--yellow`, `--orange`, `--border`, etc.) with light & dark theme definitions. Warnings always use `--orange` / `--orange-dim` — never `--yellow` (see `docs/reference/state-coverage.md`).
+   - Colors: Functional tokens (`--text`, `--text-muted`, `--accent`, `--green`, `--red`, `--orange`, `--border`, etc.) with light & dark theme definitions. Warnings always use `--orange` / `--orange-dim` — never yellow (see `docs/reference/state-coverage.md`).
 2. **Base (`src/frontend/styles/base.css`)**:
    - Modern CSS resets, root font configuration (the system stack, Inter as the fallback), custom scrollbars.
 3. **Shared Components (`src/frontend/styles/shared/*.css`)**:
@@ -32,6 +32,7 @@ Global styles are imported once in `src/frontend/main.tsx` via `src/frontend/sty
    - Typography (`.text-headline`, `.text-footnote`, etc.).
    - Layout (`.flex-between`, `.flex-center`, `.flex-col`, `.stack`, `.col-span-full`, `.d-none`, `.m-0`).
    - Colors (`.text-muted`, `.text-dim`, `.text-accent`, `.text-success`, `.text-danger`, `.text-warning`).
+   - Status text uses the text tokens `--green-text`, `--red-text` and `--orange-text`, not the bright `--green`, `--red` and `--orange`. `.text-success`, `.text-danger` and `.text-warning` read them, and they hold 4.5:1 on each appearance. `--text-dim` is stronger in the dark appearances for the same reason. The bright tokens stay for icons and dots, which need only to be seen. Do not set a status colour on text with a bright token.
 
 ---
 

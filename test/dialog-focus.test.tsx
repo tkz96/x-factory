@@ -25,7 +25,6 @@ import {
   DIAGRAM_REGISTRY,
   type DiagramDefinition,
 } from "../src/frontend/components/diagrams/registry.js";
-import { Modal } from "../src/frontend/components/Modal.js";
 import { NewRunModal } from "../src/frontend/components/modals/NewRunModal.js";
 import { DiffModal } from "../src/frontend/components/runs/DiffModal.js";
 import {
@@ -68,19 +67,6 @@ const dialogs: {
   ui: () => ReactNode;
   dialogSelector: string;
 }[] = [
-  {
-    name: "Modal",
-    dialogSelector: "#m-overlay",
-    ui: () => (
-      <Page>
-        {(close) => (
-          <Modal id="m" title="Shared" onClose={close}>
-            <input id="m-input" aria-label="Name" />
-          </Modal>
-        )}
-      </Page>
-    ),
-  },
   {
     name: "DiffModal",
     dialogSelector: "#diff-modal-backdrop",

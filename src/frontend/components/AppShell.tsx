@@ -28,6 +28,9 @@ import {
   useStopRun,
 } from "../hooks/useQueries.js";
 import { resolveInitialTheme, setTheme, useTheme } from "../hooks/useTheme.js";
+import { resolveDocsLocation } from "../lib/docs-location.js";
+import { readinessNeedsAttention } from "../lib/readiness-state.js";
+import { runHeadingSubtitle, runHeadingTitle } from "../lib/run-heading.js";
 import { countRunsByFilter } from "../lib/runs-list.js";
 import { type ShortcutId, shortcutLabel } from "../shortcuts/registry.js";
 import { useGlobalShortcuts } from "../shortcuts/useGlobalShortcuts.js";
@@ -56,7 +59,7 @@ import { Button } from "./ui/Button.js";
 import { Icon } from "./ui/Icon.js";
 import { PageHeader } from "./ui/PageHeader.js";
 import { SegmentedControl } from "./ui/SegmentedControl.js";
-import { useMediaQuery } from "./ui/useMediaQuery.js";
+import { PHONE_QUERY, useMediaQuery } from "./ui/useMediaQuery.js";
 
 /** Scrolling past this many pixels moves the page title into the toolbar. */
 const COMPACT_TITLE_SCROLL = 32;
@@ -324,7 +327,7 @@ interface AppShellHeaderProps {
   section: SectionId | "";
   onSelectSection: (id: string) => void;
   /** Runs in a Needs-you status: the Runs segment's count (#259). */
-  needsYouCount: number;
+  needsYouCount?: number | undefined;
   /** True when the workbench is degraded: the toolbar then says so, once. */
   isDegraded: boolean;
   activeRunId: string | undefined;
@@ -357,7 +360,7 @@ function AppShellHeader({
   // re-renders the bar and the heading — never the view that made it.
   const providedHeader = usePageHeaderContent();
   // The breadcrumb and the search label take the phone and compact sizes.
-  const phoneWidth = useMediaQuery("(max-width: 768px)");
+  const phoneWidth = useMediaQuery(PHONE_QUERY);
   const compactSearch = useMediaQuery("(max-width: 1320px)");
   const headingTitle = providedHeader?.title ?? title;
   const headingSubtitle = providedHeader?.subtitle ?? subtitle;
@@ -403,12 +406,15 @@ function AppShellHeader({
             >
               {headingTitle}
             </h1>
-            <span
-              id="toolbar-subtitle"
-              className="toolbar-subtitle text-caption-1"
-            >
-              {headingSubtitle}
-            </span>
+            {/* At phone width the branch moves to Run details: the toolbar keeps the title only. */}
+            {!phoneWidth && (
+              <span
+                id="toolbar-subtitle"
+                className="toolbar-subtitle text-caption-1"
+              >
+                {headingSubtitle}
+              </span>
+            )}
           </div>
         ) : (
           // The screen's large title is the one h1 here. This copy is for the
@@ -443,7 +449,11 @@ function AppShellHeader({
             id: s.id,
             label: s.label,
             count:
-              s.id === "runs" && needsYouCount > 0 ? needsYouCount : undefined,
+              s.id === "runs" &&
+              needsYouCount !== undefined &&
+              needsYouCount > 0
+                ? needsYouCount
+                : undefined,
           }))}
           className="toolbar-sections desktop-only"
         />
@@ -500,7 +510,7 @@ function AppShellHeader({
         {!isDocs && isDegraded && (
           <Link
             to="/settings?tab=diagnostics"
-            className="toolbar-readiness desktop-only text-footnote font-semibold"
+            className="toolbar-readiness text-footnote font-semibold"
           >
             <Badge tone="warning">
               <Icon name="icon-alert-circle" size="sm" />
@@ -523,7 +533,11 @@ function AppShellHeader({
   );
 }
 
-function AppShellMobileTabBar({ needsYouCount }: { needsYouCount: number }) {
+function AppShellMobileTabBar({
+  needsYouCount,
+}: {
+  needsYouCount?: number | undefined;
+}) {
   return (
     <nav
       id="mobile-tab-bar"
@@ -540,9 +554,11 @@ function AppShellMobileTabBar({ needsYouCount }: { needsYouCount: number }) {
         >
           <Icon name={section.icon} size="lg" />
           <span>{section.label}</span>
-          {section.id === "runs" && needsYouCount > 0 && (
-            <span className="tab-count text-caption-2">{needsYouCount}</span>
-          )}
+          {section.id === "runs" &&
+            needsYouCount !== undefined &&
+            needsYouCount > 0 && (
+              <span className="tab-count text-caption-2">{needsYouCount}</span>
+            )}
         </NavLink>
       ))}
     </nav>
@@ -577,10 +593,15 @@ function AppShellContent() {
   // Runs badge and the tab title follow a run from any section (#259). It is
   // opened once, by the NotificationProvider that wraps this shell (#264).
   const { data: runsList } = useRuns();
-  const needsYouCount = countRunsByFilter(runsList ?? [])["needs-you"];
+  const needsYouCount =
+    runsList !== undefined
+      ? countRunsByFilter(runsList)["needs-you"]
+      : undefined;
   useEffect(() => {
     document.title =
-      needsYouCount > 0 ? `(${needsYouCount}) X-Factory` : "X-Factory";
+      needsYouCount !== undefined && needsYouCount > 0
+        ? `(${needsYouCount}) X-Factory`
+        : "X-Factory";
   }, [needsYouCount]);
 
   const runIdMatch = location.pathname.match(/^\/runs\/([^/]+)/);
@@ -613,7 +634,7 @@ function AppShellContent() {
   const { data: readiness } = useReadiness();
   // The toolbar says nothing while the workbench is ready; a degraded one gets
   // one orange link to Settings › Diagnostics.
-  const isDegraded = readiness?.ready === false;
+  const isDegraded = readinessNeedsAttention(readiness);
 
   const isDocs = location.pathname.startsWith("/docs");
   const isRunDetail = Boolean(location.pathname.match(/^\/runs\/[^/]+/));
@@ -637,15 +658,13 @@ function AppShellContent() {
   // A run is named by its ticket id, without punctuation around it (#SYS: the
   // id reads GH-3 everywhere).
   const title = runData
-    ? `${runData.ticket?.id || runData.id} — ${runData.ticket?.title || "Task"}`
+    ? runHeadingTitle(runData)
     : (headingProject?.name ?? genericTitle);
-  const subtitle = runData
-    ? `${runData.project?.name} · ${runData.branch}`
-    : genericSubtitle;
+  const subtitle = runData ? runHeadingSubtitle(runData) : genericSubtitle;
 
   const [searchParams] = useSearchParams();
-  const docCategory = searchParams.get("cat") || "tutorials";
-  const docSlug = searchParams.get("slug") || "first-agent-run";
+  const { category: docCategory, slug: docSlug } =
+    resolveDocsLocation(searchParams);
 
   const docBreadcrumb = isDocs
     ? {

@@ -1,5 +1,5 @@
 // src/shared/model-connection-types.ts — Types for model connections shared by
-// the server and the UI (#276, #277). No runtime code: the UI imports these
+// the server and the UI (#276, #277). Almost no runtime code: the UI imports these
 // without pulling in the server's file-system modules.
 
 export const MODEL_API_TYPES = [
@@ -8,6 +8,14 @@ export const MODEL_API_TYPES = [
   "anthropic",
 ] as const;
 export type ModelApiType = (typeof MODEL_API_TYPES)[number];
+
+/** Base URLs pre-filled for API types with one well-known endpoint. */
+export const DEFAULT_BASE_URLS: Readonly<
+  Record<Exclude<ModelApiType, "openai-compatible">, string>
+> = {
+  gemini: "https://generativelanguage.googleapis.com/v1beta",
+  anthropic: "https://api.anthropic.com",
+};
 
 /** Details X-Factory keeps per model; every field is optional and editable. */
 export interface ModelDetails {

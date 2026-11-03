@@ -86,11 +86,6 @@
   margin-bottom: var(--space-3);
 }
 
-/* Suppressed diagnostics render inline below the content they belong to. */
-.async-region-suppressed {
-  margin-top: var(--space-3);
-}
-
 .async-region .feedback-banner {
   margin-top: var(--space-3);
 }

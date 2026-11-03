@@ -412,6 +412,23 @@ describe("One heading level 1 per screen (#258)", () => {
     });
   }
 
+  it("a run page at phone width keeps the branch out of the toolbar; Details carries it", () => {
+    const original = window.matchMedia;
+    window.matchMedia = ((query: string) => ({
+      matches: query === "(max-width: 768px)",
+      media: query,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    })) as unknown as typeof window.matchMedia;
+    try {
+      const view = renderShell("/runs/run-1");
+      expect(view.container.querySelector("#toolbar-title")).not.toBeNull();
+      expect(view.container.querySelector("#toolbar-subtitle")).toBeNull();
+    } finally {
+      window.matchMedia = original;
+    }
+  });
+
   it("a run page has exactly one h1, in the toolbar", () => {
     const view = renderShell("/runs/run-1");
     expect(view.getAllByRole("heading", { level: 1 })).toHaveLength(1);

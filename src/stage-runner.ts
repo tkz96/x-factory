@@ -27,6 +27,7 @@ import {
   type FailureReason,
   failureReasonFor,
 } from "./shared/failure-reason.js";
+import { REVIEW_ATTEMPTS } from "./shared/review-attempts.js";
 import { canTransition } from "./shared/run-status-policy.js";
 import type { Project, RunStatus } from "./shared/types.js";
 import {
@@ -199,6 +200,23 @@ export function deliverCommandWork(
   };
 }
 
+/**
+ * The notes the reader wrote when asking this stage to run again (#327). Only the newest
+ * feedback counts, and only when it was written for this stage.
+ */
+function stageFeedback(
+  repos: Repositories,
+  runId: string,
+  stage: string,
+): string | undefined {
+  const latest = repos.events
+    .getEventsForRun(runId)
+    .filter((event) => event.type === "user_feedback")
+    .at(-1);
+  if (latest?.type !== "user_feedback") return undefined;
+  return latest.payload.stage === stage ? latest.payload.notes : undefined;
+}
+
 /** The narrow context an executor runs with: inputs, `emit`, a run-bound ledger, a signal. */
 export function buildStageContext(
   repos: Repositories,
@@ -212,6 +230,7 @@ export function buildStageContext(
   const { attemptId, ...ids } = identity;
   return {
     ...ids,
+    feedback: stageFeedback(repos, run.id, ids.stage),
     run,
     project,
     emit: (type, payload) => {
@@ -648,7 +667,7 @@ export class StageRunner {
                 payload: {
                   status: "review_retry_required",
                   reason,
-                  text: "The review could not finish after three tries. The code is kept; retry the review to continue.",
+                  text: `The review could not finish after ${REVIEW_ATTEMPTS} tries. The code is kept; retry the review to continue.`,
                 },
               },
             },

@@ -1,0 +1,10 @@
+{
+  "entry": [
+    "src/server.ts!",
+    "src/worker.ts!",
+    "src/frontend/main.tsx!",
+    "src/reticle-dev.ts!"
+  ],
+  "project": ["src/**/*.{ts,tsx}!"],
+  "ignoreExportsUsedInFile": true
+}

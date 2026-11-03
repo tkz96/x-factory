@@ -52,17 +52,3 @@
   background: var(--red);
   color: var(--text-on-accent);
 }
-
-.xf-menu-separator {
-  height: var(--border-width);
-  background: var(--border-subtle);
-  margin: var(--space-1) 0;
-  border: none;
-}
-
-/* A group header inside a menu: footnote, 600, --text-secondary, in the case it
-   was written in. */
-.xf-menu-header {
-  color: var(--text-secondary);
-  padding: var(--space-1) var(--space-3);
-}

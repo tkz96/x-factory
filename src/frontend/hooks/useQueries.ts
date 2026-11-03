@@ -30,18 +30,6 @@ export function useProjects(options?: { includeArchived?: boolean }) {
   });
 }
 
-export function useProject(id: string | null | undefined) {
-  return useQuery<Project>({
-    queryKey: queryKeys.project(id ?? ""),
-    queryFn: () => {
-      if (!id) throw new Error("Project ID is required");
-      return api.getProject(id);
-    },
-    enabled: Boolean(id),
-    ...QUERY_POLICIES.projects,
-  });
-}
-
 export function useTickets(projectId: string | null | undefined) {
   return useQuery<Ticket[]>({
     queryKey: queryKeys.tickets(projectId ?? ""),

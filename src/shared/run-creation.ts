@@ -7,6 +7,9 @@
 /** The machine-readable code a refused run creation carries. */
 export const ACTIVE_RUN_CONFLICT_CODE = "RUN_ALREADY_ACTIVE";
 
+/** The code of a refusal because the Builder or Reviewer role cannot resolve (#278). */
+export const MODEL_ROLES_UNAVAILABLE_CODE = "MODEL_ROLES_UNAVAILABLE";
+
 /**
  * Body of the 409 `POST /api/runs` answers when the ticket already has an
  * active run. `runId` is the active run to open.

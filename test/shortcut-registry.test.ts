@@ -14,8 +14,6 @@ import {
   formatShortcut,
   getShortcut,
   isMacPlatform,
-  OVERRIDABLE_BINDINGS,
-  RESERVED_BINDINGS,
   SHORTCUTS,
 } from "../src/frontend/shortcuts/registry.js";
 
@@ -30,6 +28,36 @@ const base = {
 afterAll(async () => {
   await unregisterHappyDom();
 });
+
+/**
+ * Combinations the operating system or the browser keeps for itself, or that
+ * the browser does not let a page take over. An application shortcut must not
+ * use these (spec #241, conflict rule).
+ */
+const RESERVED_BINDINGS: readonly string[] = [
+  "mod+n",
+  "mod+t",
+  "mod+w",
+  "mod+q",
+  "mod+r",
+  "mod+l",
+  "mod+d",
+  "mod+p",
+  "mod+s",
+  "mod+f",
+  "mod+h",
+  "mod+m",
+  "mod+tab",
+  "ctrl+tab",
+  "mod+shift+t",
+  "mod+shift+n",
+];
+
+/**
+ * Combinations a page can override, but only once verified with real keyboard
+ * input on every supported browser and OS. Mod+K is the one shipped here.
+ */
+const OVERRIDABLE_BINDINGS: readonly string[] = ["mod+k"];
 
 describe("shortcut registry (#254)", () => {
   test("every shortcut has a unique id and a visible alternative", () => {

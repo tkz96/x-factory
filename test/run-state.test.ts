@@ -12,6 +12,7 @@ import { RunRepository } from "../src/db/run-repository.js";
 import { queryKeys } from "../src/frontend/lib/query-policies.js";
 import {
   cacheRunAfterMutation,
+  insertRunEvent,
   type RunEventTransport,
   type RunEventTransportHandlers,
   reduceRun,
@@ -279,6 +280,150 @@ describe("client run-state module (#191)", () => {
     const updated = reduceRun(run, newLiveEvent);
     expect(updated.status).toBe("understanding");
     expect(updated.updatedAt).toBe("2026-10-01T10:35:00.000Z");
+  });
+
+  it("a live verification or review the snapshot does not hold applies, even when a status event moved updatedAt past it", () => {
+    const run: Run = {
+      ...runSnapshot("awaiting_review"),
+      updatedAt: "2026-10-01T10:30:00.000Z",
+      verification: { ...sampleVerification, repairAttempt: 1 },
+      review: null,
+    };
+    const newerVerification: RunEvent = {
+      id: 40,
+      timestamp: "2026-10-01T10:20:00.000Z",
+      type: "verification",
+      payload: {
+        result: {
+          ...sampleVerification,
+          repairAttempt: 2,
+          summary: "Newer verification",
+        },
+      },
+    };
+    const liveReview: RunEvent = {
+      id: 41,
+      timestamp: "2026-10-01T10:21:00.000Z",
+      type: "review",
+      payload: { result: { ...sampleReview, summary: "Live review" } },
+    };
+    expect(reduceRun(run, newerVerification).verification?.summary).toBe(
+      "Newer verification",
+    );
+    expect(reduceRun(run, liveReview).review?.summary).toBe("Live review");
+  });
+
+  it("a replayed historical verification or review event older than the snapshot does not overwrite the snapshot (#317)", () => {
+    const run: Run = {
+      ...runSnapshot("awaiting_review"),
+      updatedAt: "2026-10-01T10:30:00.000Z",
+      verification: sampleVerification,
+      review: sampleReview,
+      repairAttempts: 2,
+      diff: "current diff",
+    };
+
+    const staleVerification: RunEvent = {
+      id: 2,
+      timestamp: "2026-10-01T10:05:00.000Z",
+      type: "verification",
+      payload: {
+        result: {
+          ...sampleVerification,
+          repairAttempt: 0,
+          summary: "Old verification result",
+          diff: "old diff",
+        },
+      },
+    };
+
+    const staleReview: RunEvent = {
+      id: 3,
+      timestamp: "2026-10-01T10:06:00.000Z",
+      type: "review",
+      payload: {
+        result: {
+          ...sampleReview,
+          summary: "Old review result",
+        },
+      },
+    };
+
+    expect(reduceRun(run, staleVerification).verification?.summary).toBe(
+      sampleVerification.summary,
+    );
+    expect(reduceRun(run, staleVerification).diff).toBe("current diff");
+    expect(reduceRun(run, staleReview).review?.summary).toBe(
+      sampleReview.summary,
+    );
+
+    const freshVerification: RunEvent = {
+      id: 20,
+      timestamp: "2026-10-01T10:35:00.000Z",
+      type: "verification",
+      payload: {
+        result: {
+          ...sampleVerification,
+          summary: "New fresh verification result",
+        },
+      },
+    };
+    expect(reduceRun(run, freshVerification).verification?.summary).toBe(
+      "New fresh verification result",
+    );
+  });
+
+  it("insertRunEvent appends in O(1) when the id is greater than the last id, and handles out-of-order and duplicates (#317)", () => {
+    const e1: RunEvent = {
+      id: 1,
+      type: "info",
+      timestamp: "2026-10-01T10:00:00.000Z",
+      payload: { text: "one" },
+    };
+    const e2: RunEvent = {
+      id: 2,
+      type: "info",
+      timestamp: "2026-10-01T10:01:00.000Z",
+      payload: { text: "two" },
+    };
+    const e3: RunEvent = {
+      id: 3,
+      type: "info",
+      timestamp: "2026-10-01T10:02:00.000Z",
+      payload: { text: "three" },
+    };
+    const e5: RunEvent = {
+      id: 5,
+      type: "info",
+      timestamp: "2026-10-01T10:04:00.000Z",
+      payload: { text: "five" },
+    };
+    const e4: RunEvent = {
+      id: 4,
+      type: "info",
+      timestamp: "2026-10-01T10:03:00.000Z",
+      payload: { text: "four" },
+    };
+
+    // Appending to empty
+    let log = insertRunEvent([], e1);
+    expect(log).toEqual([e1]);
+
+    // Fast path: id > last.id
+    log = insertRunEvent(log, e2);
+    expect(log).toEqual([e1, e2]);
+
+    log = insertRunEvent(log, e3);
+    log = insertRunEvent(log, e5);
+    expect(log).toEqual([e1, e2, e3, e5]);
+
+    // Duplicate returns the same array instance
+    expect(insertRunEvent(log, e5)).toBe(log);
+    expect(insertRunEvent(log, e2)).toBe(log);
+
+    // Out-of-order insertion
+    const withFour = insertRunEvent(log, e4);
+    expect(withFour.map((e) => e.id)).toEqual([1, 2, 3, 4, 5]);
   });
 
   it("real run-detail API payload carries updatedAt and works in reduceRun without casts (#163)", () => {
@@ -709,6 +854,28 @@ describe("live run stream reopens after a permanent failure (#191)", () => {
     expect(stream.connections).toHaveLength(1);
     expect(stream.connections[0]?.closed).toBe(true);
     expect(clock.delays).toHaveLength(0);
+  });
+
+  it("(f) a run that went terminal while disconnected gets one final catch-up from the last applied id", () => {
+    const { queryClient, stream, clock } = liveSetup();
+    const first = stream.connections[0];
+    first?.handlers.onOpen();
+    first?.handlers.onMessage(wire(1, "one"));
+    // The run finishes while the stream is down: the snapshot is refreshed, the tail is missing.
+    queryClient.setQueryData(queryKeys.run(RUN_ID), runSnapshot("failed"));
+    first?.handlers.onError(true);
+
+    expect(stream.connections).toHaveLength(2);
+    const catchUp = stream.connections[1];
+    expect(catchUp?.cursor).toBe(1);
+    catchUp?.handlers.onMessage(wire(2, "tail"));
+    expect(eventsOf(queryClient).map((e) => e.id)).toEqual([1, 2]);
+
+    // The catch-up ends the way a replay does: no third connection.
+    catchUp?.handlers.onError(true);
+    clock.advance(60_000);
+    expect(stream.connections).toHaveLength(2);
+    expect(catchUp?.closed).toBe(true);
   });
 
   it("(e) repeated permanent failures back off from 1 s, double, cap at 30 s, and reset on a successful open", () => {

@@ -145,8 +145,7 @@
   background: var(--green-dim);
 }
 
-.md-alert-warning,
-.md-alert-important {
+.md-alert-warning {
   border-left: var(--border-width-indicator-thick) solid var(--orange);
   background: var(--orange-dim);
 }
@@ -170,8 +169,7 @@
 .md-alert-tip .md-alert-title {
   color: var(--green);
 }
-.md-alert-warning .md-alert-title,
-.md-alert-important .md-alert-title {
+.md-alert-warning .md-alert-title {
   color: var(--orange);
 }
 .md-alert-caution .md-alert-title {

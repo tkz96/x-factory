@@ -30,6 +30,16 @@ export const SCREENS: readonly ScreenDef[] = [
     description: "Done runs (History folds into Runs)",
   },
   { name: "run", path: "/runs/{runId}", description: "A run that needs you" },
+  {
+    name: "run-failed",
+    path: "/runs/{failedRunId}",
+    description: "A failed run, with its failure cause",
+  },
+  {
+    name: "run-reworked",
+    path: "/runs/{reworkedRunId}",
+    description: "A run sent back from review: two attempts",
+  },
   { name: "projects", path: "/projects", description: "The Projects list" },
   {
     name: "project",
@@ -239,12 +249,19 @@ export function screenshotPath(
   return path.join(request.outDir, request.label, screen, `${variant}.png`);
 }
 
-/** Fills `{runId}` and `{projectId}` in a screen's path. */
+/** Fills `{runId}`, `{failedRunId}`, `{reworkedRunId}` and `{projectId}` in a screen's path. */
 export function resolveScreenPath(
   screen: ScreenDef,
-  ids: { runId: string; projectId: string },
+  ids: {
+    runId: string;
+    projectId: string;
+    failedRunId: string;
+    reworkedRunId: string;
+  },
 ): string {
   return screen.path
     .replace("{runId}", ids.runId)
+    .replace("{failedRunId}", ids.failedRunId)
+    .replace("{reworkedRunId}", ids.reworkedRunId)
     .replace("{projectId}", ids.projectId);
 }

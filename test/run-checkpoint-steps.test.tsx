@@ -16,7 +16,7 @@ import {
   within,
 } from "@testing-library/react";
 import { RunChat } from "../src/frontend/components/runs/RunChat.js";
-import type { Run, RunStatus } from "../src/shared/types.js";
+import type { Run, RunEvent, RunStatus } from "../src/shared/types.js";
 
 afterEach(cleanup);
 afterAll(async () => {
@@ -65,7 +65,7 @@ function typeAndSend(container: HTMLElement, text: string) {
 }
 
 describe("a checkpoint button says what was just pressed", () => {
-  it("Request Changes on a plan goes back to planning and says so", () => {
+  it("Request Changes on a plan asks for the notes first and sends nothing yet", () => {
     const actions: string[] = [];
     const { container } = render(
       <RunChat
@@ -77,8 +77,12 @@ describe("a checkpoint button says what was just pressed", () => {
     fireEvent.click(
       within(container).getByRole("button", { name: "Request Changes" }),
     );
-    expect(actions).toEqual(["restart"]);
-    expect(container.textContent).toContain("Changes requested");
+    expect(actions).toEqual([]);
+    expect(
+      container
+        .querySelector("form.run-chat-input textarea")
+        ?.getAttribute("placeholder"),
+    ).toBe("Describe the changes needed for the next try…");
   });
 
   it("Create Pull Request on a ready run says the pull request is opening", () => {
@@ -129,7 +133,7 @@ describe("a checkpoint button says what was just pressed", () => {
     expect(container.textContent).toContain("Retrying the review");
   });
 
-  it("Approve Changes on a review says the pull request is opening", () => {
+  it("Approve Changes on a review says the changes are approved", () => {
     const actions: string[] = [];
     const { container } = render(
       <RunChat
@@ -142,9 +146,8 @@ describe("a checkpoint button says what was just pressed", () => {
       within(container).getByRole("button", { name: "Approve Changes" }),
     );
     expect(actions).toEqual(["approve"]);
-    expect(container.textContent).toContain(
-      "Changes approved — opening a pull request",
-    );
+    expect(container.textContent).toContain("Changes approved");
+    expect(container.textContent).not.toContain("opening a pull request");
   });
 
   it("starts a new run without a line of its own", () => {
@@ -192,7 +195,14 @@ describe("Request Changes on a review asks for the changes before it acts", () =
     const { container } = render(
       <RunChat
         run={makeRun("awaiting_review")}
-        events={[]}
+        events={[
+          {
+            id: 1,
+            type: "status",
+            payload: { status: "awaiting_review" },
+            timestamp: "2026-09-20T12:00:00.000Z",
+          } as RunEvent,
+        ]}
         onAction={(action, notes) => actions.push([action, notes])}
       />,
     );
@@ -227,6 +237,48 @@ describe("Request Changes on a review asks for the changes before it acts", () =
   });
 });
 
+describe("Request Changes names the stage that runs again and says what was sent", () => {
+  it.each([
+    [
+      "awaiting_understanding_approval",
+      "Describe the changes needed. Your next message goes back to Understand.",
+    ],
+    [
+      "awaiting_plan_approval",
+      "Describe the changes needed. Plan runs again with it.",
+    ],
+  ] as const)(
+    "%s: the notice names the stage, and confirming sends restart",
+    (status, notice) => {
+      const actions: Array<[string, string | undefined]> = [];
+      const { container } = render(
+        <RunChat
+          run={makeRun(status)}
+          events={[
+            {
+              id: 1,
+              type: "status",
+              payload: { status },
+              timestamp: AT,
+            } as RunEvent,
+          ]}
+          onAction={(action, notes) => actions.push([action, notes])}
+        />,
+      );
+      fireEvent.click(
+        within(container).getByRole("button", { name: "Request Changes" }),
+      );
+      expect(container.textContent).toContain(notice);
+      typeAndSend(container, "Use the cache");
+      fireEvent.click(
+        within(container).getByRole("button", { name: "Confirm Rework" }),
+      );
+      expect(actions).toEqual([["restart", "Use the cache"]]);
+      expect(container.textContent).toContain("Changes requested");
+    },
+  );
+});
+
 describe("a new status starts the chat's pending steps over", () => {
   it("clears the line and the rework prompt the old status left behind", () => {
     const onAction = () => {};
@@ -254,9 +306,7 @@ describe("a new status starts the chat's pending steps over", () => {
     rerender(
       <RunChat run={makeRun("executing")} events={[]} onAction={onAction} />,
     );
-    expect(container.textContent).not.toContain(
-      "Changes approved — opening a pull request",
-    );
+    expect(container.textContent).not.toContain("Changes approved");
     // The notice that stays in the log is history; the composer no longer waits for rework notes.
     expect(
       container

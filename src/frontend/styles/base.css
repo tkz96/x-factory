@@ -57,19 +57,6 @@ a:hover {
   text-decoration: underline;
 }
 
-/* A link that is a row, a nav item or a control fills on hover instead — the
-   underline is for prose. Doubled selectors beat the rule above. */
-:is(
-  .ui-nav-item,
-  .ui-list-row,
-  .ui-list-row-main--link,
-  .docs-back-link,
-  .project-link,
-  .projects-list-row
-):hover {
-  text-decoration: none;
-}
-
 a.text-muted {
   color: var(--text-dim);
 }

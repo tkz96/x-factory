@@ -13,6 +13,8 @@ export interface NewRunPrefill {
   projectId?: string;
   ticketId?: string;
   ticketTitle?: string;
+  /** The ticket's body, as the tracker gave it; the run's Builder reads it. */
+  description?: string | undefined;
   criteria?: string[];
   branch?: string;
   plan?: string;

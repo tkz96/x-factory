@@ -65,19 +65,3 @@
     animation-iteration-count: 1;
   }
 }
-
-.icon-status-passed {
-  color: var(--green);
-}
-
-.icon-status-failed {
-  color: var(--red);
-}
-
-.icon-status-warning {
-  color: var(--orange);
-}
-
-.icon-status-pending {
-  color: var(--text-dim);
-}

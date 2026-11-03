@@ -12,6 +12,7 @@ import { Badge } from "../components/ui/Badge.js";
 import { Icon } from "../components/ui/Icon.js";
 import { scrollBehavior } from "../hooks/scroll-behavior.js";
 import { api } from "../lib/api-client.js";
+import { resolveDocsLocation } from "../lib/docs-location.js";
 
 interface AzureDocScope {
   category: string;
@@ -139,11 +140,11 @@ export function DocsView() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   // URL search parameters as single source of truth for deep linking
-  const activeCategory = searchParams.get("cat") || "tutorials";
-  const activeSlug = searchParams.get("slug") || "first-agent-run";
+  const { category: activeCategory, slug: activeSlug } =
+    resolveDocsLocation(searchParams);
   const isSecurity = activeCategory === "security";
   const securitySection: SecuritySection = isSecurity
-    ? (activeSlug as SecuritySection) || "least-privilege"
+    ? (activeSlug as SecuritySection)
     : "least-privilege";
 
   // Fetch specific doc markdown content (when not in security section)
