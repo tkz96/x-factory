@@ -28,6 +28,7 @@ import {
   useStopRun,
 } from "../hooks/useQueries.js";
 import { resolveInitialTheme, setTheme, useTheme } from "../hooks/useTheme.js";
+import { resolveDocsLocation } from "../lib/docs-location.js";
 import { readinessNeedsAttention } from "../lib/readiness-state.js";
 import { countRunsByFilter } from "../lib/runs-list.js";
 import { type ShortcutId, shortcutLabel } from "../shortcuts/registry.js";
@@ -663,8 +664,8 @@ function AppShellContent() {
     : genericSubtitle;
 
   const [searchParams] = useSearchParams();
-  const docCategory = searchParams.get("cat") || "tutorials";
-  const docSlug = searchParams.get("slug") || "first-agent-run";
+  const { category: docCategory, slug: docSlug } =
+    resolveDocsLocation(searchParams);
 
   const docBreadcrumb = isDocs
     ? {
