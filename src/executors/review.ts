@@ -12,6 +12,7 @@ import {
   usageWithCost,
 } from "../model-roles.js";
 import { reviewRun } from "../review.js";
+import { REVIEW_ATTEMPTS } from "../shared/review-attempts.js";
 import type {
   StageContext,
   StageExecutor,
@@ -28,12 +29,6 @@ export interface ReviewDependencies {
 export const defaultReviewDeps: ReviewDependencies = {
   resolveRole,
 };
-
-/**
- * How many times the review is tried when the provider fails transiently. Only the review
- * repeats: the code was already verified, so a retry of the whole job would rerun coding.
- */
-const REVIEW_ATTEMPTS = 3;
 
 export class ReviewExecutor implements StageExecutor {
   readonly stage = "review";

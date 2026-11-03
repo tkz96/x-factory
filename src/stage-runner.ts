@@ -27,6 +27,7 @@ import {
   type FailureReason,
   failureReasonFor,
 } from "./shared/failure-reason.js";
+import { REVIEW_ATTEMPTS } from "./shared/review-attempts.js";
 import { canTransition } from "./shared/run-status-policy.js";
 import type { Project, RunStatus } from "./shared/types.js";
 import {
@@ -666,7 +667,7 @@ export class StageRunner {
                 payload: {
                   status: "review_retry_required",
                   reason,
-                  text: "The review could not finish after three tries. The code is kept; retry the review to continue.",
+                  text: `The review could not finish after ${REVIEW_ATTEMPTS} tries. The code is kept; retry the review to continue.`,
                 },
               },
             },

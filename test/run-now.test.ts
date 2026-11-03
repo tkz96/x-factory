@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from "bun:test";
 import { runNow } from "../src/frontend/lib/run-now.js";
+import { REVIEW_ATTEMPTS } from "../src/shared/review-attempts.js";
 import type { Run, RunEvent, RunStatus } from "../src/shared/types.js";
 
 const AT = "2026-09-20T12:00:00.000Z";
@@ -202,5 +203,12 @@ describe("the now header says what the run is doing", () => {
   it("keeps Waiting to start for a queued run, which already waits for a slot", () => {
     const now = runNow(makeRun("queued", { waitingForWorker: true }), []);
     expect(now.title).toBe("Waiting to start");
+  });
+});
+
+describe("the retry-required failure uses the shared attempt count", () => {
+  it("says how many tries the reviewer model got when no reason was recorded", () => {
+    const now = runNow(makeRun("review_retry_required"), []);
+    expect(now.failure?.message).toContain(`${REVIEW_ATTEMPTS} times`);
   });
 });

@@ -5,6 +5,7 @@
 
 import { type DiffSummary, summarizeDiff } from "../../shared/diff-summary.js";
 import type { FailureCategory } from "../../shared/failure-reason.js";
+import { REVIEW_ATTEMPTS } from "../../shared/review-attempts.js";
 import type { PullRequestOutcome, Run, RunEvent } from "../../shared/types.js";
 import { STATUS_COPY } from "../components/feedback/copy-map.js";
 import { runStatusUi } from "./run-status-ui.js";
@@ -102,7 +103,7 @@ function failureFor(
       category: null,
       message:
         payload?.reason ??
-        "The reviewer model failed three times in a row, so the review did not finish.",
+        `The reviewer model failed ${REVIEW_ATTEMPTS} times in a row, so the review did not finish.`,
       recovery:
         "Retry Review runs only the review again; the code is not changed. Abandon Run ends the run and keeps its branch.",
     };

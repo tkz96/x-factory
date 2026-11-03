@@ -3,6 +3,7 @@
 // only from the shared run-status policy; this module adds wording on top and
 // never a second workflow.
 
+import { REVIEW_ATTEMPTS } from "../../shared/review-attempts.js";
 import {
   allowedActionsFor,
   type RunAction,
@@ -69,7 +70,7 @@ const ROWS: Record<RunStatus, StatusRow> = {
     label: "Waiting to start",
     step: "Prepare",
     filter: "Running",
-    now: "Waiting for a free slot. It starts as soon as the run ahead of it finishes.",
+    now: "Waiting for a free worker.",
     header: "Waiting to start",
     placeholder: "This run is queued behind other work.",
     notification: null,
@@ -171,7 +172,7 @@ const ROWS: Record<RunStatus, StatusRow> = {
     label: "Review needs a retry",
     step: "Review",
     filter: "Needs you",
-    now: "The review could not reach the model after three tries. The code is kept; retry the review to continue.",
+    now: `The review could not reach the model after ${REVIEW_ATTEMPTS} tries. The code is kept; retry the review to continue.`,
     header: "The review could not finish",
     placeholder: "Retry the review to continue, or abandon the run.",
     notification: { group: "Needs you", text: "Review needs a retry" },
