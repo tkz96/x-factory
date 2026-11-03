@@ -29,6 +29,7 @@ import { PHONE_QUERY, useMediaQuery } from "../components/ui/useMediaQuery.js";
 import { usePageHeader } from "../context/PageHeaderContext.js";
 import { useRunDetail } from "../hooks/useRunDetail.js";
 import { ApiError } from "../lib/api-client.js";
+import { runHeadingSubtitle, runHeadingTitle } from "../lib/run-heading.js";
 
 /** What a screen that opens this run may pass along in its navigation state. */
 interface RunPageState {
@@ -58,8 +59,8 @@ function runPageHeader(
 ): typeof PAGE_HEADER {
   if (!run) return PAGE_HEADER;
   return {
-    title: `${run.ticket?.id || run.id} — ${run.ticket?.title || "Task"}`,
-    subtitle: `${run.project?.name} · ${run.branch}`,
+    title: runHeadingTitle(run),
+    subtitle: runHeadingSubtitle(run),
   };
 }
 

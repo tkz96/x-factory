@@ -117,7 +117,7 @@ function RunRow({ r, now }: { r: Run; now: number }) {
     <ListRow
       href={`/runs/${r.id}`}
       className="run-row-link"
-      title={r.ticket?.title || "Task"}
+      title={r.ticket?.title || r.ticket?.id || r.id}
       subtitle={runRowSubtitle(r)}
       trailing={
         <>

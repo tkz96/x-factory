@@ -29,6 +29,7 @@ import {
 } from "../hooks/useQueries.js";
 import { resolveInitialTheme, setTheme, useTheme } from "../hooks/useTheme.js";
 import { readinessNeedsAttention } from "../lib/readiness-state.js";
+import { runHeadingSubtitle, runHeadingTitle } from "../lib/run-heading.js";
 import { countRunsByFilter } from "../lib/runs-list.js";
 import { type ShortcutId, shortcutLabel } from "../shortcuts/registry.js";
 import { useGlobalShortcuts } from "../shortcuts/useGlobalShortcuts.js";
@@ -656,11 +657,9 @@ function AppShellContent() {
   // A run is named by its ticket id, without punctuation around it (#SYS: the
   // id reads GH-3 everywhere).
   const title = runData
-    ? `${runData.ticket?.id || runData.id} — ${runData.ticket?.title || "Task"}`
+    ? runHeadingTitle(runData)
     : (headingProject?.name ?? genericTitle);
-  const subtitle = runData
-    ? `${runData.project?.name} · ${runData.branch}`
-    : genericSubtitle;
+  const subtitle = runData ? runHeadingSubtitle(runData) : genericSubtitle;
 
   const [searchParams] = useSearchParams();
   const docCategory = searchParams.get("cat") || "tutorials";

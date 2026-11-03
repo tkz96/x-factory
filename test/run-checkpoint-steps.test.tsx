@@ -146,9 +146,7 @@ describe("a checkpoint button says what was just pressed", () => {
       within(container).getByRole("button", { name: "Approve Changes" }),
     );
     expect(actions).toEqual(["approve"]);
-    expect(container.textContent).toContain(
-      "Changes approved",
-    );
+    expect(container.textContent).toContain("Changes approved");
     expect(container.textContent).not.toContain("opening a pull request");
   });
 
@@ -266,9 +264,7 @@ describe("a new status starts the chat's pending steps over", () => {
     rerender(
       <RunChat run={makeRun("executing")} events={[]} onAction={onAction} />,
     );
-    expect(container.textContent).not.toContain(
-      "Changes approved",
-    );
+    expect(container.textContent).not.toContain("Changes approved");
     // The notice that stays in the log is history; the composer no longer waits for rework notes.
     expect(
       container
