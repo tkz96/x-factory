@@ -139,12 +139,22 @@ export const APPROVE_ROUTES: Partial<
   },
 };
 
-/** Restart sends a run back to understanding from any status that allows it. */
-export const RESTART_ROUTE = {
-  to: "understanding",
-  nextStage: "understand",
-  text: "Restarting plan context...",
-} as const satisfies Route & { text: string };
+/**
+ * Restart is Request Changes at Understand or Plan: the run re-runs the stage it is waiting
+ * on, with the reader's notes. `stage` names the stage whose prompt gets the notes.
+ */
+export const RESTART_ROUTES = {
+  awaiting_understanding_approval: {
+    to: "understanding",
+    nextStage: "understand",
+    text: "Restarting plan context...",
+  },
+  awaiting_plan_approval: {
+    to: "planning",
+    nextStage: "plan",
+    text: "Re-running the plan with your changes...",
+  },
+} as const satisfies Partial<Record<RunStatus, Route & { text: string }>>;
 
 /**
  * Retry review sends a run from review_retry_required back to executing, to run the review job

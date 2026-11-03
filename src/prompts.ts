@@ -304,12 +304,22 @@ function renderVerificationBlock(project: Project): string {
   return commands ? `\n### Verification Commands:\n${commands}\n` : "";
 }
 
+/** The reader's Request Changes notes, as a block the Builder must address; "" when none. */
+function renderFeedbackBlock(feedback: string | undefined): string {
+  const notes = feedback?.trim();
+  return notes
+    ? `## Requested changes\nThe operator asked for changes to the last answer. Address these notes:\n${notes}\n\n`
+    : "";
+}
+
 /** What the Understand stage asks the Builder, and the facts it hands it (#282). */
 export interface UnderstandingPromptInput {
   ticket: Ticket;
   project: Project;
   /** The run's plan, when it already has one. */
   plan?: string | undefined;
+  /** The reader's notes from Request Changes at Understand (#327). */
+  feedback?: string | undefined;
   /** Paths the ticket and plan name; a hint the Builder must confirm itself. */
   namedFiles?: readonly string[] | undefined;
   /** Root files found before the call. */
@@ -327,7 +337,8 @@ export interface UnderstandingPromptInput {
 export function buildUnderstandingPrompt(
   input: UnderstandingPromptInput,
 ): string {
-  const { ticket, project, plan, namedFiles, rootFiles, notes } = input;
+  const { ticket, project, plan, feedback, namedFiles, rootFiles, notes } =
+    input;
   const criteria = renderAcceptanceCriteria(ticket, {
     fallback:
       "1. The implementation must fulfill the ticket title and description without regressions.",
@@ -342,6 +353,7 @@ export function buildUnderstandingPrompt(
   const repositoryBlock =
     repository.length > 0 ? `## Repository\n${repository.join("\n")}\n\n` : "";
   const planBlock = plan?.trim() ? `## Plan\n${plan.trim()}\n\n` : "";
+  const feedbackBlock = renderFeedbackBlock(feedback);
 
   return `You are analysing a repository for an upcoming ticket, before any code is written.
 You have read-only tools: read, grep, find, ls. You cannot change a file or run a command.
@@ -352,7 +364,7 @@ ${ticket.description ? `Description: ${ticket.description}\n` : ""}
 ### Acceptance Criteria:
 ${criteria}
 ${renderVerificationBlock(project)}
-${repositoryBlock}${planBlock}## Your Task
+${repositoryBlock}${planBlock}${feedbackBlock}## Your Task
 Inspect the repository with your tools, then answer with exactly these sections, in this order, and nothing else:
 
 RELEVANT_FILES:
@@ -393,6 +405,8 @@ export interface PlanPromptInput {
   project: Project;
   /** The plan the run already has: the operator's draft, or the last plan plus feedback. */
   draft?: string | undefined;
+  /** The reader's notes from Request Changes at Plan (#327). */
+  feedback?: string | undefined;
   /** What the Understand stage learned, when the run has it. */
   understanding?: ImplementationContext | null | undefined;
 }
@@ -403,7 +417,7 @@ export interface PlanPromptInput {
  * they touch. The plan it answers with is what the run shows for approval.
  */
 export function buildPlanPrompt(input: PlanPromptInput): string {
-  const { ticket, project, draft, understanding } = input;
+  const { ticket, project, draft, feedback, understanding } = input;
   const criteria = renderAcceptanceCriteria(ticket, {
     fallback:
       "1. The implementation must fulfill the ticket title and description without regressions.",
@@ -416,7 +430,9 @@ export function buildPlanPrompt(input: PlanPromptInput): string {
     understanding?.changeRequired === false
       ? `## No change required\nThe understanding found that no change is required: ${understanding.changeReason?.trim() || "the repository already does what the ticket asks"}\nIf the run continues anyway, do not invent work. Plan no code change, and name the existing file and test that already prove the criteria.\n\n`
       : "";
-  const draftBlock = draft?.trim() ? `## Plan so far\n${draft.trim()}\n\n` : "";
+  const draftBlock =
+    (draft?.trim() ? `## Plan so far\n${draft.trim()}\n\n` : "") +
+    renderFeedbackBlock(feedback);
 
   return `You are writing the implementation plan for a ticket, before any code is written.
 You have read-only tools: read, grep, find, ls. You cannot change a file or run a command.

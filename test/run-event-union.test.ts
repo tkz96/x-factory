@@ -151,8 +151,8 @@ describe("Shared run-event union (#171)", () => {
       .filter((e) => e.type === "status")
       .at(-1);
     expect(restartStatusEvt?.payload).toEqual({
-      status: "understanding",
-      text: "Restarting plan context...",
+      status: "planning",
+      text: "Re-running the plan with your changes...",
     });
 
     // 4. handleTransition abort / stop producer (emits status)

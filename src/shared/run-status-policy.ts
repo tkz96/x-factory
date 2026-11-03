@@ -33,7 +33,13 @@ export const TRANSITIONS: Record<RunStatus, RunStatus[]> = {
     "stopped",
     "recovery_required",
   ],
-  awaiting_plan_approval: ["executing", "understanding", "failed", "stopped"],
+  awaiting_plan_approval: [
+    "executing",
+    "planning",
+    "understanding",
+    "failed",
+    "stopped",
+  ],
   executing: [
     "awaiting_review",
     "failed",

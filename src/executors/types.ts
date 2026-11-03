@@ -49,6 +49,8 @@ export interface StageContext {
   /** 1-based attempt number of the job or command being executed. */
   attempt: number;
   workerId: string;
+  /** The notes of Request Changes at this stage (#327), when the reader gave any. */
+  feedback?: string | undefined;
   emit: EmitEvent;
   ledger: StageLedger;
   signal: AbortSignal;

@@ -199,6 +199,23 @@ export function deliverCommandWork(
   };
 }
 
+/**
+ * The notes the reader wrote when asking this stage to run again (#327). Only the newest
+ * feedback counts, and only when it was written for this stage.
+ */
+function stageFeedback(
+  repos: Repositories,
+  runId: string,
+  stage: string,
+): string | undefined {
+  const latest = repos.events
+    .getEventsForRun(runId)
+    .filter((event) => event.type === "user_feedback")
+    .at(-1);
+  if (latest?.type !== "user_feedback") return undefined;
+  return latest.payload.stage === stage ? latest.payload.notes : undefined;
+}
+
 /** The narrow context an executor runs with: inputs, `emit`, a run-bound ledger, a signal. */
 export function buildStageContext(
   repos: Repositories,
@@ -212,6 +229,7 @@ export function buildStageContext(
   const { attemptId, ...ids } = identity;
   return {
     ...ids,
+    feedback: stageFeedback(repos, run.id, ids.stage),
     run,
     project,
     emit: (type, payload) => {
