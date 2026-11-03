@@ -22,8 +22,8 @@ export const RUNS_FILTERS: ReadonlyArray<{
 export type RunsFilterCounts = Record<RunsFilterId, number>;
 
 /** The filter group a run's status belongs to. */
-function groupOf(run: Run): RunFilter {
-  return RUN_STATUS_UI[run.status]?.filter ?? "Running";
+function groupOf(run: Run): RunFilter | null {
+  return RUN_STATUS_UI[run.status]?.filter ?? null;
 }
 
 /** The runs one filter segment shows, in the order they were given. */

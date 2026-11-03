@@ -10,6 +10,7 @@ import { REVIEW_ATTEMPTS } from "../src/shared/review-attempts.js";
 import {
   ACTIONS_BY_STATUS,
   AWAITING_HUMAN_RUN_STATUSES,
+  NEEDS_YOU_RUN_STATUSES,
   TERMINAL_RUN_STATUSES,
   TRANSITIONS,
 } from "../src/shared/run-status-policy.js";
@@ -88,6 +89,26 @@ describe("run status UI mapping", () => {
       /Start a new run for a terminal ticket \(pull request opened, failed or stopped\)/,
     );
     expect(TERMINAL_RUN_STATUSES.has("pr_created")).toBe(true);
+  });
+});
+
+describe("the filter group comes from the shared status sets", () => {
+  it("is Needs you, Done or Running by the policy sets, for every status", () => {
+    for (const status of ALL) {
+      const expected = NEEDS_YOU_RUN_STATUSES.has(status)
+        ? "Needs you"
+        : TERMINAL_RUN_STATUSES.has(status)
+          ? "Done"
+          : "Running";
+      expect({ status, filter: RUN_STATUS_UI[status].filter }).toEqual({
+        status,
+        filter: expected,
+      });
+    }
+  });
+
+  it("an unknown status is in no group, so it does not count as Running", () => {
+    expect(runStatusUi("mystery" as RunStatus).filter).toBeNull();
   });
 });
 
