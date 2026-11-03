@@ -122,6 +122,12 @@ function withoutFailure(item: ChatItem): ChatItem {
   return copy;
 }
 
+/** Terminal statuses whose card (failure, stopped) already says the state. */
+const CARD_STATES_TERMINAL: ReadonlySet<RunStatus> = new Set([
+  "failed",
+  "stopped",
+]);
+
 /**
  * The groups without the closing status row that only repeats the decision card's title: the card
  * says what the run asks once. The row is dropped after grouping, so the stages stay as they were.
@@ -130,7 +136,9 @@ function withoutRepeatedStatus(
   groups: StageGroup[],
   status: RunStatus,
 ): StageGroup[] {
-  if (!NEEDS_YOU_STATUSES.has(status)) return groups;
+  if (!NEEDS_YOU_STATUSES.has(status) && !CARD_STATES_TERMINAL.has(status)) {
+    return groups;
+  }
   const last = groups
     .flatMap((group) => group.items)
     .findLast((item) => item.kind === "status");

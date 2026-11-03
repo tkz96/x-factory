@@ -232,6 +232,12 @@ function RunDetailsPane({ run, events, connected }: RunInspectorProps) {
   const passedChecks = checks.filter(
     (check) => check.verdict === VERDICT_PASS,
   ).length;
+  // "N of M passed" is for results that exist; with none, the total says why (#312, story 24).
+  const checksTotal = checks.every((check) => check.verdict === VERDICT_NOT_RUN)
+    ? VERDICT_NOT_RUN.text
+    : checks.every((check) => check.verdict === VERDICT_AWAITING)
+      ? VERDICT_AWAITING.text
+      : `${passedChecks} of ${checks.length} passed`;
   const logCount = `${events.length} ${plural(events.length, "event", "events")}`;
 
   return (
@@ -387,7 +393,7 @@ function RunDetailsPane({ run, events, connected }: RunInspectorProps) {
               <summary className="text-callout">
                 <span>Checks</span>
                 <span className="run-inspector-evidence-total">
-                  {`${passedChecks} of ${checks.length} passed`}
+                  {checksTotal}
                 </span>
               </summary>
               <dl className="run-inspector-rows">
