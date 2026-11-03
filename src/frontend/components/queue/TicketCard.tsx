@@ -12,10 +12,15 @@ import "./TicketCard.css";
 import { Link, useNavigate } from "react-router-dom";
 import type { Ticket } from "../../../shared/types.js";
 import { useModal } from "../../context/ModalContext.js";
+import { useProviderDescriptors } from "../../hooks/useProviderDescriptors.js";
 import type { TicketRunLink } from "../../lib/ticket-runs.js";
 import { Badge } from "../ui/Badge.js";
 import { Button } from "../ui/Button.js";
 import { Card } from "../ui/Card.js";
+import { resolveProviderLabel } from "../connections/connection-state.js";
+
+/** How many criteria and labels a card lists before it says "+N more". */
+const PREVIEW_LIMIT = 3;
 
 interface TicketCardProps {
   ticket: Ticket;
@@ -41,6 +46,7 @@ export function TicketCard({
 }: TicketCardProps) {
   const { openNewRunModal } = useModal();
   const navigate = useNavigate();
+  const { data: descriptors = [] } = useProviderDescriptors();
   const activeRunId = runLink.kind === "active" ? runLink.runId : null;
 
   const handleSelect = () => {
@@ -57,7 +63,9 @@ export function TicketCard({
     });
   };
 
-  const criteriaPreview = (ticket.acceptanceCriteria || []).slice(0, 3);
+  const allCriteria = ticket.acceptanceCriteria || [];
+  const criteriaPreview = allCriteria.slice(0, PREVIEW_LIMIT);
+  const hiddenCriteria = allCriteria.length - criteriaPreview.length;
   // The ticket's own labels, or the label the tracker requires when the
   // provider maps none. A tag, never a control: the Badge block's quiet role.
   const labels = handWritten
@@ -121,14 +129,20 @@ export function TicketCard({
             {criteriaPreview.map((criterion) => (
               <li key={criterion}>{criterion}</li>
             ))}
+            {hiddenCriteria > 0 && (
+              <li className="text-muted">+{hiddenCriteria} more</li>
+            )}
           </ul>
         )}
 
         <div className="ticket-footer">
           <div className="ticket-tags">
-            {labels.slice(0, 3).map((label) => (
+            {labels.slice(0, PREVIEW_LIMIT).map((label) => (
               <Badge key={label}>{label}</Badge>
             ))}
+            {labels.length > PREVIEW_LIMIT && (
+              <Badge>+{labels.length - PREVIEW_LIMIT} more</Badge>
+            )}
           </div>
           {ticket.url && (
             <a
@@ -138,7 +152,11 @@ export function TicketCard({
               className="ticket-ext-link text-subhead"
               onClick={(e) => e.stopPropagation()}
             >
-              View on {ticket.provider || "tracker"} ↗
+              View on{" "}
+              {ticket.provider
+                ? resolveProviderLabel(ticket.provider, descriptors)
+                : "tracker"}{" "}
+              ↗
             </a>
           )}
         </div>
