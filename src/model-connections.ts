@@ -30,8 +30,6 @@ import type {
 } from "./shared/model-connection-types.js";
 import { DEFAULT_BASE_URLS } from "./shared/model-connection-types.js";
 
-export { DEFAULT_BASE_URLS };
-
 /** Official endpoints for each API type. Provider env vars override only these. */
 export const OFFICIAL_BASE_URLS: Readonly<Record<ModelApiType, string>> = {
   gemini: "https://generativelanguage.googleapis.com/v1beta",

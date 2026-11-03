@@ -148,7 +148,10 @@ describe("Frontend Smoke — unused-name scans catch planted names (fixture)", (
 describe("Frontend Smoke — the type scale exemption is exact", () => {
   const scale = {
     file: "specimen.tsx",
-    text: 'const TYPE_SCALE = [["Body", "body"], ["Footnote", "footnote"]] as const;\n<p className={`text-${key}`} />',
+    text: [
+      'const TYPE_SCALE = [["Body", "body"], ["Footnote", "footnote"]] as const;',
+      "<p className={`text-" + "$" + "{key}`} />",
+    ].join("\n"),
   };
   it("exempts only the keys in TYPE_SCALE", () => {
     const css = {
