@@ -15,7 +15,6 @@ import {
   cleanup,
   fireEvent,
   render,
-  waitFor,
   waitForElementToBeRemoved,
 } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -169,7 +168,10 @@ describe("the run page through a short server outage", () => {
     await view.findByText("Connection lost");
     reachable = true;
     fireEvent.click(view.getByRole("button", { name: "Try Again" }));
-    await waitFor(() => expect(view.queryByText("Connection lost")).toBeNull());
+    // Not waitFor(() => expect(node).toBeNull()): while the banner is still there, each failed try
+    // pretty-prints the whole happy-dom node into the assertion message and blocks the event loop
+    // for seconds (the test then hit bun's 5 s limit). Waiting for removal checks the same thing.
+    await waitForElementToBeRemoved(() => view.queryByText("Connection lost"));
     expect(view.container.querySelector("#understanding-chat")).not.toBeNull();
   });
 
