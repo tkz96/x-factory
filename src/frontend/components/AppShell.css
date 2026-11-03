@@ -234,16 +234,10 @@
 
 /* Phone width: the title wraps to two lines rather than ellipsising; the branch is in Details. */
 @media (max-width: 768px) {
-  /* The title keeps room to read; the activity beside it is short and does not shrink. */
-  .toolbar-run-heading {
-    flex: 1 1 5rem;
-    min-width: 5rem;
-  }
-
+  /* The title takes the room: it wraps to two readable lines. The other run's activity gives way
+     to the Runs tab badge, which already counts the runs in progress. */
   .toolbar-run-heading + .toolbar-activity {
-    padding-inline: 0;
-    margin-inline-start: 0;
-    border-inline-start: none;
+    display: none;
   }
 
   .toolbar-run-heading .toolbar-title {

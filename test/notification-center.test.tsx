@@ -325,13 +325,7 @@ describe("notification bell (#264)", () => {
   it("the activity area shows runs in progress and hides when none are", () => {
     const { push } = renderCenter(snapshot({ runs: [run("r1", "executing")] }));
     const link = view().getByRole("link", { name: /T-r1/ });
-    // The full label, and the short one phone width shows (spec #312, story 16).
-    expect(
-      link.querySelector(".toolbar-activity-long")?.textContent?.trim(),
-    ).toBe("Running: T-r1");
-    expect(
-      link.querySelector(".toolbar-activity-short")?.textContent?.trim(),
-    ).toBe("T-r1");
+    expect(link.textContent?.trim()).toBe("Running: T-r1");
     expect(link.textContent).not.toContain("Writing code");
 
     push(envelope(150, "r1", "pr_created"));
