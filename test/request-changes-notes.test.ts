@@ -146,6 +146,31 @@ describe("Request Changes carries notes (#327)", () => {
     expect(session.prompts[0]).toContain("Draft plan");
   });
 
+  it("at Review sends the run to Plan, and the Plan prompt holds the notes as feedback", async () => {
+    await seedRun("run-r", "awaiting_review");
+    const run = await handleTransition(repos, "run-r", "requeue", {
+      chatNotes: NOTES,
+    });
+    expect(run.status).toBe("planning");
+    expect(
+      repos.events
+        .getEventsForRun("run-r")
+        .find((e) => e.type === "user_feedback")?.payload,
+    ).toMatchObject({ notes: NOTES, stage: "plan" });
+
+    const session = scriptedReviewSession(PLAN_OUTPUT);
+    const outcome = await executeStage(
+      repos,
+      new PlanExecutor({ ...models, sessionFactory: async () => session }),
+      "run-r",
+      "plan",
+    );
+    expect(outcome.outcome).toBe("passed");
+    expect(session.prompts[0]).toContain(
+      `## Requested changes\nThe operator asked for changes to the last answer. Address these notes:\n${NOTES}`,
+    );
+  });
+
   it("without notes, Request Changes still moves the run and records no feedback", async () => {
     await seedRun("run-n", "awaiting_plan_approval");
     const run = await handleTransition(repos, "run-n", "restart");

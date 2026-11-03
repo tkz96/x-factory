@@ -919,6 +919,7 @@ export async function handleTransition(
         eventRepo.appendEvent(id, "user_feedback", {
           failingTasks: payload.failingTasks,
           notes: payload.chatNotes,
+          stage: REQUEUE_ROUTE.nextStage,
           text: `Feedback provided: ${payload.failingTasks?.length || 0} failing tasks.`,
         });
       }
