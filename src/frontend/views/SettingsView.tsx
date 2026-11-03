@@ -8,13 +8,20 @@ import "./SettingsView.css";
 
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import type { Project } from "../../shared/types.js";
+import type {
+  DiagnosticsResponse,
+  Project,
+  ReadinessResponse,
+} from "../../shared/types.js";
 import { ConnectionComboLine } from "../components/connections/ConnectionComboLine.js";
 import { comboTone } from "../components/connections/connection-state.js";
+import { AsyncRegion } from "../components/feedback/AsyncRegion.js";
 import {
   CONNECTIONS_COPY,
+  STATE_COPY,
   STATUS_COPY,
 } from "../components/feedback/copy-map.js";
+import { deriveAsyncState } from "../components/feedback/derive-async-state.js";
 import { RetryAction } from "../components/feedback/RetryAction.js";
 import { AlertDialog } from "../components/overlays/AlertDialog.js";
 import {
@@ -45,6 +52,7 @@ import { useProviderDescriptors } from "../hooks/useProviderDescriptors.js";
 import {
   useDiagnostics,
   useProjects,
+  useReadiness,
   useSaveSettings,
   useSettings,
 } from "../hooks/useQueries.js";
@@ -95,71 +103,126 @@ function settingsTabFromParam(value: string | null): SettingsTab {
   return SETTINGS_TABS.find((tab) => tab === value) ?? "general";
 }
 
+/** What one service's row reports: a check's answer, or why there is none (#323). */
+type ServiceHealth = "healthy" | "unavailable" | "checking" | "unknown";
+
 interface DiagnosticStatusProps {
-  status: "healthy" | "unavailable";
+  health: ServiceHealth;
 }
 
 /** The health of one diagnostic service, as a badge in the row's trailing slot. */
-function DiagnosticStatus({ status }: DiagnosticStatusProps) {
-  return (
-    <Badge tone={status === "healthy" ? "success" : "error"}>
-      {status === "healthy" ? STATUS_COPY.healthy : STATUS_COPY.unavailable}
-    </Badge>
-  );
+function DiagnosticStatus({ health }: DiagnosticStatusProps) {
+  const tone =
+    health === "healthy"
+      ? "success"
+      : health === "unavailable"
+        ? "error"
+        : "neutral";
+  const label: Record<ServiceHealth, string> = {
+    healthy: STATUS_COPY.healthy,
+    unavailable: STATUS_COPY.unavailable,
+    checking: STATE_COPY.loading,
+    unknown: "Unknown",
+  };
+  return <Badge tone={tone}>{label[health]}</Badge>;
 }
 
-interface DiagnosticsTabContentProps {
-  isLoading: boolean;
-  diagnostics: ReturnType<typeof useDiagnostics>["data"];
+/** The database row is the readiness check's answer; it is never assumed (#323). */
+function databaseHealth(
+  readiness: ReadinessResponse | undefined,
+  readinessFailed: boolean,
+): ServiceHealth {
+  if (readiness !== undefined) {
+    return readiness.database.status === "ready" ? "healthy" : "unavailable";
+  }
+  return readinessFailed ? "unknown" : "checking";
+}
+
+interface DiagnosticsReportProps {
+  diagnostics: DiagnosticsResponse;
+  readiness: ReadinessResponse | undefined;
+  readinessFailed: boolean;
 }
 
 /**
- * Diagnostics, as two inset groups: the services, then the job queue,
- * each row trailing the value it reports.
+ * Diagnostics, as inset groups: the services, the job queue, and the readiness
+ * checks that need attention. Every value comes from a response that answered.
  */
-function DiagnosticsTabContent({
-  isLoading,
+function DiagnosticsReport({
   diagnostics,
-}: DiagnosticsTabContentProps) {
-  if (isLoading) {
-    return <PlaceholderRows count={3} group />;
-  }
-
-  const workerHealthy = diagnostics?.worker.status === "healthy";
-  const staleJobs = diagnostics?.database.jobs.stale ?? 0;
+  readiness,
+  readinessFailed,
+}: DiagnosticsReportProps) {
+  const workerHealthy = diagnostics.worker.status === "healthy";
+  const staleJobs = diagnostics.database.jobs.stale;
+  const journalMode = readiness?.database.journalMode;
+  const journalLabel =
+    journalMode !== undefined && journalMode !== "unknown"
+      ? `${journalMode.toUpperCase()} mode`
+      : "Journal mode unknown";
+  const attention = (readiness?.checks ?? []).filter(
+    (check) => check.status !== "pass",
+  );
 
   return (
     <>
       <ListGroup title="Services">
         <ListGroupRow
           title="API"
-          subtitle={`Uptime ${diagnostics?.system.uptime ?? 0}s`}
-          trailing={<DiagnosticStatus status="healthy" />}
+          subtitle={`Uptime ${diagnostics.system.uptime}s`}
+          trailing={
+            <DiagnosticStatus
+              health={diagnostics.status === "ok" ? "healthy" : "unavailable"}
+            />
+          }
         />
         <ListGroupRow
           title="Database"
-          subtitle={`WAL mode · ${diagnostics?.database.runs.total ?? 0} runs`}
-          trailing={<DiagnosticStatus status="healthy" />}
+          subtitle={`${journalLabel} · ${diagnostics.database.runs.total} runs`}
+          trailing={
+            <DiagnosticStatus
+              health={databaseHealth(readiness, readinessFailed)}
+            />
+          }
         />
         <ListGroupRow
           title="Worker fleet"
-          subtitle={`${diagnostics?.worker.activeCount ?? 0} active worker(s)`}
+          subtitle={`${diagnostics.worker.activeCount} active worker(s)`}
           trailing={
             <DiagnosticStatus
-              status={workerHealthy ? "healthy" : "unavailable"}
+              health={workerHealthy ? "healthy" : "unavailable"}
             />
           }
         />
       </ListGroup>
 
+      {attention.length > 0 && (
+        <ListGroup title="Needs attention">
+          {attention.map((check) => (
+            <ListGroupRow
+              key={check.name}
+              title={check.name}
+              subtitle={check.message}
+              trailing={
+                <Badge tone={check.status === "fail" ? "error" : "warning"}>
+                  {check.status === "fail"
+                    ? STATUS_COPY.stageFailed
+                    : "Warning"}
+                </Badge>
+              }
+            />
+          ))}
+        </ListGroup>
+      )}
+
       <ListGroup title="Job queue">
         <ListGroupRow
           title="Active jobs"
-          trailing={diagnostics?.database.jobs.claimed ?? 0}
+          trailing={diagnostics.database.jobs.claimed}
         />
         <ListGroupRow
           title="Pending jobs"
-          trailing={diagnostics?.database.jobs.pending ?? 0}
+          trailing={diagnostics.database.jobs.pending}
         />
         <ListGroupRow
           title="Stale jobs"
@@ -173,10 +236,37 @@ function DiagnosticsTabContent({
         />
         <ListGroupRow
           title="Completed jobs"
-          trailing={diagnostics?.database.jobs.completed ?? 0}
+          trailing={diagnostics.database.jobs.completed}
         />
       </ListGroup>
     </>
+  );
+}
+
+/**
+ * The Diagnostics pane's body. Its region shows the loading rows, the error
+ * with a retry, or the report, so a failed query never reads as zeros (#323).
+ */
+function DiagnosticsTabContent() {
+  const diagnosticsQuery = useDiagnostics();
+  const readinessQuery = useReadiness();
+  const derived = deriveAsyncState(diagnosticsQuery);
+
+  return (
+    <AsyncRegion
+      derived={derived}
+      onRetry={() => void diagnosticsQuery.refetch()}
+      placeholderRows={3}
+      placeholderGroup
+    >
+      {diagnosticsQuery.data !== undefined && (
+        <DiagnosticsReport
+          diagnostics={diagnosticsQuery.data}
+          readiness={readinessQuery.data}
+          readinessFailed={readinessQuery.isError}
+        />
+      )}
+    </AsyncRegion>
   );
 }
 
@@ -506,7 +596,6 @@ function GitTabContent() {
 
 export function SettingsView() {
   const { data: settings } = useSettings();
-  const { data: diagnostics, isLoading: isDiagLoading } = useDiagnostics();
   const { data: projects = [], isLoading: isProjectsLoading } = useProjects();
   const { openOnboardingModal } = useModal();
   const saveSettingsMutation = useSaveSettings();
@@ -611,10 +700,7 @@ export function SettingsView() {
                 fleet, and job telemetry.
               </p>
 
-              <DiagnosticsTabContent
-                isLoading={isDiagLoading}
-                diagnostics={diagnostics}
-              />
+              <DiagnosticsTabContent />
             </div>
           )}
 

@@ -3,14 +3,29 @@
 import "./ReadinessBanner.css";
 
 import { useReadiness } from "../../hooks/useQueries.js";
+import { readinessNeedsAttention } from "../../lib/readiness-state.js";
+import { AsyncRegion } from "../feedback/AsyncRegion.js";
+import { deriveAsyncState } from "../feedback/derive-async-state.js";
 import { Button } from "../ui/Button.js";
 import { Card } from "../ui/Card.js";
 import { Icon } from "../ui/Icon.js";
 
 export function ReadinessBanner() {
-  const { data: readiness, isLoading, refetch, isRefetching } = useReadiness();
+  const query = useReadiness();
+  const { data: readiness, refetch, isRefetching } = query;
+  const derived = deriveAsyncState(query);
 
-  if (isLoading) {
+  // A readiness check that failed is not a ready workbench: the banner says so
+  // and offers the retry (#323).
+  if (derived.state === "error") {
+    return (
+      <Card className="readiness-banner warning" padding="compact">
+        <AsyncRegion derived={derived} onRetry={() => void refetch()} />
+      </Card>
+    );
+  }
+
+  if (derived.state === "loading") {
     return (
       <Card className="readiness-banner" padding="compact">
         <span className="text-muted text-callout">
@@ -22,7 +37,7 @@ export function ReadinessBanner() {
 
   const checks = readiness?.checks ?? [];
   const attention = checks.filter((check) => check.status !== "pass");
-  const isReady = readiness?.ready !== false && attention.length === 0;
+  const isReady = !readinessNeedsAttention(readiness);
   const checkedNames = checks.map((check) => check.name).join(", ");
 
   return (
