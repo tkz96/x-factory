@@ -6,6 +6,7 @@ import { assertRolesReady, ModelUnavailableError } from "../model-roles.js";
 import * as runs from "../runs.js";
 import { isReservedRunBranch } from "../shared/branch-name.js";
 import { normalizeCriterion } from "../shared/normalization.js";
+import { MODEL_ROLES_UNAVAILABLE_CODE } from "../shared/run-creation.js";
 import { TERMINAL_RUN_STATUSES } from "../shared/run-status-policy.js";
 import type {
   AbandonRunResponse,
@@ -85,7 +86,10 @@ export async function handleCreateRun(
         await assertRolesReady();
       } catch (err: unknown) {
         if (err instanceof ModelUnavailableError) {
-          return errorResponse(err.message, 409);
+          return jsonResponse(
+            { error: err.message, code: MODEL_ROLES_UNAVAILABLE_CODE },
+            409,
+          );
         }
         throw err;
       }
