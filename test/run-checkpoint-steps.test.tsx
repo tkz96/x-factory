@@ -82,7 +82,7 @@ describe("a checkpoint button says what was just pressed", () => {
       container
         .querySelector("form.run-chat-input textarea")
         ?.getAttribute("placeholder"),
-    ).toContain("Describe the changes needed");
+    ).toBe("Describe the changes needed for the next try…");
   });
 
   it("Create Pull Request on a ready run says the pull request is opening", () => {

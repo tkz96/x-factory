@@ -656,6 +656,34 @@ describe("hand-written tickets in the Tickets list", () => {
     }
   });
 
+  it("keeps the loaded projects when a later refetch fails", async () => {
+    const client = makeClient();
+    seedProjects(client);
+    client.setQueryData(queryKeys.tickets(ACME.id), [
+      ticket("ACME-1", "Checkout copy"),
+    ]);
+    client.setQueryData(queryKeys.tickets(DEMO.id), []);
+    const spy = spyOn(api, "getProjects").mockRejectedValue(
+      new Error("Failed to load projects"),
+    );
+    try {
+      renderWithScope(React.createElement(QueueView), client);
+      await act(async () => {
+        await client.refetchQueries({ queryKey: queryKeys.projects() });
+      });
+      // The failed refetch reaches the provider on the next render.
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+
+      expect(client.getQueryState(queryKeys.projects())?.status).toBe("error");
+      expect(screen().getByText("Checkout copy")).toBeDefined();
+      expect(screen().queryByRole("alert")).toBeNull();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it("shows the loading region while a chosen project is still loading", () => {
     window.localStorage.setItem(PROJECT_SCOPE_STORAGE_KEY, "demo-app");
     const spy = spyOn(api, "getProjects").mockImplementation(

@@ -14,6 +14,7 @@ import {
 interface ProjectContextValue {
   projects: Project[];
   isProjectsLoading: boolean;
+  /** True only when no project list has loaded: a failed refetch keeps the old list. */
   isError: boolean;
   error?: unknown;
   refetch?: (() => void) | undefined;
@@ -66,7 +67,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       value={{
         projects,
         isProjectsLoading,
-        isError,
+        isError: isError && data === undefined,
         error,
         refetch: () => {
           void refetch();

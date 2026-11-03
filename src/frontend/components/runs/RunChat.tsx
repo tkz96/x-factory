@@ -269,8 +269,13 @@ export function RunChat({
   // The placeholder says what to write, never what the status already says above: the status's own
   // line only guides a run that is waiting on you.
   const ui = runStatusUi(run.status);
+  // Review sends the run back to planning; Understand and Plan run their own stage again.
+  const reworkPlaceholder =
+    run.status === "awaiting_review"
+      ? "Describe the changes needed before replanning…"
+      : "Describe the changes needed for the next try…";
   const placeholderText = flow.reworkPrompt
-    ? "Describe the changes needed before replanning…"
+    ? reworkPlaceholder
     : canChat
       ? ui.placeholder
       : "Message the Builder…";
