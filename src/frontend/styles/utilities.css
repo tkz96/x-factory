@@ -98,25 +98,10 @@
   flex-direction: column;
   gap: var(--space-4);
 }
-.text-center {
-  text-align: center;
-}
 
 /* ── Color Utilities ────────────────────────────────────────────────── */
 .text-muted {
   color: var(--text-muted);
-}
-.text-dim {
-  color: var(--text-dim);
-}
-.text-accent {
-  color: var(--accent);
-}
-.text-success {
-  color: var(--green-text);
-}
-.text-danger {
-  color: var(--red-text);
 }
 .text-warning {
   color: var(--orange-text);

@@ -184,6 +184,8 @@ export const DYNAMIC_COPY_MAPS: Record<string, string> = {
   VALIDATION_FIELD_ERROR_COPY: "looked up by validation code",
   VALIDATION_FORM_ERROR_COPY: "looked up by validation code",
   PROVIDER_ERROR_COPY: "looked up by provider error code",
+  MODEL_CONNECTIONS_COPY:
+    "the model details form reads field labels as COPY[key] over its field lists",
   REPOSITORY_SETTINGS_COPY:
     "indexed by the check field name (test, typecheck, lint)",
 };
@@ -193,23 +195,6 @@ export const DYNAMIC_COPY_MAPS: Record<string, string> = {
  * is `MAP.key` and names why.
  */
 export const DYNAMIC_COPY_KEYS: Record<string, string> = {
-  ...Object.fromEntries(
-    [
-      "contextWindow",
-      "maxOutputTokens",
-      "inputPricePerMTok",
-      "outputPricePerMTok",
-      "rpm",
-      "tpm",
-      "rpd",
-      "tpd",
-      "budgetUsd",
-      "budgetRequests",
-    ].map((key) => [
-      `MODEL_CONNECTIONS_COPY.${key}`,
-      "field label, read as COPY[key] in ModelConnectionsPanel",
-    ]),
-  ),
   "MODEL_ROLES_COPY.builder": "role label, read as COPY[role] in RolesPanel",
   "MODEL_ROLES_COPY.reviewer": "role label, read as COPY[role] in RolesPanel",
 };
@@ -262,6 +247,24 @@ export function definedClasses(css: string): Set<string> {
 }
 
 /**
+ * The `text-<key>` classes the specimen page builds from its TYPE_SCALE list.
+ * Read from that list, so a class outside the scale is not exempt.
+ */
+export function typeScaleClasses(code: SourceFile[]): Set<string> {
+  const out = new Set<string>();
+  for (const { text } of code) {
+    const list = /const TYPE_SCALE\b[^=]*=\s*\[([\s\S]*?)\]\s*as const/.exec(
+      text,
+    );
+    if (!list?.[1]) continue;
+    for (const pair of list[1].matchAll(/\[\s*"[^"]*"\s*,\s*"([^"]+)"\s*\]/g)) {
+      out.add(`text-${pair[1]}`);
+    }
+  }
+  return out;
+}
+
+/**
  * Classes that code never names, or builds from a prefix it does name.
  * `code` holds every file a class may be written in (TSX, TS, index.html).
  */
@@ -270,6 +273,7 @@ export function unusedClasses(
   code: SourceFile[],
   allow: Record<string, string> = ALLOWED_CLASS_PREFIXES,
 ): string[] {
+  const typeScale = typeScaleClasses(code);
   const text = code.map((c) => stripCodeComments(c.text)).join("\n");
   const words = new Set(text.match(/[A-Za-z_][\w-]*/g) ?? []);
   // `icon-${size}` names a family of one-word variants (`icon-sm`); a longer tail such as `icon-status-passed` is not covered. Only a template that sits inside a
@@ -278,7 +282,9 @@ export function unusedClasses(
   const suffixes: string[] = [];
   for (const m of text.matchAll(/([A-Za-z_][\w-]*-)\$\{/g)) {
     const before = text.slice(Math.max(0, (m.index ?? 0) - 160), m.index);
-    if (/class/i.test(before)) prefixes.push(m[1] as string);
+    // `text-${key}` is the type scale, which `typeScaleClasses` reads exactly.
+    if (/class/i.test(before) && m[1] !== "text-")
+      prefixes.push(m[1] as string);
   }
   for (const m of text.matchAll(/\}([\w]*-[\w-]+)/g)) {
     const before = text.slice(Math.max(0, (m.index ?? 0) - 160), m.index);
@@ -288,6 +294,7 @@ export function unusedClasses(
   for (const { file, text: css } of styles) {
     for (const cls of definedClasses(css)) {
       if (words.has(cls)) continue;
+      if (typeScale.has(cls)) continue;
       if (
         prefixes.some(
           (p) => cls.startsWith(p) && !cls.slice(p.length).includes("-"),
@@ -314,7 +321,6 @@ export function unusedClasses(
 export const ALLOWED_CLASS_PREFIXES: Record<string, string> = {
   "react-flow": "React Flow adds these class names itself",
   "react-aria-": "React Aria Components adds these default class names",
-  "text-": "the type scale is built as text-<key> in the specimen page",
 };
 
 // ---------------------------------------------------------------------------
