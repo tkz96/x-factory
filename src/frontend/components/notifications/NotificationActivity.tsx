@@ -23,7 +23,12 @@ export function NotificationActivity() {
         aria-label={`Running: ${only.ticketId}, ${status}`}
       >
         <Icon name="icon-loader-2" size="sm" className="icon-spin" />
-        <span className="toolbar-activity-text">{`Running: ${only.ticketId}`}</span>
+        <span className="toolbar-activity-text toolbar-activity-long">
+          {`Running: ${only.ticketId}`}
+        </span>
+        <span className="toolbar-activity-text toolbar-activity-short">
+          {only.ticketId}
+        </span>
       </Link>
     );
   }
@@ -36,7 +41,12 @@ export function NotificationActivity() {
       aria-label={`${count} runs in progress`}
     >
       <Icon name="icon-loader-2" size="sm" className="icon-spin" />
-      <span className="toolbar-activity-text">{count} runs in progress</span>
+      <span className="toolbar-activity-text toolbar-activity-long">
+        {count} runs in progress
+      </span>
+      <span className="toolbar-activity-text toolbar-activity-short">
+        {count} running
+      </span>
     </Link>
   );
 }

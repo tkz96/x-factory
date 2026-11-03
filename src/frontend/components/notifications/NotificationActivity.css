@@ -14,11 +14,20 @@
   white-space: nowrap;
 }
 
-/* Phone width keeps only the glyph: the bar has no room for the text (the link
-   keeps its accessible name). */
+/* Phone width reads a short label beside the glyph ("DEMO-103", "3 running"); the link keeps
+   its full accessible name. */
+.toolbar-activity-short {
+  display: none;
+}
+
 @media (max-width: 768px) {
-  .toolbar-activity-text {
+  .toolbar-activity-long {
     display: none;
+  }
+
+  .toolbar-activity-short {
+    display: inline;
+    max-width: 7rem;
   }
 }
 
