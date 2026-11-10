@@ -249,6 +249,13 @@ export interface QuickUrlDraft {
 // Repositories and pull requests
 // ---------------------------------------------------------------------------
 
+/** The repository whose branches are listed: id and/or remote from discovery. */
+export interface BranchListingRepository {
+  id: string;
+  name?: string | undefined;
+  remote?: string | undefined;
+}
+
 export interface ProviderRepository {
   id: string;
   name: string;
@@ -343,6 +350,7 @@ export interface GitCredentials {
 const OPTIONAL_CAPABILITIES = [
   "verifyScopes",
   "listRepositories",
+  "listBranches",
   "listTickets",
   "parseQuickUrl",
   "createPullRequest",
@@ -387,6 +395,14 @@ export interface Provider<Id extends string = string> {
   verifyScopes?(config: ProviderConfig): Promise<ScopeVerificationReport>;
   /** Repository discovery. Optional — Jira Cloud has no repo-discovery API. */
   listRepositories?(config: ProviderConfig): Promise<ProviderRepository[]>;
+  /**
+   * The branch names of one repository, so the user can choose its base
+   * branch. `repository` is the coordinate `listRepositories` returned.
+   */
+  listBranches?(
+    config: ProviderConfig,
+    repository: BranchListingRepository,
+  ): Promise<string[]>;
   /** Ticket listing, filtered by the required workflow label. */
   listTickets?(
     config: ProviderConfig,

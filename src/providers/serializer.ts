@@ -55,6 +55,7 @@ export interface ProviderDescriptor {
 const KNOWN_CAPABILITIES: readonly ProviderCapability[] = [
   "verifyScopes",
   "listRepositories",
+  "listBranches",
   "listTickets",
   "parseQuickUrl",
   "createPullRequest",

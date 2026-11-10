@@ -1,6 +1,10 @@
 // src/providers/github/repositories.ts — GitHub repository discovery and pagination (#138).
 
-import type { ProviderConfig, ProviderRepository } from "../contract.js";
+import type {
+  BranchListingRepository,
+  ProviderConfig,
+  ProviderRepository,
+} from "../contract.js";
 import { type HttpTransport, parseLinkNextUrl } from "../http.js";
 import { resolveGitHubConfig } from "./config.js";
 import { GitHubHttpError } from "./errors.js";
@@ -9,6 +13,7 @@ import {
   githubFetch,
   resolveGitHubHeaders,
 } from "./http.js";
+import { resolveRepoCoordinates } from "./urls.js";
 
 interface RawGitHubRepo {
   id?: number | string;
@@ -129,4 +134,37 @@ export async function listGitHubRepositories(
   }
 
   return allRepos;
+}
+
+/**
+ * Lists the branch names of one repository (paginated). The repository is
+ * resolved from its remote, else its name under the configured owner.
+ */
+export async function listGitHubBranches(
+  config: ProviderConfig,
+  repository: BranchListingRepository,
+  fetchFn?: typeof fetch | HttpTransport | undefined,
+): Promise<string[]> {
+  const { token, owner: configOwner, baseUrl } = resolveGitHubConfig(config);
+  const root = baseUrl || DEFAULT_GITHUB_API_ROOT;
+  const headers = resolveGitHubHeaders(token);
+  const { owner, repo } = resolveRepoCoordinates(
+    repository.remote || repository.name || repository.id,
+    configOwner,
+  );
+
+  const names: string[] = [];
+  const visited = new Set<string>();
+  let nextUrl: string | null =
+    `${root}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/branches?per_page=100`;
+  while (nextUrl && !visited.has(nextUrl)) {
+    visited.add(nextUrl);
+    const res = await githubFetch(nextUrl, { headers, fetchFn });
+    for (const item of Array.isArray(res.data) ? res.data : []) {
+      const name = (item as { name?: unknown } | null)?.name;
+      if (typeof name === "string" && name) names.push(name);
+    }
+    nextUrl = parseLinkNextUrl(res.headers.get("link"));
+  }
+  return names;
 }

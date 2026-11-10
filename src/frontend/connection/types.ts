@@ -82,6 +82,16 @@ export interface RepositoriesEnvelope {
   repositories: ProviderRepository[];
 }
 
+/** The branches of one repository, as listed by the git-host provider. */
+export interface BranchesEnvelope {
+  providerId: string;
+  branches: string[];
+}
+
+export interface ListBranchesPayload extends DiscoverRepositoriesPayload {
+  repository: { id: string; name?: string; remote?: string };
+}
+
 export interface DiscoverRepositoriesPayload {
   providerId: string;
   role: ProjectConnectionRole;

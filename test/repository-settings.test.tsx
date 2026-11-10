@@ -127,6 +127,67 @@ describe("RepositorySettings (#283)", () => {
     expect(document.body.textContent).toContain("Saved");
   });
 
+  it("shows the base branch, loads the branches on demand and saves the chosen one", async () => {
+    const getBranches = mock(async () => ["develop", "main"]);
+    api.getRepositoryBranches =
+      getBranches as unknown as typeof api.getRepositoryBranches;
+    renderSettings();
+    expect(
+      document.getElementById("repo-base-branch-web")?.textContent,
+    ).toContain("main");
+    expect(getBranches).not.toHaveBeenCalled();
+
+    act(() => {
+      fireEvent.click(field("btn-base-branch-change-web"));
+    });
+    await flush();
+    await flush();
+    expect(getBranches).toHaveBeenCalledWith("rocket", "web");
+    act(() => {
+      fireEvent.change(field("base-branch-select-web"), {
+        target: { value: "develop" },
+      });
+    });
+    await act(async () => {
+      fireEvent.click(field("repo-settings-web-save"));
+    });
+    await flush();
+    const [, repositories] = update.mock.calls[0] as [
+      string,
+      ProjectRepository[],
+    ];
+    expect(repositories[0]?.defaultBranch).toBe("develop");
+    expect(repositories[1]?.defaultBranch).toBe("main");
+  });
+
+  it("falls back to a typed base branch when listing fails, and refuses an empty one", async () => {
+    api.getRepositoryBranches = mock(async () => {
+      throw new Error("nope");
+    }) as unknown as typeof api.getRepositoryBranches;
+    renderSettings();
+    act(() => {
+      fireEvent.click(field("btn-base-branch-change-web"));
+    });
+    await flush();
+    await flush();
+    typeInto(field("base-branch-input-web"), "  ");
+    await act(async () => {
+      fireEvent.click(field("repo-settings-web-save"));
+    });
+    expect(update).not.toHaveBeenCalled();
+    expect(document.body.textContent).toContain("Enter the base branch");
+    typeInto(field("base-branch-input-web"), "release/2");
+    await act(async () => {
+      fireEvent.click(field("repo-settings-web-save"));
+    });
+    await flush();
+    const [, repositories] = update.mock.calls[0] as [
+      string,
+      ProjectRepository[],
+    ];
+    expect(repositories[0]?.defaultBranch).toBe("release/2");
+  });
+
   it("refuses an empty path without calling the API", async () => {
     renderSettings();
     typeInto(field("repo-settings-web-path"), "   ");

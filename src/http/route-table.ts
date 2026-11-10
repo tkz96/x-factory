@@ -47,6 +47,7 @@ import {
   handleGetProjects,
   handleGetProjectTickets,
   handleGetProjectTracker,
+  handleGetRepositoryBranches,
   handleInspectRepository,
   handleMigrateProject,
   handleTestProjectTracker,
@@ -56,6 +57,7 @@ import {
   projectRoute,
 } from "./projects-controller.js";
 import {
+  handleBranchesRoute,
   handleDescribeRoute,
   handleManifestRoute,
   handleParseUrlRoute,
@@ -424,6 +426,21 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
   }),
   route({
     method: "GET",
+    path: "/api/projects/{id}/repositories/{repoId}/branches",
+    tags: ["Projects"],
+    summary: "List Repository Branches",
+    operationId: "getProjectRepositoryBranches",
+    responseDescription: "The branch names of the project's repository",
+    handler: projectRoute(({ params, ctx }) =>
+      handleGetRepositoryBranches(
+        params.id,
+        params.repoId as string,
+        registryOf(ctx),
+      ),
+    ),
+  }),
+  route({
+    method: "GET",
     path: "/api/projects/{id}/readiness",
     tags: ["Projects"],
     summary: "Get Project Readiness",
@@ -649,6 +666,15 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     operationId: "discoverProviderRepositories",
     responseDescription: "Visible repositories or a normalized provider error",
     handler: ({ req, ctx }) => handleRepositoriesRoute(req, registryOf(ctx)),
+  }),
+  route({
+    method: "POST",
+    path: "/api/providers/branches",
+    tags: ["Providers"],
+    summary: "List Repository Branches",
+    operationId: "listProviderBranches",
+    responseDescription: "The repository's branch names or a normalized error",
+    handler: ({ req, ctx }) => handleBranchesRoute(req, registryOf(ctx)),
   }),
   route({
     method: "POST",

@@ -36,9 +36,11 @@ import type {
 } from "../../shared/types.js";
 import type { NormalizedError } from "../components/feedback/types.js";
 import type {
+  BranchesEnvelope,
   ConnectionIdentityResult,
   DescribeConnectionPayload,
   DiscoverRepositoriesPayload,
+  ListBranchesPayload,
   ParseUrlResult,
   ProviderDescriptor,
   RepositoriesEnvelope,
@@ -240,6 +242,18 @@ export const api = {
       return handleResponse<RepositoriesEnvelope | NormalizedError>(res);
     },
 
+    /** The branches of one repository, for choosing its base branch. */
+    async listBranches(
+      payload: ListBranchesPayload,
+    ): Promise<BranchesEnvelope | NormalizedError> {
+      const res = await fetch("/api/providers/branches", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      return handleResponse<BranchesEnvelope | NormalizedError>(res);
+    },
+
     /**
      * The connection's provider-owned identity (#133 story 34): one call per
      * connection CONFIGURATION, cached by its fingerprint. The server answers
@@ -301,6 +315,18 @@ export const api = {
       body: JSON.stringify({ repositories }),
     });
     return handleResponse<Project>(res);
+  },
+
+  /** The branches of one of the project's repositories (stored connection). */
+  async getRepositoryBranches(
+    projectId: string,
+    repositoryId: string,
+  ): Promise<string[]> {
+    const res = await fetch(
+      `/api/projects/${encodeURIComponent(projectId)}/repositories/${encodeURIComponent(repositoryId)}/branches`,
+    );
+    const body = await handleResponse<{ branches: string[] }>(res);
+    return body.branches;
   },
 
   /** Saves the git identity every commit for this project is authored with. */

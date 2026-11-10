@@ -11,10 +11,12 @@ import type {
   RepositoryCommands,
 } from "../../../shared/types.js";
 import { useUpdateProjectRepositories } from "../../hooks/useQueries.js";
+import { api } from "../../lib/api-client.js";
 import { REPOSITORY_SETTINGS_COPY } from "../feedback/copy-map.js";
 import { FeedbackBanner } from "../feedback/FeedbackBanner.js";
 import { Button } from "../ui/Button.js";
 import { Card } from "../ui/Card.js";
+import { BaseBranchPicker } from "./BaseBranchPicker.js";
 
 interface RepositorySettingsProps {
   projectId: string;
@@ -28,6 +30,7 @@ const COMMAND_FIELDS: readonly CommandField[] = ["test", "typecheck", "lint"];
 function applyEdit(
   repo: ProjectRepository,
   pathValue: string,
+  baseBranch: string,
   commands: Record<CommandField, string>,
 ): ProjectRepository {
   const next: RepositoryCommands = { ...repo.commands };
@@ -40,6 +43,7 @@ function applyEdit(
   return {
     ...rest,
     path: pathValue.trim(),
+    defaultBranch: baseBranch.trim(),
     ...(Object.keys(next).length > 0 ? { commands: next } : {}),
   };
 }
@@ -55,6 +59,8 @@ function RepositoryForm({
 }) {
   const mutation = useUpdateProjectRepositories(projectId);
   const [pathValue, setPathValue] = useState(repo.path);
+  const [baseBranch, setBaseBranch] = useState(repo.defaultBranch);
+  const [branchError, setBranchError] = useState(false);
   const [commands, setCommands] = useState<Record<CommandField, string>>({
     test: repo.commands?.test ?? "",
     typecheck: repo.commands?.typecheck ?? "",
@@ -70,9 +76,14 @@ function RepositoryForm({
       return;
     }
     setPathError(false);
+    if (!baseBranch.trim()) {
+      setBranchError(true);
+      return;
+    }
+    setBranchError(false);
     mutation.mutate(
       repositories.map((r) =>
-        r.id === repo.id ? applyEdit(r, pathValue, commands) : r,
+        r.id === repo.id ? applyEdit(r, pathValue, baseBranch, commands) : r,
       ),
     );
   };
@@ -102,6 +113,18 @@ function RepositoryForm({
           </span>
         </label>
 
+        <div className="repo-settings-field">
+          <BaseBranchPicker
+            repositoryId={repo.id}
+            branch={baseBranch}
+            onChange={setBaseBranch}
+            queryKey={["projects", "branches", projectId, repo.id]}
+            loadBranches={() => api.getRepositoryBranches(projectId, repo.id)}
+          />
+          <span className="repo-settings-help text-subhead">
+            {REPOSITORY_SETTINGS_COPY.baseBranchHelp}
+          </span>
+        </div>
         {COMMAND_FIELDS.map((field) => (
           <label
             key={field}
@@ -134,6 +157,12 @@ function RepositoryForm({
           <FeedbackBanner
             tone="error"
             message={REPOSITORY_SETTINGS_COPY.pathRequired}
+          />
+        )}
+        {branchError && (
+          <FeedbackBanner
+            tone="error"
+            message={REPOSITORY_SETTINGS_COPY.baseBranchRequired}
           />
         )}
         {mutation.isError && (

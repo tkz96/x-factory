@@ -10,16 +10,40 @@
 
 import { useMemo, useState } from "react";
 import { AsyncRegion } from "../../components/feedback/AsyncRegion.js";
-import { REPOSITORIES_COPY } from "../../components/feedback/copy-map.js";
+import {
+  isNormalizedError,
+  REPOSITORIES_COPY,
+} from "../../components/feedback/copy-map.js";
 import { FeedbackBanner } from "../../components/feedback/FeedbackBanner.js";
+import { BaseBranchPicker } from "../../components/projects/BaseBranchPicker.js";
 import { Button } from "../../components/ui/Button.js";
 import { EmptyState } from "../../components/ui/EmptyState.js";
+import { api } from "../../lib/api-client.js";
+import { queryKeys } from "../../lib/query-policies.js";
 import { WizardFooter } from "../shared/WizardFooter.js";
 import { filterAndOrderRepositories } from "./repository-filter.js";
 import { useRepositoryDiscovery } from "./useRepositoryDiscovery.js";
 import "./RepositoriesStep.css";
 
 /** Inline explanation for a gated Continue, keyed by the authoritative reason. */
+/** Lists a discovered repository's branches with the wizard's connection. */
+async function loadWizardBranches(
+  source: ReturnType<typeof useRepositoryDiscovery>["branchSource"],
+  row: { id: string; name: string; remote: string },
+): Promise<string[]> {
+  if (source.providerId === null) {
+    throw new Error("Listing branches requires a git-host connection.");
+  }
+  const envelope = await api.providers.listBranches({
+    providerId: source.providerId,
+    role: "gitHost",
+    config: source.config,
+    repository: { id: row.id, name: row.name, remote: row.remote },
+  });
+  if (isNormalizedError(envelope)) throw envelope;
+  return envelope.branches;
+}
+
 const CONTINUE_REASON_COPY = {
   "stale-results": REPOSITORIES_COPY.staleResults,
   "stale-selection": REPOSITORIES_COPY.staleSelection,
@@ -37,6 +61,9 @@ export function RepositoriesStep() {
     unconfirmedCapabilities,
     refresh,
     toggleRepository,
+    baseBranchOf,
+    setBaseBranch,
+    branchSource,
     setAllRepositories,
     allSelectableSelected,
     someSelectableSelected,
@@ -197,6 +224,20 @@ export function RepositoriesStep() {
                       : REPOSITORIES_COPY.noApplicationRoleLabel}
                   </span>
                 </label>
+                {selectedRepoIdSet.has(row.id) && (
+                  <BaseBranchPicker
+                    repositoryId={row.id}
+                    branch={baseBranchOf(row)}
+                    onChange={(branch) => setBaseBranch(row.id, branch)}
+                    queryKey={queryKeys.providerBranches(
+                      branchSource.providerId,
+                      branchSource.config,
+                      row.id,
+                      branchSource.descriptor,
+                    )}
+                    loadBranches={() => loadWizardBranches(branchSource, row)}
+                  />
+                )}
               </li>
             ))}
           </ul>

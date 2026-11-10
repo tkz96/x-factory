@@ -147,6 +147,14 @@ export const REPOSITORIES_COPY = {
   /** Brief helper text explaining repository requirements (#160). */
   requirementsHelp:
     "An application repository is the primary codebase where workflows run. Select at least one to continue.",
+  /** The base branch: the branch new work starts from and pull requests target. */
+  baseBranchLabel: "Base branch",
+  baseBranchChange: "Change",
+  baseBranchDone: "Done",
+  baseBranchSelectLabel: "Choose the base branch",
+  baseBranchTypeLabel: "Type the base branch name",
+  baseBranchListFailed:
+    "The branches could not be listed. Type the branch name instead.",
 } as const;
 
 /**
@@ -377,6 +385,10 @@ export const REPOSITORY_SETTINGS_COPY = {
   saving: "Saving…",
   saved: "Saved.",
   pathRequired: "Enter the folder where this repository is checked out.",
+  baseBranch: "Base branch",
+  baseBranchHelp:
+    "New work starts from this branch, and pull requests target it.",
+  baseBranchRequired: "Enter the base branch name.",
 } as const;
 
 /** Project settings: the git identity the project's commits are authored with. */

@@ -57,6 +57,22 @@ export const queryKeys = {
       connectionConfigFingerprint(providerId, config, descriptorOrDescriptors),
       ...(generation !== undefined ? [generation] : []),
     ] as const,
+  /** One repository's branches under one connection configuration. */
+  providerBranches: (
+    providerId: string | null,
+    config: Record<string, unknown>,
+    repositoryId: string,
+    descriptorOrDescriptors?:
+      | ProviderDescriptor
+      | readonly ProviderDescriptor[]
+      | ReadonlySet<string>,
+  ) =>
+    [
+      "providers",
+      "branches",
+      connectionConfigFingerprint(providerId, config, descriptorOrDescriptors),
+      repositoryId,
+    ] as const,
   /**
    * A connection's provider-owned identity (#133 story 34). Keyed by the same
    * non-reversible fingerprint as discovery: the identity belongs to a
@@ -92,6 +108,15 @@ export const QUERY_POLICIES = {
   // refetch of the previous key. Refreshing is the user's explicit action.
   providerRepositories: {
     staleTime: 60 * 1000, // 60 seconds
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
+  },
+
+  // Repository branches: read on demand when the user opens the base-branch
+  // choice; keyed by the connection config and the repository.
+  providerBranches: {
+    staleTime: 60 * 1000,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
     refetchOnMount: false,

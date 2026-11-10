@@ -101,7 +101,7 @@ export function buildCreationPayload(
         id,
         name: detail?.name ?? id,
         remote: detail?.remote,
-        defaultBranch: detail?.defaultBranch,
+        defaultBranch: config?.baseBranch?.trim() || detail?.defaultBranch,
         localPath: config?.localPath,
         role: repositoryRole(config ?? {}),
         primary: id === state.repositories.primaryRepoId,

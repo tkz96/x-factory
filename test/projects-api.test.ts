@@ -261,6 +261,35 @@ describe("Project Onboarding & Management APIs", () => {
     assert.deepEqual(reread.repositories[0]?.commands, edited.commands);
   });
 
+  it("PATCH /api/projects/:id changes the base branch the project uses", async () => {
+    const current = (await (
+      await fetch(`${baseUrl}/api/projects/${testProjectId}`)
+    ).json()) as {
+      repositories: Array<Record<string, unknown> & { id: string }>;
+    };
+    const [first, ...rest] = current.repositories;
+    assert.ok(first, "the test project has a repository");
+
+    const res = await fetch(`${baseUrl}/api/projects/${testProjectId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        repositories: [{ ...first, defaultBranch: "develop" }, ...rest],
+      }),
+    });
+    assert.equal(res.status, 200);
+
+    const reread = (await (
+      await fetch(`${baseUrl}/api/projects/${testProjectId}`)
+    ).json()) as {
+      defaultBranch: string;
+      repositories: Array<{ defaultBranch: string }>;
+    };
+    assert.equal(reread.repositories[0]?.defaultBranch, "develop");
+    // The project-level branch worktrees and pull requests use follows it.
+    assert.equal(reread.defaultBranch, "develop");
+  });
+
   it("POST /api/projects/inspect-repository inspects a directory", async () => {
     const repoDir = path.join(tempDir, "sample-repo");
     await execStrict("git", ["init", repoDir], { envPolicy: "inherit" });

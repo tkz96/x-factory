@@ -835,9 +835,11 @@ describe("Repositories Step — stale selection & progression gate (spec #133, t
       expect(getEl("repo-select-repo-app")).toBe(appRow);
       expect(getEl("repo-select-repo-api")).toBe(apiRow);
       expect(list.querySelectorAll(".repositories-list-item").length).toBe(2);
-      // ...and the only structural change is the selection summary.
+      // ...and the only structural changes are the selected row's base branch
+      // and the selection summary.
       const added = structural.flatMap((record) => [...record.addedNodes]);
       expect(added.map((node) => (node as HTMLElement).className)).toEqual([
+        "repositories-base-branch",
         "repositories-selection-summary text-subhead",
       ]);
 
