@@ -28,6 +28,7 @@ const COMMAND_FIELDS: readonly CommandField[] = ["test", "typecheck", "lint"];
 function applyEdit(
   repo: ProjectRepository,
   pathValue: string,
+  baseBranch: string,
   commands: Record<CommandField, string>,
 ): ProjectRepository {
   const next: RepositoryCommands = { ...repo.commands };
@@ -40,6 +41,7 @@ function applyEdit(
   return {
     ...rest,
     path: pathValue.trim(),
+    defaultBranch: baseBranch.trim(),
     ...(Object.keys(next).length > 0 ? { commands: next } : {}),
   };
 }
@@ -55,6 +57,8 @@ function RepositoryForm({
 }) {
   const mutation = useUpdateProjectRepositories(projectId);
   const [pathValue, setPathValue] = useState(repo.path);
+  const [baseBranch, setBaseBranch] = useState(repo.defaultBranch);
+  const [branchError, setBranchError] = useState(false);
   const [commands, setCommands] = useState<Record<CommandField, string>>({
     test: repo.commands?.test ?? "",
     typecheck: repo.commands?.typecheck ?? "",
@@ -70,9 +74,14 @@ function RepositoryForm({
       return;
     }
     setPathError(false);
+    if (!baseBranch.trim()) {
+      setBranchError(true);
+      return;
+    }
+    setBranchError(false);
     mutation.mutate(
       repositories.map((r) =>
-        r.id === repo.id ? applyEdit(r, pathValue, commands) : r,
+        r.id === repo.id ? applyEdit(r, pathValue, baseBranch, commands) : r,
       ),
     );
   };
@@ -99,6 +108,29 @@ function RepositoryForm({
             className="repo-settings-help text-subhead"
           >
             {REPOSITORY_SETTINGS_COPY.pathHelp}
+          </span>
+        </label>
+
+        <label
+          className="repo-settings-field"
+          htmlFor={`${prefix}-base-branch`}
+        >
+          <span className="repo-settings-label text-subhead">
+            {REPOSITORY_SETTINGS_COPY.baseBranch}
+          </span>
+          <input
+            id={`${prefix}-base-branch`}
+            className="form-input repo-settings-input repo-settings-input--mono text-callout"
+            value={baseBranch}
+            aria-invalid={branchError}
+            aria-describedby={`${prefix}-base-branch-help`}
+            onChange={(e) => setBaseBranch(e.target.value)}
+          />
+          <span
+            id={`${prefix}-base-branch-help`}
+            className="repo-settings-help text-subhead"
+          >
+            {REPOSITORY_SETTINGS_COPY.baseBranchHelp}
           </span>
         </label>
 
@@ -134,6 +166,12 @@ function RepositoryForm({
           <FeedbackBanner
             tone="error"
             message={REPOSITORY_SETTINGS_COPY.pathRequired}
+          />
+        )}
+        {branchError && (
+          <FeedbackBanner
+            tone="error"
+            message={REPOSITORY_SETTINGS_COPY.baseBranchRequired}
           />
         )}
         {mutation.isError && (

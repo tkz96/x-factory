@@ -36,9 +36,11 @@ import type {
 } from "../../shared/types.js";
 import type { NormalizedError } from "../components/feedback/types.js";
 import type {
+  BranchesEnvelope,
   ConnectionIdentityResult,
   DescribeConnectionPayload,
   DiscoverRepositoriesPayload,
+  ListBranchesPayload,
   ParseUrlResult,
   ProviderDescriptor,
   RepositoriesEnvelope,
@@ -238,6 +240,18 @@ export const api = {
         body: JSON.stringify(payload),
       });
       return handleResponse<RepositoriesEnvelope | NormalizedError>(res);
+    },
+
+    /** The branches of one repository, for choosing its base branch. */
+    async listBranches(
+      payload: ListBranchesPayload,
+    ): Promise<BranchesEnvelope | NormalizedError> {
+      const res = await fetch("/api/providers/branches", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      return handleResponse<BranchesEnvelope | NormalizedError>(res);
     },
 
     /**

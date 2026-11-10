@@ -127,6 +127,32 @@ describe("RepositorySettings (#283)", () => {
     expect(document.body.textContent).toContain("Saved");
   });
 
+  it("shows and saves a repository's base branch", async () => {
+    renderSettings();
+    expect(field("repo-settings-web-base-branch").value).toBe("main");
+    typeInto(field("repo-settings-web-base-branch"), " develop ");
+    await act(async () => {
+      fireEvent.click(field("repo-settings-web-save"));
+    });
+    await flush();
+    const [, repositories] = update.mock.calls[0] as [
+      string,
+      ProjectRepository[],
+    ];
+    expect(repositories[0]?.defaultBranch).toBe("develop");
+    expect(repositories[1]?.defaultBranch).toBe("main");
+  });
+
+  it("refuses an empty base branch without calling the API", async () => {
+    renderSettings();
+    typeInto(field("repo-settings-web-base-branch"), "  ");
+    await act(async () => {
+      fireEvent.click(field("repo-settings-web-save"));
+    });
+    expect(update).not.toHaveBeenCalled();
+    expect(document.body.textContent).toContain("Enter the base branch");
+  });
+
   it("refuses an empty path without calling the API", async () => {
     renderSettings();
     typeInto(field("repo-settings-web-path"), "   ");

@@ -15,6 +15,7 @@ import { FeedbackBanner } from "../../components/feedback/FeedbackBanner.js";
 import { Button } from "../../components/ui/Button.js";
 import { EmptyState } from "../../components/ui/EmptyState.js";
 import { WizardFooter } from "../shared/WizardFooter.js";
+import { BaseBranchPicker } from "./BaseBranchPicker.js";
 import { filterAndOrderRepositories } from "./repository-filter.js";
 import { useRepositoryDiscovery } from "./useRepositoryDiscovery.js";
 import "./RepositoriesStep.css";
@@ -37,6 +38,9 @@ export function RepositoriesStep() {
     unconfirmedCapabilities,
     refresh,
     toggleRepository,
+    baseBranchOf,
+    setBaseBranch,
+    branchSource,
     setAllRepositories,
     allSelectableSelected,
     someSelectableSelected,
@@ -197,6 +201,16 @@ export function RepositoriesStep() {
                       : REPOSITORIES_COPY.noApplicationRoleLabel}
                   </span>
                 </label>
+                {selectedRepoIdSet.has(row.id) && (
+                  <BaseBranchPicker
+                    repository={row}
+                    branch={baseBranchOf(row)}
+                    onChange={(branch) => setBaseBranch(row.id, branch)}
+                    providerId={branchSource.providerId}
+                    config={branchSource.config}
+                    descriptor={branchSource.descriptor}
+                  />
+                )}
               </li>
             ))}
           </ul>

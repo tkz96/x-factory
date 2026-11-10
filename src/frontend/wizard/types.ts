@@ -130,6 +130,8 @@ export interface WizardRepoConfig {
    */
   roles?: string[];
   localPath?: string;
+  /** The base branch the user chose; absent means the provider's default. */
+  baseBranch?: string;
   primary?: boolean;
 }
 

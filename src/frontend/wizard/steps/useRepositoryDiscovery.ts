@@ -240,7 +240,14 @@ export function useRepositoryDiscovery() {
     const nextIds = target.map((r) => r.id);
     const nextConfigs: Record<string, WizardRepoConfig> = {};
     for (const row of target) {
-      nextConfigs[row.id] = configFor(row);
+      // A base branch already chosen survives a bulk re-selection.
+      const chosen = selectionIsStale
+        ? undefined
+        : state.repositories.repoConfigs[row.id]?.baseBranch;
+      nextConfigs[row.id] = {
+        ...configFor(row),
+        ...(chosen !== undefined ? { baseBranch: chosen } : {}),
+      };
     }
     dispatch({
       type: "UPDATE_REPOSITORIES",
@@ -249,6 +256,27 @@ export function useRepositoryDiscovery() {
         repoConfigs: nextConfigs,
         primaryRepoId: nextIds[0] ?? null,
         selectionFingerprint: nextIds.length > 0 ? requestFingerprint : null,
+      },
+    });
+  };
+
+  // A selected repository's base branch: the user's choice, else the
+  // provider's own default branch, else "main" (what creation falls back to).
+  const baseBranchOf = (row: RepositoryRow): string =>
+    state.repositories.repoConfigs[row.id]?.baseBranch?.trim() ||
+    row.defaultBranch?.trim() ||
+    "main";
+
+  const setBaseBranch = (rowId: string, branch: string) => {
+    const current = state.repositories.repoConfigs[rowId];
+    if (current === undefined) return;
+    dispatch({
+      type: "UPDATE_REPOSITORIES",
+      patch: {
+        repoConfigs: {
+          ...state.repositories.repoConfigs,
+          [rowId]: { ...current, baseBranch: branch },
+        },
       },
     });
   };
@@ -317,6 +345,10 @@ export function useRepositoryDiscovery() {
       void query.refetch();
     },
     toggleRepository,
+    baseBranchOf,
+    setBaseBranch,
+    /** What the base-branch picker needs to list a repository's branches. */
+    branchSource: { providerId, config, descriptor },
     setAllRepositories,
     allSelectableSelected,
     someSelectableSelected,

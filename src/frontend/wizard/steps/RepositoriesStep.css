@@ -173,3 +173,27 @@
   border-color: var(--accent);
   box-shadow: var(--shadow-focus);
 }
+
+/* The base branch of a selected repository, under its row. */
+.repositories-base-branch {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: 0 var(--space-4) var(--space-3);
+}
+
+.repositories-base-branch-label {
+  color: var(--text-muted);
+}
+
+.repositories-base-branch-value {
+  color: var(--text);
+}
+
+.repositories-base-branch-choice {
+  display: flex;
+  flex: 1 1 100%;
+  flex-direction: column;
+  gap: var(--space-2);
+}
