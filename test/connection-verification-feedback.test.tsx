@@ -351,9 +351,6 @@ describe("Issue #162: Connection Verification and Scope Feedback", () => {
     expect(trackerCard.textContent).toContain(
       CONNECTIONS_COPY.degradedRemediation,
     );
-    expect(trackerCard.textContent).not.toContain(
-      CONNECTIONS_COPY.degradedRemediationUnconfirmed,
-    );
 
     // Git host card: createPullRequest unconfirmed without missingScopes is a deferred check
     expect(gitHostCard.textContent).toContain(
@@ -418,9 +415,6 @@ describe("Issue #162: Connection Verification and Scope Feedback", () => {
     );
     expect(gitHostCard.textContent).toContain(
       CONNECTIONS_COPY.degradedRemediation,
-    );
-    expect(gitHostCard.textContent).not.toContain(
-      CONNECTIONS_COPY.degradedRemediationUnconfirmed,
     );
 
     // Tracker card: createPullRequest unconfirmed without missingScopes is a deferred check
@@ -705,9 +699,6 @@ describe("Issue #162: Connection Verification and Scope Feedback", () => {
     expect(gitHostCardBefore.textContent).toContain(
       CONNECTIONS_COPY.degradedRemediation,
     );
-    expect(gitHostCardBefore.textContent).not.toContain(
-      CONNECTIONS_COPY.degradedRemediationUnconfirmed,
-    );
 
     const beforeCopy = gitHostCardBefore.textContent;
 
@@ -727,9 +718,6 @@ describe("Issue #162: Connection Verification and Scope Feedback", () => {
     expect(gitHostCardAfter.textContent).toContain("Missing: repo");
     expect(gitHostCardAfter.textContent).toContain(
       CONNECTIONS_COPY.degradedRemediation,
-    );
-    expect(gitHostCardAfter.textContent).not.toContain(
-      CONNECTIONS_COPY.degradedRemediationUnconfirmed,
     );
   });
 });

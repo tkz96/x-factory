@@ -208,8 +208,8 @@ describe("feedback copy map", () => {
     expect(CONNECTIONS_COPY.degradedRemediation).toBe(
       "Update your token in your provider settings to grant the required permissions, then click Re-verify to proceed.",
     );
-    expect(CONNECTIONS_COPY.degradedRemediationUnconfirmed).toBe(
-      "This permission can only be confirmed when X-Factory first creates a pull request.",
+    expect(CONNECTIONS_COPY.deferredCheckNote).toBe(
+      "Pull request permission is checked when X-Factory opens its first pull request.",
     );
     expect(CONNECTIONS_COPY.requiredScopesTitle).toBe(
       "Required permissions & scopes",
@@ -235,7 +235,7 @@ describe("feedback copy map", () => {
     }
 
     expect(DEGRADED_CAPABILITY_COPY.createPullRequest.remediation).toBe(
-      CONNECTIONS_COPY.degradedRemediationUnconfirmed,
+      CONNECTIONS_COPY.degradedRemediation,
     );
     expect(DEGRADED_CAPABILITY_COPY.listRepositories.remediation).toBe(
       CONNECTIONS_COPY.degradedRemediation,
