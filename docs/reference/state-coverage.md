@@ -111,6 +111,19 @@ and on the post-creation surfaces, and the post-creation warning banner. This is
 deliberately narrower than the staleness rule above: a STALE value still blocks,
 and only re-verification clears it.
 
+**A check deferred to first use is verified, not degraded.** Some providers cannot
+check pull request creation without opening a pull request, so the server reports
+`degraded` with a `CAPABILITY_UNCONFIRMED` warning for `createPullRequest` and no
+`missingScopes`. That is expected, and a retry cannot change it. The frontend
+derives the difference (`src/frontend/connection/deferred-checks.ts`) and keeps the
+server contract as it is: a result whose only warnings are deferred checks reads as
+**Verified** (success tone, check icon, "Verified" pill) with one informational line
+(`CONNECTIONS_COPY.deferredCheckNote`) and no Try Again. This holds on the Connect
+card, the combo line at Review and every surface that reads
+`deriveVerificationStatus` or the draft slot. Any other unconfirmed capability, and
+any capability with `missingScopes`, is a real warning and keeps the warning tone,
+the lead line and the retry.
+
 ## Connection surfacing — the combo line and the integrity failure (#146/#147/#148)
 
 Every surface that renders how a project is wired renders the same thing, from

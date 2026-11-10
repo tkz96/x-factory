@@ -36,6 +36,7 @@ import {
   type Project,
   type ProjectConnectionRole,
 } from "../../../shared/types.js";
+import { hasRealUnconfirmed } from "../../connection/deferred-checks.js";
 import type {
   ProviderConfigFieldDescriptor,
   ProviderDescriptor,
@@ -270,12 +271,12 @@ function draftSlot(
 ): ConnectionSlot {
   const evidence = source.evidence[role];
   const providerId = evidence.providerId ?? undefined;
-  const unconfirmed = evidence.unconfirmedCapabilities ?? [];
   return {
     role,
     state: deriveConnectionState(
       isConnectionUsable(evidence),
-      unconfirmed.length > 0,
+      // A check deferred to first use is not a warning (deferred-checks.ts).
+      hasRealUnconfirmed(evidence),
     ),
     providerId,
     config:

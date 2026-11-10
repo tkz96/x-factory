@@ -17,7 +17,7 @@ const okResult: VerificationResult = { status: "ok", warnings: [] };
 const degradedResult: VerificationResult = {
   status: "degraded",
   warnings: [
-    { kind: "CAPABILITY_UNCONFIRMED", capability: "createPullRequest" },
+    { kind: "CAPABILITY_UNCONFIRMED", capability: "listRepositories" },
   ],
 };
 
@@ -32,7 +32,7 @@ const verified: WizardConnectionRoleState = {
 const verifiedDegraded: WizardConnectionRoleState = {
   providerId: "generic-githost",
   verified: true,
-  unconfirmedCapabilities: ["createPullRequest"],
+  unconfirmedCapabilities: ["listRepositories"],
 };
 
 /**
@@ -129,6 +129,57 @@ describe("deriveVerificationStatus — one precedence for both sources of the fa
   });
 });
 
+describe("deferred checks: a pull request capability the provider cannot check before first use", () => {
+  const deferredResult: VerificationResult = {
+    status: "degraded",
+    warnings: [
+      { kind: "CAPABILITY_UNCONFIRMED", capability: "createPullRequest" },
+    ],
+  };
+  const deferredEvidence: WizardConnectionRoleState = {
+    providerId: "generic-githost",
+    verified: true,
+    unconfirmedCapabilities: ["createPullRequest"],
+  };
+
+  it("reads as OK, from the result and from persisted evidence", () => {
+    expect(
+      deriveVerificationStatus(false, deferredResult, null, deferredEvidence),
+    ).toBe("ok");
+    expect(deriveVerificationStatus(false, null, null, deferredEvidence)).toBe(
+      "ok",
+    );
+  });
+
+  it("stays DEGRADED with missing scopes, or beside a real unconfirmed capability", () => {
+    const missing: VerificationResult = {
+      status: "degraded",
+      warnings: [
+        {
+          kind: "CAPABILITY_UNCONFIRMED",
+          capability: "createPullRequest",
+          missingScopes: ["repo"],
+        },
+      ],
+    };
+    expect(
+      deriveVerificationStatus(false, missing, null, deferredEvidence),
+    ).toBe("degraded");
+    expect(
+      deriveVerificationStatus(false, null, null, {
+        ...deferredEvidence,
+        missingScopes: { createPullRequest: ["repo"] },
+      }),
+    ).toBe("degraded");
+    expect(
+      deriveVerificationStatus(false, null, null, {
+        ...deferredEvidence,
+        unconfirmedCapabilities: ["createPullRequest", "listRepositories"],
+      }),
+    ).toBe("degraded");
+  });
+});
+
 describe("resolveVerificationDisplay — the payload a remount can still show", () => {
   it("reconstructs the degraded payload from the persisted capability names", () => {
     expect(resolveVerificationDisplay(null, verifiedDegraded)).toEqual(
@@ -140,8 +191,8 @@ describe("resolveVerificationDisplay — the payload a remount can still show", 
     const verifiedWithMissingScopes: WizardConnectionRoleState = {
       providerId: "generic-githost",
       verified: true,
-      unconfirmedCapabilities: ["createPullRequest"],
-      missingScopes: { createPullRequest: ["repo"] },
+      unconfirmedCapabilities: ["listRepositories"],
+      missingScopes: { listRepositories: ["repo"] },
     };
     expect(resolveVerificationDisplay(null, verifiedWithMissingScopes)).toEqual(
       {
@@ -149,7 +200,7 @@ describe("resolveVerificationDisplay — the payload a remount can still show", 
         warnings: [
           {
             kind: "CAPABILITY_UNCONFIRMED",
-            capability: "createPullRequest",
+            capability: "listRepositories",
             missingScopes: ["repo"],
           },
         ],

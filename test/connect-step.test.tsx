@@ -649,7 +649,7 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
       warnings: [
         {
           kind: "CAPABILITY_UNCONFIRMED" as const,
-          capability: "createPullRequest",
+          capability: "listRepositories",
         },
       ],
     }));
@@ -662,7 +662,7 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
     const gitHostCard = getEl("connection-card-gitHost");
     expect(gitHostCard.textContent).toContain("Degraded");
     expect(gitHostCard.textContent).toContain(CONNECTIONS_COPY.degradedLead);
-    expect(gitHostCard.textContent).toContain("Pull request creation");
+    expect(gitHostCard.textContent).toContain("Repository listing");
   });
 
   it("AUTH_LOCKED: ProviderError {code:'AUTH_LOCKED',context:'VERIFY'} → canonical copy-map remediation text renders verbatim", async () => {
@@ -956,7 +956,7 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
       warnings: [
         {
           kind: "CAPABILITY_UNCONFIRMED" as const,
-          capability: "createPullRequest",
+          capability: "listRepositories",
         },
       ],
     }));
@@ -1245,7 +1245,7 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
           warnings: [
             {
               kind: "CAPABILITY_UNCONFIRMED" as const,
-              capability: "createPullRequest",
+              capability: "listRepositories",
             },
           ],
         };
@@ -1260,7 +1260,7 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
       const gitHostCard = getEl("connection-card-gitHost");
       expect(gitHostCard.textContent).toContain("Degraded");
       expect(gitHostCard.textContent).toContain("limited access");
-      expect(gitHostCard.textContent).toContain("Pull request creation");
+      expect(gitHostCard.textContent).toContain("Repository listing");
 
       // Tracker is ideal (ok), GitHost is degraded -> permitted: no gate.
       const nextBtn = getEl<HTMLButtonElement>("btn-step-2-next");
@@ -2130,7 +2130,7 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
         warnings: [
           {
             kind: "CAPABILITY_UNCONFIRMED" as const,
-            capability: "createPullRequest",
+            capability: "listRepositories",
           },
         ],
       }));
@@ -2140,7 +2140,7 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
         "Degraded",
       );
       expect(getEl("connection-card-gitHost").textContent).toContain(
-        "Pull request creation",
+        "Repository listing",
       );
 
       leaveConnectAndReturn();
@@ -2151,9 +2151,9 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
       const gitHostCard = getEl("connection-card-gitHost");
       expect(gitHostCard.textContent).toContain("Degraded");
       expect(gitHostCard.textContent).toContain("limited access");
-      expect(gitHostCard.textContent).toContain("Pull request creation");
+      expect(gitHostCard.textContent).toContain("Repository listing");
       expect(getEl("connection-card-tracker").textContent).toContain(
-        "Pull request creation",
+        "Repository listing",
       );
       expect(getEl<HTMLButtonElement>("btn-step-2-next").disabled).toBe(false);
       // Still no acknowledgement to collect after the round trip (#133).

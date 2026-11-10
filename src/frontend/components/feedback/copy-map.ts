@@ -225,15 +225,15 @@ export const CONNECTIONS_COPY = {
   verified: "Connection verified",
   overPrivileged:
     "Notice: the token has broader access than the recommended minimum.",
+  /** Calm note for a check the provider cannot make before first use (pull request creation). */
+  deferredCheckNote:
+    "Pull request permission is checked when X-Factory opens its first pull request.",
   /** Banner lead when a connection is verified with warnings (limited access). */
   degradedLead:
     "Connection verified with limited access. The following permissions could not be confirmed:",
   /** Remediation advice when permissions or scopes are provably missing. */
   degradedRemediation:
     "Update your token in your provider settings to grant the required permissions, then click Re-verify to proceed.",
-  /** Neutral advice when permission can only be confirmed upon write (e.g. pull request creation). */
-  degradedRemediationUnconfirmed:
-    "This permission can only be confirmed when X-Factory first creates a pull request.",
   /** Title for the required permissions and scopes informational panel. */
   requiredScopesTitle: "Required permissions & scopes",
   /** Fallback help text when a secret field does not define custom help. */
@@ -261,7 +261,7 @@ export const DEGRADED_CAPABILITY_COPY: Record<
     label: "Pull request creation",
     unconfirmed: "Pull request creation — permission could not be confirmed.",
     missing: (scopes: string) => `Pull request creation — Missing: ${scopes}`,
-    remediation: CONNECTIONS_COPY.degradedRemediationUnconfirmed,
+    remediation: CONNECTIONS_COPY.degradedRemediation,
   },
   listRepositories: {
     label: "Repository listing",

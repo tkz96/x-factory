@@ -18,6 +18,10 @@
 // — the same predicate the Review gate reads, so the card's progression and the
 // gate that eventually blocks the user can never disagree.
 import { isConnectionUsable } from "../../components/connections/connection-state.js";
+import {
+  hasRealUnconfirmed,
+  splitWarnings,
+} from "../../connection/deferred-checks.js";
 import type { VerificationResult } from "../../connection/types.js";
 import { ApiError } from "../../lib/api-client.js";
 import type { WizardConnectionRoleState } from "../types.js";
@@ -46,11 +50,15 @@ export function deriveVerificationStatus(
   if (isPending) return "pending";
   if (error) return "error";
   if (!isConnectionUsable(evidence)) return "idle";
-  if (verification?.status === "degraded") return "degraded";
+  // Only real warnings degrade: a check the provider defers to first use
+  // reads as verified (see `connection/deferred-checks.ts`).
+  if (verification?.status === "degraded") {
+    return splitWarnings(verification.warnings).real.length > 0
+      ? "degraded"
+      : "ok";
+  }
   if (verification?.status === "ok") return "ok";
-  return (evidence.unconfirmedCapabilities?.length ?? 0) > 0
-    ? "degraded"
-    : "ok";
+  return hasRealUnconfirmed(evidence) ? "degraded" : "ok";
 }
 
 /**

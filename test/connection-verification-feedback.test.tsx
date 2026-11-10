@@ -23,6 +23,7 @@ import {
   ERROR_COPY,
   formatRetryCountdown,
   STATE_COPY,
+  STATUS_COPY,
 } from "../src/frontend/components/feedback/copy-map.js";
 import type { ProviderDescriptor } from "../src/frontend/connection/types.js";
 import {
@@ -256,7 +257,7 @@ describe("Issue #162: Connection Verification and Scope Feedback", () => {
     );
   });
 
-  it("Unconfirmed permissions: shows neutral advice when permissions cannot be confirmed without write", async () => {
+  it("Deferred check: a pull request capability that cannot be confirmed before first use reads as verified, with one calm note and no retry", async () => {
     setupStep2Draft();
     renderWizard();
     fireEvent.click(getEl("btn-open-wizard"));
@@ -283,24 +284,22 @@ describe("Issue #162: Connection Verification and Scope Feedback", () => {
     });
 
     const gitHostCard = getEl("connection-card-gitHost");
-    // States limited access
-    expect(gitHostCard.textContent).toContain(CONNECTIONS_COPY.degradedLead);
-    // Unconfirmed capability notice from copy map
+    // Verified, not degraded: success text and the one informational line.
+    expect(gitHostCard.textContent).toContain(CONNECTIONS_COPY.verified);
     expect(gitHostCard.textContent).toContain(
-      DEGRADED_CAPABILITY_COPY.createPullRequest.unconfirmed,
+      CONNECTIONS_COPY.deferredCheckNote,
     );
-    expect(gitHostCard.textContent).not.toContain("Missing:");
-    // Neutral copy explaining permission can only be confirmed upon PR creation
-    expect(gitHostCard.textContent).toContain(
-      CONNECTIONS_COPY.degradedRemediationUnconfirmed,
-    );
-    // Re-verify advice is not shown since re-verifying cannot confirm without write
     expect(gitHostCard.textContent).not.toContain(
-      CONNECTIONS_COPY.degradedRemediation,
+      CONNECTIONS_COPY.degradedLead,
     );
+    expect(gitHostCard.textContent).not.toContain(STATUS_COPY.degraded);
+    expect(gitHostCard.textContent).not.toContain("Missing:");
+    // Retrying cannot change it, so there is nothing to retry.
+    expect(gitHostCard.querySelector(".feedback-banner--warning")).toBeNull();
+    expect(gitHostCard.textContent).not.toContain(STATE_COPY.retry);
   });
 
-  it("Side-by-side warnings: tracker warning gets actionable advice, pull-request warning gets neutral unconfirmed advice", async () => {
+  it("Side-by-side warnings: tracker warning gets actionable advice, pull-request check is deferred to first use", async () => {
     setupStep2Draft();
     renderWizard();
     fireEvent.click(getEl("btn-open-wizard"));
@@ -352,23 +351,20 @@ describe("Issue #162: Connection Verification and Scope Feedback", () => {
     expect(trackerCard.textContent).toContain(
       CONNECTIONS_COPY.degradedRemediation,
     );
-    expect(trackerCard.textContent).not.toContain(
-      CONNECTIONS_COPY.degradedRemediationUnconfirmed,
-    );
 
-    // Git host card: createPullRequest unconfirmed without missingScopes gets neutral line
+    // Git host card: createPullRequest unconfirmed without missingScopes is a deferred check
     expect(gitHostCard.textContent).toContain(
-      DEGRADED_CAPABILITY_COPY.createPullRequest.unconfirmed,
+      CONNECTIONS_COPY.deferredCheckNote,
     );
-    expect(gitHostCard.textContent).toContain(
-      CONNECTIONS_COPY.degradedRemediationUnconfirmed,
+    expect(gitHostCard.textContent).not.toContain(
+      CONNECTIONS_COPY.degradedLead,
     );
     expect(gitHostCard.textContent).not.toContain(
       CONNECTIONS_COPY.degradedRemediation,
     );
   });
 
-  it("Side-by-side warnings: listRepositories gets actionable advice, pull-request warning gets neutral unconfirmed advice", async () => {
+  it("Side-by-side warnings: listRepositories gets actionable advice, pull-request check is deferred to first use", async () => {
     setupStep2Draft();
     renderWizard();
     fireEvent.click(getEl("btn-open-wizard"));
@@ -420,16 +416,13 @@ describe("Issue #162: Connection Verification and Scope Feedback", () => {
     expect(gitHostCard.textContent).toContain(
       CONNECTIONS_COPY.degradedRemediation,
     );
-    expect(gitHostCard.textContent).not.toContain(
-      CONNECTIONS_COPY.degradedRemediationUnconfirmed,
-    );
 
-    // Tracker card: createPullRequest unconfirmed without missingScopes gets neutral line
+    // Tracker card: createPullRequest unconfirmed without missingScopes is a deferred check
     expect(trackerCard.textContent).toContain(
-      DEGRADED_CAPABILITY_COPY.createPullRequest.unconfirmed,
+      CONNECTIONS_COPY.deferredCheckNote,
     );
-    expect(trackerCard.textContent).toContain(
-      CONNECTIONS_COPY.degradedRemediationUnconfirmed,
+    expect(trackerCard.textContent).not.toContain(
+      CONNECTIONS_COPY.degradedLead,
     );
     expect(trackerCard.textContent).not.toContain(
       CONNECTIONS_COPY.degradedRemediation,
@@ -643,7 +636,7 @@ describe("Issue #162: Connection Verification and Scope Feedback", () => {
       warnings: [
         {
           kind: "CAPABILITY_UNCONFIRMED" as const,
-          capability: "createPullRequest",
+          capability: "listRepositories",
         },
       ],
       overPrivileged: true,
@@ -666,7 +659,7 @@ describe("Issue #162: Connection Verification and Scope Feedback", () => {
 
     // Check that GitHost card on step 2 still displays the degraded scope feedback and over-privileged warning
     const gitHostCard = getEl("connection-card-gitHost");
-    expect(gitHostCard.textContent).toContain("Pull request creation");
+    expect(gitHostCard.textContent).toContain("Repository listing");
     expect(gitHostCard.textContent).toContain(CONNECTIONS_COPY.overPrivileged);
   });
 
@@ -706,9 +699,6 @@ describe("Issue #162: Connection Verification and Scope Feedback", () => {
     expect(gitHostCardBefore.textContent).toContain(
       CONNECTIONS_COPY.degradedRemediation,
     );
-    expect(gitHostCardBefore.textContent).not.toContain(
-      CONNECTIONS_COPY.degradedRemediationUnconfirmed,
-    );
 
     const beforeCopy = gitHostCardBefore.textContent;
 
@@ -728,9 +718,6 @@ describe("Issue #162: Connection Verification and Scope Feedback", () => {
     expect(gitHostCardAfter.textContent).toContain("Missing: repo");
     expect(gitHostCardAfter.textContent).toContain(
       CONNECTIONS_COPY.degradedRemediation,
-    );
-    expect(gitHostCardAfter.textContent).not.toContain(
-      CONNECTIONS_COPY.degradedRemediationUnconfirmed,
     );
   });
 });

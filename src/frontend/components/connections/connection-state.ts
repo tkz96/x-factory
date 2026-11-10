@@ -32,6 +32,8 @@ export interface ConnectionEvidence {
   verified?: boolean | undefined;
   /** Capabilities the verification could not confirm (degraded evidence). */
   unconfirmedCapabilities?: readonly string[] | undefined;
+  /** Scopes provably missing per capability: they make an unconfirmed capability a real warning. */
+  missingScopes?: Readonly<Record<string, string[]>> | undefined;
 }
 
 /**
