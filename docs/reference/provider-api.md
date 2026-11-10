@@ -19,6 +19,7 @@ The provider API surface implements the HTTP boundary between the provider syste
   POST /api/providers/verify
   POST /api/providers/parse-url
   POST /api/providers/repositories
+  POST /api/providers/branches
   POST /api/providers/describe
 ```
 
@@ -246,6 +247,37 @@ it names the connection role the repositories are listed under.
 
 ---
 
+### D2. POST /api/providers/branches
+
+The branches of one repository of a git-host connection, so the user can choose
+the repository's base branch (wizard step 3). The wizard calls it only when the
+user opens the base-branch choice for a selected repository.
+
+#### Request Body
+```json
+{
+  "providerId": "stub",
+  "role": "gitHost",
+  "config": { "host": "https://stub.example", "apiToken": "secret-pat", "project": "my-project" },
+  "repository": { "id": "repo-1", "name": "rocket-app", "remote": "https://stub.example/acme/rocket-app.git" }
+}
+```
+`repository.id` is required; `name` and `remote` are the values `/repositories`
+returned (GitHub resolves its owner and repository from them).
+
+#### Validation Layering
+The same as `/repositories`: malformed JSON or a missing `providerId` or
+`repository.id` is `400`; an unknown provider, an incompatible role or an
+invalid config is `409`; a provider without the `listBranches` capability is
+`409 { "formErrors": ["INCAPABLE_PROVIDER"] }`.
+
+#### Execution (`200 OK`)
+- **Success**: `{ "providerId": "stub", "branches": ["develop", "main"] }`.
+- **Provider Error**: `{ "code": "AUTH_INVALID", "context": "DISCOVERY" }`. The
+  wizard then lets the user type the branch name.
+
+---
+
 ### E. POST /api/providers/describe
 
 The connection's identity as its provider describes it (spec #133 story 34). This
@@ -464,7 +496,7 @@ with:
 
 - `code` and `context` from the provider's `toUserError`, with the context
   fixed by the capability (`VERIFY`: `verifyCredentials`, `verifyScopes`;
-  `DISCOVERY`: `listRepositories`; `TICKETS`: `listTickets`; `PR`:
+  `DISCOVERY`: `listRepositories`, `listBranches`; `TICKETS`: `listTickets`; `PR`:
   `createPullRequest`, `findExistingPullRequest`);
 - `message` set to the canonical copy for that `(code, context)` pair
   (`PROVIDER_ERROR_MESSAGES` in `src/providers/errors.ts`), never provider text;
