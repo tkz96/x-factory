@@ -62,6 +62,7 @@ describe("git operations honour an abort signal", () => {
           trackedFiles: new Set(),
           untrackedFiles: new Set(),
         },
+        undefined,
         ABORTED,
       ),
     ).rejects.toThrow();
