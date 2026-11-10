@@ -346,6 +346,9 @@ export const PROJECT_DETAIL_COPY = {
  * plain words — repository, tracker, branch (spec story 108).
  */
 export const PROJECTS_COPY = {
+  /** The primary repository's name, and how many others the project has. */
+  repositoryWithOthers: (name: string, others: number) =>
+    others === 0 ? name : `${name} and ${others} more`,
   /** The list pane's filter over archived projects. */
   filterLabel: "Show",
   filterActive: "Active",

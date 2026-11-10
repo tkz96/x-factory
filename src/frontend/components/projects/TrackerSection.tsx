@@ -11,11 +11,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { Project } from "../../../shared/types.js";
-import { useConnectionLine } from "../../hooks/useConnectionIdentity.js";
 import { useProviderDescriptors } from "../../hooks/useProviderDescriptors.js";
 import { api } from "../../lib/api-client.js";
-import { ConnectionComboLine } from "../connections/ConnectionComboLine.js";
-import { comboTone } from "../connections/connection-state.js";
 import { AsyncRegion } from "../feedback/AsyncRegion.js";
 import {
   CONNECTIONS_COPY,
@@ -32,11 +29,8 @@ import { Card } from "../ui/Card.js";
 import { formatConnectionWarnings } from "./connection-copy.js";
 import {
   applyConnectionIntegrity,
-  comboSlots,
   connectionDisplayValues,
   deriveConnectionIntegrity,
-  REQUIRED_POST_CREATION_ROLES,
-  recordedConnectionIdentityTargets,
   resolveProviderLabel,
 } from "./connection-integrity.js";
 import "./TrackerSection.css";
@@ -63,14 +57,6 @@ export function TrackerSection({ project }: TrackerSectionProps) {
   const { data: descriptors = [] } = useProviderDescriptors();
   const integrity = deriveConnectionIntegrity(project, descriptors);
   const tracker = integrity.tracker;
-
-  // The provider's own identity for this connection (#133 story 34), read from
-  // the configuration the project RECORDED. The wiring happens before any early
-  // return, and only the tracker role is read for.
-  const slots = useConnectionLine(
-    comboSlots(integrity),
-    recordedConnectionIdentityTargets(integrity, ["tracker"], descriptors),
-  );
 
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<ScopeTestResult | null>(null);
@@ -136,13 +122,6 @@ export function TrackerSection({ project }: TrackerSectionProps) {
         </div>
         <Badge>{providerLabel}</Badge>
       </div>
-
-      <ConnectionComboLine
-        slots={slots}
-        tone={comboTone(slots, REQUIRED_POST_CREATION_ROLES)}
-        descriptors={descriptors}
-        roles={["tracker"]}
-      />
 
       {tracker.warnings.length > 0 && (
         <FeedbackBanner

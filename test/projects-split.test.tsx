@@ -209,6 +209,27 @@ describe("Project facts — repository, tracker, branch in plain words (#267)", 
     });
   });
 
+  it("names an Azure DevOps remote by its organization and project, and counts the other repositories", () => {
+    const azure = (name: string) => ({
+      id: name,
+      name,
+      remote: `https://xynotech@dev.azure.com/xynotech/Converso/_git/${name}`,
+      path: `/work/${name}`,
+      defaultBranch: "main",
+    });
+    expect(
+      projectRepository(makeProject({ repositories: [azure("ai-engine")] }))
+        .value,
+    ).toBe("ai-engine — xynotech/Converso");
+    expect(
+      projectRepository(
+        makeProject({
+          repositories: [azure("ai-engine"), azure("ai-docs"), azure("RBRE")],
+        }),
+      ).value,
+    ).toBe("ai-engine and 2 more — xynotech/Converso");
+  });
+
   it("falls back to the folder the project is checked out in, as a path", () => {
     const project = makeProject({
       repositories: [],
@@ -548,6 +569,10 @@ describe("The project pane's tabs live in the URL", () => {
     expect(
       connection.container.querySelector(".projects-detail-fact"),
     ).toBeNull();
+    // The connection is named once: the tracker card does not repeat the line.
+    expect(
+      connection.container.querySelectorAll(".connection-combo-slot--tracker"),
+    ).toHaveLength(1);
   });
 
   it("switching tab writes it to the URL, and shows the readiness banner on every tab", () => {

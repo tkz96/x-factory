@@ -40,6 +40,12 @@ export interface ProjectRepositoryValue {
  * folder, say — is shown exactly as it was recorded.
  */
 function ownerRepoFromRemote(remote: string): string {
+  // Azure DevOps names a repository <org>/<project>/_git/<repository>: the
+  // organization and project say where it lives, not "_git".
+  const azure = /\/([^/\s]+)\/([^/\s]+)\/_git\/[^/\s]+?\/?$/.exec(
+    remote.trim(),
+  );
+  if (azure) return `${azure[1]}/${azure[2]}`;
   const match = /[:/]([^/\s]+\/[^/\s]+?)(?:\.git)?\/?$/.exec(remote.trim());
   return match?.[1] ?? remote.trim();
 }
@@ -51,14 +57,16 @@ function ownerRepoFromRemote(remote: string): string {
  * records neither.
  */
 export function projectRepository(project: Project): ProjectRepositoryValue {
-  const primary = (project.repositories ?? [])[0];
+  const repositories = project.repositories ?? [];
+  const primary = repositories[0];
   if (primary !== undefined) {
     const remote = primary.remote?.trim() ?? "";
+    const name = PROJECTS_COPY.repositoryWithOthers(
+      primary.name,
+      repositories.length - 1,
+    );
     return {
-      value:
-        remote === ""
-          ? primary.name
-          : `${primary.name} — ${ownerRepoFromRemote(remote)}`,
+      value: remote === "" ? name : `${name} — ${ownerRepoFromRemote(remote)}`,
       isPath: false,
     };
   }
