@@ -60,7 +60,7 @@ Users can also store model API keys in X-Factory itself, as **model connections*
 
 ## Local-Only API Boundary
 
-The API is a local control surface. It can rewrite the user's git identity and start agent work, so it must not be reachable from other machines or driven by web pages in the user's browser.
+The API is a local control surface. It can change a project's git identity and start agent work, so it must not be reachable from other machines or driven by web pages in the user's browser.
 
 The guard in `src/http/request-guard.ts` covers every `/api` request. `/openapi.json` and the static UI files are served without these checks. They are public, read-only and not sensitive.
 
