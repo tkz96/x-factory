@@ -80,3 +80,9 @@
   color: var(--green);
   margin-right: auto;
 }
+
+/* In the form the picker lines up with the fields around it; the inset it
+   carries under a wizard row does not apply here. */
+.repo-settings-form .repositories-base-branch {
+  padding: 0;
+}
