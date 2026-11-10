@@ -379,6 +379,22 @@ export const REPOSITORY_SETTINGS_COPY = {
   pathRequired: "Enter the folder where this repository is checked out.",
 } as const;
 
+/** Project settings: the git identity the project's commits are authored with. */
+export const PROJECT_GIT_IDENTITY_COPY = {
+  title: "Git identity",
+  help: "The author of every commit X-Factory makes for this project. It does not change your git configuration.",
+  name: "Name",
+  email: "Email",
+  notSet:
+    "No git identity is set. Commits use the git configuration on this machine.",
+  save: "Save",
+  saving: "Saving…",
+  saved: "Saved.",
+  nameRequired: "Enter a name.",
+  emailRequired: "Enter an email.",
+  emailInvalid: "The email must contain @.",
+} as const;
+
 /**
  * Inspection step copy (#146). The step reports the git identity the agent will
  * commit with, read from the same git configuration the executor's worktree

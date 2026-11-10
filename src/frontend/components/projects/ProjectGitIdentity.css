@@ -1,0 +1,51 @@
+/* src/frontend/components/projects/ProjectGitIdentity.css — the project's git
+   identity on the project detail. Tokens only. */
+
+.project-git-identity-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.project-git-identity-title {
+  margin: 0;
+}
+
+.project-git-identity-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+@media (max-width: 667px) {
+  .project-git-identity-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
+.project-git-identity-field {
+  display: flex;
+  margin: 0;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.project-git-identity-label,
+.project-git-identity-help {
+  color: var(--text-muted);
+}
+
+.project-git-identity-help {
+  margin: 0;
+}
+
+.project-git-identity-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+.project-git-identity-saved {
+  color: var(--green);
+}

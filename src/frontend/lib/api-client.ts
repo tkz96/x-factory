@@ -303,6 +303,19 @@ export const api = {
     return handleResponse<Project>(res);
   },
 
+  /** Saves the git identity every commit for this project is authored with. */
+  async updateProjectGitIdentity(
+    id: string,
+    gitIdentity: GitIdentity,
+  ): Promise<Project> {
+    const res = await fetch(`/api/projects/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ gitIdentity }),
+    });
+    return handleResponse<Project>(res);
+  },
+
   async inspectRepository(payload: {
     path: string;
     remote?: string | undefined;

@@ -347,6 +347,16 @@ export const ProjectInputSchema = z.union([
   ConnectionsProjectInputSchema,
 ]);
 
+/** A project's git identity on update: both parts required, the email has an "@". */
+export const ProjectGitIdentityUpdateSchema = z.object({
+  name: z.string().trim().min(1, "Name is required."),
+  email: z
+    .string()
+    .trim()
+    .min(1, "Email is required.")
+    .refine((value) => value.includes("@"), "Email must contain @."),
+});
+
 /**
  * The legacy `PUT`/`PATCH /api/projects/{id}` body (#163 B4): a partial project
  * record merged onto the stored one. Every field it may carry is declared and
@@ -361,9 +371,7 @@ export const ProjectUpdateBodySchema = z.looseObject({
   issueTracker: IssueTrackerInputSchema,
   repositories: z.array(z.unknown()).min(1).optional(),
   connections: z.array(ProjectConnectionInputSchema).min(1).optional(),
-  gitIdentity: z
-    .object({ name: z.string().min(1), email: z.string().min(1) })
-    .optional(),
+  gitIdentity: ProjectGitIdentityUpdateSchema.optional(),
   archived: z.boolean().optional(),
   archivedAt: z.string().optional(),
   successorId: z.string().optional(),
