@@ -11,10 +11,12 @@ import type {
   RepositoryCommands,
 } from "../../../shared/types.js";
 import { useUpdateProjectRepositories } from "../../hooks/useQueries.js";
+import { api } from "../../lib/api-client.js";
 import { REPOSITORY_SETTINGS_COPY } from "../feedback/copy-map.js";
 import { FeedbackBanner } from "../feedback/FeedbackBanner.js";
 import { Button } from "../ui/Button.js";
 import { Card } from "../ui/Card.js";
+import { BaseBranchPicker } from "./BaseBranchPicker.js";
 
 interface RepositorySettingsProps {
   projectId: string;
@@ -111,29 +113,18 @@ function RepositoryForm({
           </span>
         </label>
 
-        <label
-          className="repo-settings-field"
-          htmlFor={`${prefix}-base-branch`}
-        >
-          <span className="repo-settings-label text-subhead">
-            {REPOSITORY_SETTINGS_COPY.baseBranch}
-          </span>
-          <input
-            id={`${prefix}-base-branch`}
-            className="form-input repo-settings-input repo-settings-input--mono text-callout"
-            value={baseBranch}
-            aria-invalid={branchError}
-            aria-describedby={`${prefix}-base-branch-help`}
-            onChange={(e) => setBaseBranch(e.target.value)}
+        <div className="repo-settings-field">
+          <BaseBranchPicker
+            repositoryId={repo.id}
+            branch={baseBranch}
+            onChange={setBaseBranch}
+            queryKey={["projects", "branches", projectId, repo.id]}
+            loadBranches={() => api.getRepositoryBranches(projectId, repo.id)}
           />
-          <span
-            id={`${prefix}-base-branch-help`}
-            className="repo-settings-help text-subhead"
-          >
+          <span className="repo-settings-help text-subhead">
             {REPOSITORY_SETTINGS_COPY.baseBranchHelp}
           </span>
-        </label>
-
+        </div>
         {COMMAND_FIELDS.map((field) => (
           <label
             key={field}

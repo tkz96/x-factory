@@ -1,64 +1,40 @@
-// src/frontend/wizard/steps/BaseBranchPicker.tsx — The base branch of one
-// selected repository: shown pre-set, changed from the provider's branch list
+// src/frontend/components/projects/BaseBranchPicker.tsx — The base branch of one
+// repository: shown pre-set, changed from the provider's branch list
 // (read only when the user asks), or typed when the list cannot be read.
 
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { AsyncRegion } from "../../components/feedback/AsyncRegion.js";
-import {
-  isNormalizedError,
-  REPOSITORIES_COPY,
-} from "../../components/feedback/copy-map.js";
-import { deriveAsyncState } from "../../components/feedback/derive-async-state.js";
-import { Button } from "../../components/ui/Button.js";
-import type {
-  BranchesEnvelope,
-  ProviderDescriptor,
-} from "../../connection/types.js";
-import { api } from "../../lib/api-client.js";
-import { QUERY_POLICIES, queryKeys } from "../../lib/query-policies.js";
+import { QUERY_POLICIES } from "../../lib/query-policies.js";
+import { AsyncRegion } from "../feedback/AsyncRegion.js";
+import { REPOSITORIES_COPY } from "../feedback/copy-map.js";
+import { deriveAsyncState } from "../feedback/derive-async-state.js";
+import { Button } from "../ui/Button.js";
+import "./BaseBranchPicker.css";
 
 interface BaseBranchPickerProps {
-  repository: { id: string; name: string; remote: string };
-  /** The branch in effect: the user's choice or the provider's default. */
+  repositoryId: string;
+  /** The branch in effect: the user's choice or the stored/provider default. */
   branch: string;
   onChange: (branch: string) => void;
-  providerId: string | null;
-  config: Record<string, unknown>;
-  descriptor: ProviderDescriptor | undefined;
+  /** Identifies the listing in the query cache. */
+  queryKey: readonly unknown[];
+  /** Reads the repository's branch names; called only once the user opens it. */
+  loadBranches: () => Promise<string[]>;
 }
 
 export function BaseBranchPicker({
-  repository,
+  repositoryId: id,
   branch,
   onChange,
-  providerId,
-  config,
-  descriptor,
+  queryKey,
+  loadBranches,
 }: BaseBranchPickerProps) {
   const [open, setOpen] = useState(false);
-  const id = repository.id;
 
   const query = useQuery({
-    queryKey: queryKeys.providerBranches(providerId, config, id, descriptor),
-    enabled: open && providerId !== null,
-    queryFn: async (): Promise<BranchesEnvelope> => {
-      if (providerId === null) {
-        throw new Error("Listing branches requires a git-host connection.");
-      }
-      const envelope = await api.providers.listBranches({
-        providerId,
-        role: "gitHost",
-        config,
-        repository: {
-          id,
-          name: repository.name,
-          remote: repository.remote,
-        },
-      });
-      if (isNormalizedError(envelope)) throw envelope;
-      return envelope;
-    },
+    queryKey,
+    enabled: open,
+    queryFn: loadBranches,
     ...QUERY_POLICIES.providerBranches,
   });
 
@@ -68,7 +44,7 @@ export function BaseBranchPicker({
     isError: query.isError,
     error: query.error,
   });
-  const branches = query.data?.branches ?? [];
+  const branches = query.data ?? [];
   // The branch in effect stays choosable even when the list omits it.
   const options = branches.includes(branch) ? branches : [branch, ...branches];
 

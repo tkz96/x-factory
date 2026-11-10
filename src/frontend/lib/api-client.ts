@@ -317,6 +317,18 @@ export const api = {
     return handleResponse<Project>(res);
   },
 
+  /** The branches of one of the project's repositories (stored connection). */
+  async getRepositoryBranches(
+    projectId: string,
+    repositoryId: string,
+  ): Promise<string[]> {
+    const res = await fetch(
+      `/api/projects/${encodeURIComponent(projectId)}/repositories/${encodeURIComponent(repositoryId)}/branches`,
+    );
+    const body = await handleResponse<{ branches: string[] }>(res);
+    return body.branches;
+  },
+
   /** Saves the git identity every commit for this project is authored with. */
   async updateProjectGitIdentity(
     id: string,

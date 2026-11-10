@@ -278,6 +278,22 @@ invalid config is `409`; a provider without the `listBranches` capability is
 
 ---
 
+### D3. GET /api/projects/{id}/repositories/{repoId}/branches
+
+The branches of one repository of an existing project, for choosing its base
+branch in project settings. The server resolves the project's stored git-host
+connection and merges its saved secrets itself, so the client sends no
+credentials.
+
+- `404`: the project, or the repository within it, does not exist.
+- `400`: the project has no git-host connection, or its provider cannot list
+  branches.
+- `200`: `{ "branches": ["develop", "main"] }`.
+- A provider failure is a normalized provider error response with no provider
+  text; settings then lets the user type the branch name.
+
+---
+
 ### E. POST /api/providers/describe
 
 The connection's identity as its provider describes it (spec #133 story 34). This

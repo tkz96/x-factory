@@ -288,6 +288,58 @@ export async function handleGetProjectTickets(
   }
 }
 
+/**
+ * GET /api/projects/{id}/repositories/{repoId}/branches — the branches of one
+ * of the project's repositories, read with the project's stored git-host
+ * connection (secrets are merged in server-side, never sent by the client).
+ */
+export async function handleGetRepositoryBranches(
+  projectId: string,
+  repositoryId: string,
+  registry: ProviderRegistry,
+): Promise<Response> {
+  const project = await getProject(projectId);
+  if (!project) return errorResponse(`Project "${projectId}" not found.`, 404);
+  const repo = project.repositories.find((r) => r.id === repositoryId);
+  if (!repo) {
+    return errorResponse(
+      `Repository "${repositoryId}" not found in project "${projectId}".`,
+      404,
+    );
+  }
+  const env = await loadProjectEnv(projectId);
+  const connection = resolveProjectConnection(
+    project,
+    "gitHost",
+    env,
+    registry,
+  );
+  if (!connection) {
+    return errorResponse(
+      `Project "${projectId}" has no git host connection.`,
+      400,
+    );
+  }
+  const { provider, config } = connection;
+  if (!hasCapability(provider, "listBranches")) {
+    return errorResponse(
+      `Provider "${provider.id}" cannot list branches.`,
+      400,
+    );
+  }
+  try {
+    const branches = await provider.listBranches(config, {
+      id: repo.id,
+      name: repo.name,
+      remote: repo.remote,
+    });
+    return jsonResponse({ branches });
+  } catch (err: unknown) {
+    if (err instanceof ProviderError) return providerErrorResponse(err);
+    throw err;
+  }
+}
+
 export async function handleGetProjectTracker(
   projectId: string,
   registry: ProviderRegistry,

@@ -343,6 +343,52 @@ function documentedSpec() {
           },
         },
       },
+      "/api/projects/{id}/repositories/{repoId}/branches": {
+        get: {
+          tags: ["Projects"],
+          summary: "List Repository Branches",
+          description:
+            "Lists the branch names of one of the project's repositories, read with the project's stored git-host connection. Secrets stay on the server. A provider failure is a normalized ProviderError.",
+          operationId: "getProjectRepositoryBranches",
+          parameters: [
+            {
+              name: "id",
+              in: "path",
+              required: true,
+              description: "Project identifier",
+              schema: { type: "string" },
+            },
+            {
+              name: "repoId",
+              in: "path",
+              required: true,
+              description: "Repository identifier within the project",
+              schema: { type: "string" },
+            },
+          ],
+          responses: {
+            "200": {
+              description: "Branch names",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    required: ["branches"],
+                    properties: {
+                      branches: {
+                        type: "array",
+                        items: { type: "string" },
+                        example: ["develop", "main"],
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            "404": { $ref: "#/components/responses/NotFoundError" },
+          },
+        },
+      },
       "/api/projects/{id}/tracker/test": {
         post: {
           tags: ["Projects"],

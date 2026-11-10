@@ -30,6 +30,10 @@ const PROJECT_ID = "conn-api-rocket";
 const calls = {
   jiraVerify: [] as ProviderConfig[],
   jiraTickets: [] as ProviderConfig[],
+  branches: [] as Array<{
+    config: ProviderConfig;
+    repository: { id: string; name?: string | undefined };
+  }>,
   azureVerify: [] as ProviderConfig[],
   pullRequests: [] as Array<{ config: ProviderConfig; repository: string }>,
   azurePullRequests: [] as Array<{
@@ -37,6 +41,9 @@ const calls = {
     repository: string;
   }>,
 };
+
+/** When set, branch listing throws a raw failure. */
+let branchesFailure = false;
 
 /** When set, the next Jira verification throws this message (error-path tests). */
 let jiraVerifyFailure: string | null = null;
@@ -75,6 +82,11 @@ const recordingGitHub: Provider<"github"> = {
   },
   async listRepositories() {
     return [];
+  },
+  async listBranches(config, repository) {
+    calls.branches.push({ config, repository });
+    if (branchesFailure) throw new Error("raw upstream text");
+    return ["develop", "main"];
   },
   async findExistingPullRequest() {
     return null;
@@ -185,6 +197,47 @@ async function createJiraProject(id: string): Promise<Response> {
     ],
   });
 }
+
+describe("project repository branches", () => {
+  test("lists a repository's branches with the stored git-host connection, secret included", async () => {
+    const id = "conn-api-branches";
+    expect((await createJiraProject(id)).status).toBe(201);
+    const res = await api(
+      "GET",
+      `projects/${id}/repositories/${id}-web/branches`,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ branches: ["develop", "main"] });
+    const call = calls.branches.at(-1);
+    expect(call?.repository.id).toBe(`${id}-web`);
+    expect(call?.config.token).toBe(GITHUB_MARKER);
+  });
+
+  test("an unknown project or repository is 404", async () => {
+    expect(
+      (await api("GET", "projects/nope-xyz/repositories/a/branches")).status,
+    ).toBe(404);
+    const id = "conn-api-branches";
+    expect(
+      (await api("GET", `projects/${id}/repositories/missing/branches`)).status,
+    ).toBe(404);
+  });
+
+  test("a provider failure is a normalized error without raw text", async () => {
+    const id = "conn-api-branches";
+    branchesFailure = true;
+    try {
+      const res = await api(
+        "GET",
+        `projects/${id}/repositories/${id}-web/branches`,
+      );
+      expect(res.ok).toBe(false);
+      expect(await res.text()).not.toContain("raw upstream text");
+    } finally {
+      branchesFailure = false;
+    }
+  });
+});
 
 describe("project connections at the HTTP seam", () => {
   test("tickets load for a Jira project, with the secret saved under the schema's apiToken", async () => {

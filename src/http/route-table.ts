@@ -47,6 +47,7 @@ import {
   handleGetProjects,
   handleGetProjectTickets,
   handleGetProjectTracker,
+  handleGetRepositoryBranches,
   handleInspectRepository,
   handleMigrateProject,
   handleTestProjectTracker,
@@ -421,6 +422,21 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     responseDescription: "Tickets from the project's tracker",
     handler: projectRoute(({ params, ctx }) =>
       handleGetProjectTickets(params.id, registryOf(ctx)),
+    ),
+  }),
+  route({
+    method: "GET",
+    path: "/api/projects/{id}/repositories/{repoId}/branches",
+    tags: ["Projects"],
+    summary: "List Repository Branches",
+    operationId: "getProjectRepositoryBranches",
+    responseDescription: "The branch names of the project's repository",
+    handler: projectRoute(({ params, ctx }) =>
+      handleGetRepositoryBranches(
+        params.id,
+        params.repoId as string,
+        registryOf(ctx),
+      ),
     ),
   }),
   route({
