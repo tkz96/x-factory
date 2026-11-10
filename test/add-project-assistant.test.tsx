@@ -416,6 +416,42 @@ describe("Add Project assistant (#268)", () => {
     expect(getEl("wizard-progress-counter").textContent).toBe("Step 1 of 5");
   });
 
+  it("drops a field's error once the pasted URL fills that field in", async () => {
+    let answer: (value: unknown) => void = () => {};
+    api.providers.parseUrl = mock(
+      () =>
+        new Promise((resolve) => {
+          answer = resolve;
+        }),
+    ) as unknown as typeof api.providers.parseUrl;
+    renderWizard();
+    fireEvent.click(getEl("btn-open-wizard"));
+    const alerts = () =>
+      within(sheet())
+        .queryAllByRole("alert")
+        .map((alert) => alert.textContent ?? "");
+
+    // Continue is pressed before the providers answer: name and identifier are empty.
+    typeInput(getEl("onboard-repo-url"), REPOSITORY_URL);
+    leaveInput(getEl("onboard-repo-url"));
+    fireEvent.click(getEl("btn-step-1-next"));
+    expect(alerts()).toContain(REPOSITORY_STEP_COPY.nameRequired);
+
+    await act(async () => {
+      answer({
+        matched: true,
+        providerId: "stub-provider",
+        configDraft: {},
+        inferredName: "Titan",
+      });
+    });
+    await flush();
+
+    expect(getEl<HTMLInputElement>("onboard-proj-name").value).toBe("Titan");
+    expect(alerts()).not.toContain(REPOSITORY_STEP_COPY.nameRequired);
+    expect(alerts()).not.toContain(REPOSITORY_STEP_COPY.identifierRequired);
+  });
+
   it("starts empty: X-Factory invents none of the project's details", () => {
     renderWizard();
     fireEvent.click(getEl("btn-open-wizard"));

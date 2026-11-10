@@ -393,9 +393,6 @@ export const INSPECTION_COPY = {
   /** Empty: nothing is selected to inspect yet. */
   emptyNoSelection:
     "No repository is selected yet. Choose at least one on the Repositories step, then inspect its git identity.",
-  /** Empty: a selection exists, but there is no directory to read a config in. */
-  emptyNoPath:
-    "There is no local directory to read a git configuration in yet. Set a local workspace root on the Basics step, or a local path for the repository.",
   /** Partial: one item per repository whose directory resolved no identity. */
   unresolvedRepo: (name: string) =>
     `${name} — no git identity is configured for its directory`,

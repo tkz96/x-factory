@@ -24,6 +24,9 @@ import type {
 /** Namespace so inspection digests can never collide with connection digests. */
 const INSPECTION_FINGERPRINT_NAMESPACE = "inspection";
 
+/** Read when a repository has no folder on this machine: its git config is the global one. */
+const HOME_FOLDER = "~";
+
 /** The inputs the identity is resolved from. */
 export interface InspectionInputs {
   workspacePath: string;
@@ -90,8 +93,10 @@ export function inspectionInputsFingerprint(inputs: InspectionInputs): string {
 /**
  * The directories to read the git configuration in: a repository's own local
  * path when it has one, otherwise the project's workspace root — the directory
- * the executor's worktree is created under. Repositories sharing a directory
- * are read once; a selection with no directory to read at all yields none.
+ * the executor's worktree is created under. With neither, the home folder is
+ * read, which gives the global git configuration: a repository that is not
+ * cloned yet commits with that identity. Repositories sharing a directory are
+ * read once.
  */
 export function inspectionTargets(
   inputs: InspectionInputs,
@@ -99,10 +104,9 @@ export function inspectionTargets(
   const targets: InspectionTarget[] = [];
   for (const id of inputs.selectedRepoIds) {
     const path =
-      inputs.repoConfigs[id]?.localPath?.trim() || inputs.workspacePath.trim();
-    if (!path) {
-      continue;
-    }
+      inputs.repoConfigs[id]?.localPath?.trim() ||
+      inputs.workspacePath.trim() ||
+      HOME_FOLDER;
     const existing = targets.find((target) => target.path === path);
     if (existing) {
       existing.repoIds.push(id);

@@ -172,8 +172,10 @@ export function RepositoryStep() {
   }, [url, name, id, askAboutUrl, nextStep]);
 
   const urlError = errors.url;
-  const nameError = errors.name;
-  const idError = errors.id;
+  // A required-field error holds only while the field is still empty: the
+  // pasted URL's answer can fill the name and identifier after Continue.
+  const nameError = name.trim() === "" ? errors.name : null;
+  const idError = id.trim() === "" ? errors.id : null;
 
   return (
     <div id="onboard-step-1" className="wizard-step-pane repository-step-pane">

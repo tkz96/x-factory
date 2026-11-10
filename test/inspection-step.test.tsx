@@ -380,14 +380,12 @@ describe("Inspection Step: the git identity the agent commits with (#146)", () =
     expect(inspectRepository).not.toHaveBeenCalled();
   });
 
-  it("EMPTY (no directory to read): guidance naming what is missing, and nothing is inspected", async () => {
+  it("no directory to read: the home folder's git configuration is read", async () => {
     openInspectionStep({ workspacePath: "" });
     await flush();
 
-    const region = inspectionRegion();
-    expect(region.querySelector(".async-region--empty")).not.toBeNull();
-    expect(region.textContent).toContain(INSPECTION_COPY.emptyNoPath);
-    expect(inspectRepository).not.toHaveBeenCalled();
+    expect(inspectRepository).toHaveBeenCalledWith({ path: "~" });
+    expect(inspectionRegion().querySelector(".async-region--empty")).toBeNull();
   });
 
   it("PARTIAL: a repository whose directory resolved no identity is NAMED, and the identity that did resolve stays on screen", async () => {

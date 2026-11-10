@@ -150,12 +150,15 @@ describe("inspectionTargets", () => {
     ]);
   });
 
-  it("yields no target when the selection has no local path at all to read", () => {
+  it("reads the home folder's git configuration when the selection has no local path", () => {
     expect(
       inspectionTargets(
         inputs({ workspacePath: "   ", selectedRepoIds: ["repo-app"] }),
       ),
-    ).toEqual([]);
+    ).toEqual([{ path: "~", repoIds: ["repo-app"] }]);
+  });
+
+  it("yields no target when nothing is selected", () => {
     expect(inspectionTargets(inputs({ selectedRepoIds: [] }))).toEqual([]);
   });
 });

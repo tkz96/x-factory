@@ -81,7 +81,6 @@ export function InspectionStep() {
     status,
     unresolvedRepoLabels,
     inspectAgain,
-    isEmptySelection,
     configureIdentity,
     isConfiguring,
     configureError,
@@ -341,11 +340,7 @@ export function InspectionStep() {
         <AsyncRegion
           derived={derived}
           onRetry={inspectAgain}
-          emptyCopy={
-            isEmptySelection
-              ? INSPECTION_COPY.emptyNoSelection
-              : INSPECTION_COPY.emptyNoPath
-          }
+          emptyCopy={INSPECTION_COPY.emptyNoSelection}
           failedParts={unresolvedRepoLabels.map(INSPECTION_COPY.unresolvedRepo)}
         >
           {identity && (

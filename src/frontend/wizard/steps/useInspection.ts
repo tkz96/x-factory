@@ -53,7 +53,6 @@ export interface InspectionView {
   unresolvedRepoLabels: string[];
   /** Reads the configured git identity again, for the current inputs. */
   inspectAgain: () => void;
-  isEmptySelection: boolean;
   /** Configures git identity directly in the inspected scope (#161). */
   configureIdentity: (params: {
     name: string;
@@ -273,7 +272,6 @@ export function useInspection(): InspectionView {
     inspectAgain: () => {
       void inspect();
     },
-    isEmptySelection: selectedRepoIds.length === 0,
     configureIdentity,
     isConfiguring: configureMutation.isPending,
     configureError: configureMutation.error,
