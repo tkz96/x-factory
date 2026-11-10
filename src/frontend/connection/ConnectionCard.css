@@ -98,6 +98,13 @@
   line-height: 1.4;
 }
 
+/* The deferred-check note is information: muted, no icon, no retry. */
+.connection-deferred-note {
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.4;
+}
+
 .connection-overprivileged-container {
   margin-top: var(--space-2);
 }

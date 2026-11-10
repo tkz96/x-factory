@@ -12,6 +12,7 @@ import {
   DEGRADED_CAPABILITY_FALLBACK,
 } from "../components/feedback/copy-map.js";
 import { FeedbackBanner } from "../components/feedback/FeedbackBanner.js";
+import { splitWarnings } from "./deferred-checks.js";
 import { formatDegradedCapabilityNotice } from "./scope-feedback.js";
 import type { VerificationResult } from "./types.js";
 import "./ConnectionCard.css";
@@ -25,7 +26,8 @@ export function ConnectionDegradedBanner({
   verificationResult,
   onRetry,
 }: ConnectionDegradedBannerProps) {
-  const warnings = verificationResult?.warnings ?? [];
+  // Deferred checks are not warnings: the card shows them as a calm note.
+  const warnings = splitWarnings(verificationResult?.warnings ?? []).real;
   const items = warnings
     .filter((w) => w.kind === "CAPABILITY_UNCONFIRMED")
     .map((w) => formatDegradedCapabilityNotice(w.capability, w.missingScopes));

@@ -6,6 +6,7 @@ import { FeedbackBanner } from "../components/feedback/FeedbackBanner.js";
 import { FieldFeedback } from "../components/feedback/FieldFeedback.js";
 import { ConnectionDegradedBanner } from "./ConnectionDegradedBanner.js";
 import { ConnectionErrorBanner } from "./ConnectionErrorBanner.js";
+import { splitWarnings } from "./deferred-checks.js";
 import type { VerificationResult } from "./types.js";
 import "./ConnectionCard.css";
 
@@ -38,6 +39,24 @@ export function OverPrivilegedNotice({
   );
 }
 
+/**
+ * The one calm line for checks the provider cannot make before first use. It is
+ * information, not a warning, and offers no retry: retrying cannot change it.
+ */
+function DeferredCheckNote({
+  verificationResult,
+}: {
+  verificationResult?: VerificationResult | null | undefined;
+}) {
+  const { deferred } = splitWarnings(verificationResult?.warnings ?? []);
+  if (deferred.length === 0) return null;
+  return (
+    <p className="connection-deferred-note text-footnote">
+      {CONNECTIONS_COPY.deferredCheckNote}
+    </p>
+  );
+}
+
 export function ConnectionCardFeedback({
   connectionRole,
   verificationStatus,
@@ -61,6 +80,7 @@ export function ConnectionCardFeedback({
           verificationResult={verificationResult}
           onRetry={onVerify}
         />
+        <DeferredCheckNote verificationResult={verificationResult} />
         {isOverPrivileged && (
           <OverPrivilegedNotice connectionRole={connectionRole} />
         )}
@@ -85,6 +105,7 @@ export function ConnectionCardFeedback({
           message={CONNECTIONS_COPY.verified}
           id={`${connectionRole}-verified-feedback`}
         />
+        <DeferredCheckNote verificationResult={verificationResult} />
         {isOverPrivileged && (
           <OverPrivilegedNotice connectionRole={connectionRole} />
         )}

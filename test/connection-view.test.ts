@@ -67,6 +67,25 @@ function makeProject(overrides: Partial<Project>): Project {
 }
 
 describe("deriveConnectionView — draft and recorded through the same module", () => {
+  it("reads a draft whose only unconfirmed capability is a deferred check as connected", () => {
+    const evidence = {
+      providerId: "githost-one",
+      verified: true,
+      unconfirmedCapabilities: ["createPullRequest"],
+    };
+    const noEvidence = { providerId: null, unconfirmedCapabilities: [] };
+    const view = (gitHost: typeof evidence & Record<string, unknown>) =>
+      deriveConnectionView(
+        { kind: "draft", evidence: { tracker: noEvidence, gitHost } },
+        DESCRIPTORS,
+      );
+    expect(view(evidence).gitHost.state).toBe("connected");
+    expect(
+      view({ ...evidence, missingScopes: { createPullRequest: ["repo"] } })
+        .gitHost.state,
+    ).toBe("degraded");
+  });
+
   it("derives the wizard draft's slots: verified → connected, degraded evidence → degraded", () => {
     const view = deriveConnectionView(
       {

@@ -225,6 +225,9 @@ export const CONNECTIONS_COPY = {
   verified: "Connection verified",
   overPrivileged:
     "Notice: the token has broader access than the recommended minimum.",
+  /** Calm note for a check the provider cannot make before first use (pull request creation). */
+  deferredCheckNote:
+    "Pull request permission is checked when X-Factory opens its first pull request.",
   /** Banner lead when a connection is verified with warnings (limited access). */
   degradedLead:
     "Connection verified with limited access. The following permissions could not be confirmed:",
