@@ -121,11 +121,18 @@ export function ProjectDetailView() {
     setSearchParams(params, { replace: true });
   };
 
-  // The subtitle: the tracker's provider and the repository the project works in.
-  const subtitle = facts
-    .slice(0, 2)
-    .reverse()
-    .map((fact) => fact.value)
+  // The subtitle: the tracker's provider and what it tracks — the provider's own
+  // name for the connection ("xynotech/Converso") when it describes one, else
+  // the repository the project works in.
+  const [repositoryFact, trackerFact] = facts;
+  const trackerIdentity = slots.find(
+    (slot) => slot.role === "tracker",
+  )?.identity;
+  const subtitle = [
+    trackerFact?.value,
+    trackerIdentity ?? repositoryFact?.value,
+  ]
+    .filter((part) => part !== undefined && part !== "")
     .join(" · ");
 
   return (

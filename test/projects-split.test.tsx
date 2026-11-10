@@ -31,6 +31,7 @@ import {
 import type { ProviderDescriptor } from "../src/frontend/connection/types.js";
 import { ModalProvider } from "../src/frontend/context/ModalContext.js";
 import { ProjectProvider } from "../src/frontend/context/ProjectContext.js";
+import { api } from "../src/frontend/lib/api-client.js";
 import { queryKeys } from "../src/frontend/lib/query-policies.js";
 import { routeDefinitions } from "../src/frontend/routes.js";
 import { ProjectDetailView } from "../src/frontend/views/ProjectDetailView.js";
@@ -411,6 +412,25 @@ describe("The project detail pane (#267)", () => {
     expect(
       view.container.querySelector(".projects-detail-subtitle")?.textContent,
     ).toContain("/work/demo-app");
+  });
+
+  it("names the tracker's own project in the subtitle when the provider describes it", async () => {
+    const original = api.providers.describe;
+    api.providers.describe = (async (payload: { providerId: string }) => ({
+      providerId: payload.providerId,
+      identity: payload.providerId === "tracker-one" ? "acme/Converso" : null,
+    })) as typeof api.providers.describe;
+    try {
+      const view = renderProjects("/projects/demo-app", [makeProject()]);
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(
+        view.container.querySelector(".projects-detail-subtitle")?.textContent,
+      ).toBe("Tracker One · acme/Converso");
+    } finally {
+      api.providers.describe = original;
+    }
   });
 
   it("says Not recorded when the project records neither a repository nor a folder", () => {

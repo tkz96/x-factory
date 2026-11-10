@@ -150,12 +150,14 @@ export function startServer(
           if (!relPath || !hasStaticFile) {
             const ext = path.extname(url.pathname);
             if (!ext || ext === ".html") {
+              // The query string goes too: a page's state can live in it.
+              const target = `http://localhost:5173${url.pathname}${url.search}`;
               return new Response(
-                `<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url=http://localhost:5173${url.pathname}"><title>Redirecting…</title></head><body><p>Redirecting to <a href="http://localhost:5173${url.pathname}">Vite Dev Server</a>…</p></body></html>`,
+                `<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url=${Bun.escapeHTML(target)}"><title>Redirecting…</title></head><body><p>Redirecting to <a href="${Bun.escapeHTML(target)}">Vite Dev Server</a>…</p></body></html>`,
                 {
                   status: 302,
                   headers: {
-                    Location: `http://localhost:5173${url.pathname}`,
+                    Location: target,
                     "Content-Type": "text/html; charset=utf-8",
                   },
                 },

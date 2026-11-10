@@ -39,6 +39,20 @@ describe("Native Bun HTTP Server & API Endpoints", () => {
     assert.ok(text.includes("Vite Dev Server"));
   });
 
+  it("keeps the query string when it redirects to the Vite dev server", async () => {
+    const res = await fetch(
+      `${baseUrl}/projects/demo?tab=repositories&repo=r1`,
+      {
+        redirect: "manual",
+      },
+    );
+    assert.equal(res.status, 302);
+    assert.equal(
+      res.headers.get("Location"),
+      "http://localhost:5173/projects/demo?tab=repositories&repo=r1",
+    );
+  });
+
   it("serves static CSS on GET /assets/tokens.css", async () => {
     const res = await fetch(`${baseUrl}/assets/tokens.css`);
     assert.equal(res.status, 200);
