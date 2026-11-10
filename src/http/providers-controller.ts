@@ -354,6 +354,46 @@ export async function handleRepositoriesRoute(
   });
 }
 
+const BranchesBodySchema = ProviderConfigBodySchema.extend({
+  repository: z.object({
+    id: z.string().min(1, "repository.id is required"),
+    name: z.string().optional(),
+    remote: z.string().optional(),
+  }),
+});
+
+/**
+ * POST /api/providers/branches
+ * The branches of one repository of a git-host connection, for choosing the
+ * repository's base branch. Same layering as `/repositories`; a thrown provider
+ * error normalizes to the `DISCOVERY` envelope in a 200 body.
+ */
+export async function handleBranchesRoute(
+  req: Request,
+  registry: ProviderRegistry = PROVIDER_REGISTRY,
+): Promise<Response> {
+  return withValidatedBody(req, BranchesBodySchema, async (body) => {
+    const prelude = resolveProviderRoutePrelude(registry, body);
+    if (!prelude.ok) {
+      return prelude.response;
+    }
+    const { provider, config } = prelude;
+    if (!hasCapability(provider, "listBranches")) {
+      return jsonResponse({ formErrors: ["INCAPABLE_PROVIDER"] }, 409);
+    }
+    try {
+      const branches = await provider.listBranches(config, body.repository);
+      return jsonResponse({ providerId: provider.id, branches }, 200);
+    } catch (err: unknown) {
+      const userError: ProviderErrorEnvelope = provider.toUserError(
+        err,
+        "DISCOVERY",
+      );
+      return jsonResponse(userError, 200);
+    }
+  });
+}
+
 /**
  * POST /api/providers/describe
  * The connection's identity as its provider describes it (#133 story 34).

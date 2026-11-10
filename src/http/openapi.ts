@@ -1119,6 +1119,52 @@ function documentedSpec() {
           },
         },
       },
+      "/api/providers/branches": {
+        post: {
+          tags: ["Providers"],
+          summary: "List Repository Branches",
+          description:
+            "Lists the branch names of one repository of a git-host connection, so its base branch can be chosen. Returns the branch names, or a normalized ProviderError envelope when the provider call fails.",
+          operationId: "listProviderBranches",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ProviderBranchesInput" },
+              },
+            },
+          },
+          responses: {
+            "200": {
+              description: "Branch names or normalized provider error envelope",
+              content: {
+                "application/json": {
+                  schema: {
+                    oneOf: [
+                      {
+                        $ref: "#/components/schemas/ProviderBranchesResult",
+                      },
+                      { $ref: "#/components/schemas/ProviderError" },
+                    ],
+                  },
+                },
+              },
+            },
+            "400": { $ref: "#/components/responses/BadRequestError" },
+            "409": {
+              description:
+                "Semantic validation failure (unknown provider, incompatible role, invalid config, or missing listBranches capability)",
+              content: {
+                "application/json": {
+                  schema: {
+                    $ref: "#/components/schemas/ProviderSemanticValidationError",
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
       "/api/providers/describe": {
         post: {
           tags: ["Providers"],
@@ -1954,6 +2000,47 @@ function documentedSpec() {
               type: "object",
               additionalProperties: true,
               example: { host: "https://stub.example", apiToken: "token" },
+            },
+          },
+        },
+        ProviderBranchesInput: {
+          type: "object",
+          required: ["providerId", "config", "repository"],
+          properties: {
+            providerId: { type: "string", example: "stub" },
+            role: {
+              type: "string",
+              enum: ["tracker", "gitHost", "git-host"],
+              example: "gitHost",
+            },
+            config: {
+              type: "object",
+              additionalProperties: true,
+              example: { host: "https://stub.example", apiToken: "token" },
+            },
+            repository: {
+              type: "object",
+              required: ["id"],
+              properties: {
+                id: { type: "string", example: "repo-1" },
+                name: { type: "string", example: "rocket-app" },
+                remote: {
+                  type: "string",
+                  example: "https://stub.example/acme/rocket-app.git",
+                },
+              },
+            },
+          },
+        },
+        ProviderBranchesResult: {
+          type: "object",
+          required: ["providerId", "branches"],
+          properties: {
+            providerId: { type: "string", example: "stub" },
+            branches: {
+              type: "array",
+              items: { type: "string" },
+              example: ["develop", "main"],
             },
           },
         },

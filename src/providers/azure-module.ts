@@ -18,6 +18,7 @@ import {
   schemeStripped,
 } from "./connection-identity.js";
 import {
+  type BranchListingRepository,
   type CreatePullRequestInput,
   type FindPullRequestInput,
   type GetPullRequestStateInput,
@@ -777,6 +778,33 @@ export function createAzureProvider(
           ...(typeof r.webUrl === "string" ? { webUrl: r.webUrl } : {}),
         };
       });
+    },
+
+    async listBranches(
+      config: ProviderConfig,
+      repository: BranchListingRepository,
+    ): Promise<string[]> {
+      const { cleanOrgUrl, encodedProject, authHeader } =
+        await prepareAzureContext(
+          config,
+          executor,
+          "Authentication required to list branches.",
+        );
+      const url = `${cleanOrgUrl}/${encodedProject}/_apis/git/repositories/${encodeURIComponent(repository.id)}/refs?filter=heads/&$top=1000&api-version=7.1`;
+      const res = await azureFetch(url, {
+        headers: { Authorization: authHeader, Accept: "application/json" },
+        fetchFn: getFetcher(),
+      });
+      const rawData = res.data as { value?: unknown[] } | null | undefined;
+      const value = Array.isArray(rawData?.value) ? rawData.value : [];
+      const names: string[] = [];
+      for (const item of value) {
+        const name = (item as { name?: unknown } | null)?.name;
+        if (typeof name === "string" && name.startsWith("refs/heads/")) {
+          names.push(name.slice("refs/heads/".length));
+        }
+      }
+      return names;
     },
 
     async listTickets(

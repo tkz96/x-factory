@@ -37,6 +37,7 @@ const CAPABILITY_CONTEXTS = {
   verifyCredentials: "VERIFY",
   verifyScopes: "VERIFY",
   listRepositories: "DISCOVERY",
+  listBranches: "DISCOVERY",
   listTickets: "TICKETS",
   createPullRequest: "PR",
   findExistingPullRequest: "PR",

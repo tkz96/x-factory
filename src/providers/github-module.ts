@@ -1,6 +1,7 @@
 // src/providers/github-module.ts — GitHub provider module conforming to the provider contract (#138).
 
 import type {
+  BranchListingRepository,
   ClosingReferenceInput,
   CreatePullRequestInput,
   FindPullRequestInput,
@@ -32,7 +33,10 @@ import {
   findExistingGitHubPullRequest,
   getGitHubPullRequestState,
 } from "./github/pull-requests.js";
-import { listGitHubRepositories } from "./github/repositories.js";
+import {
+  listGitHubBranches,
+  listGitHubRepositories,
+} from "./github/repositories.js";
 import { listGitHubTickets } from "./github/tickets.js";
 import { parseGitHubQuickUrl } from "./github/urls.js";
 import {
@@ -70,6 +74,13 @@ export function createGithubProvider(
 
     listRepositories(config: ProviderConfig): Promise<ProviderRepository[]> {
       return listGitHubRepositories(config, fetchFn);
+    },
+
+    listBranches(
+      config: ProviderConfig,
+      repository: BranchListingRepository,
+    ): Promise<string[]> {
+      return listGitHubBranches(config, repository, fetchFn);
     },
 
     listTickets(
