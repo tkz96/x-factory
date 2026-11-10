@@ -26,6 +26,48 @@ import {
   type WorktreeState,
 } from "./worktree-state.js";
 
+/** Credentials for one git remote's origin. A secret: same shape as `GitCredentials` in the provider contract. */
+export interface GitAuth {
+  /** Scheme and host with a trailing slash, e.g. `https://dev.azure.com/`. */
+  origin: string;
+  /** The `Authorization` header value, e.g. `Basic …`. */
+  authorizationHeader: string;
+}
+
+/**
+ * The environment that makes git send `auth` to its origin and nowhere else:
+ * `http.<origin>.extraheader`, set through GIT_CONFIG_COUNT/KEY/VALUE so the
+ * secret is in no argv and in no .git/config. Entries already in the
+ * environment are kept.
+ */
+export function gitAuthEnv(
+  auth: GitAuth | undefined,
+  base: Record<string, string | undefined> = process.env,
+): Record<string, string> {
+  if (!auth) return {};
+  const existing = Number.parseInt(base.GIT_CONFIG_COUNT ?? "0", 10);
+  const n = Number.isFinite(existing) && existing > 0 ? existing : 0;
+  return {
+    GIT_CONFIG_COUNT: String(n + 1),
+    [`GIT_CONFIG_KEY_${n}`]: `http.${auth.origin}.extraheader`,
+    [`GIT_CONFIG_VALUE_${n}`]: `Authorization: ${auth.authorizationHeader}`,
+  };
+}
+
+/** Removes the credentials, and the token inside them, from text git printed. */
+export function redactGitAuth(text: string, auth: GitAuth | undefined): string {
+  if (!auth) return text;
+  const value = auth.authorizationHeader;
+  const token = value.split(" ").pop() ?? "";
+  let out = text
+    .split(`Authorization: ${value}`)
+    .join("Authorization: [redacted]");
+  for (const secret of [value, token]) {
+    if (secret.length >= 8) out = out.split(secret).join("[redacted]");
+  }
+  return out;
+}
+
 export interface DiffResult {
   diff: string;
   filesChanged: string[];
@@ -330,12 +372,42 @@ export async function push(
   worktreePath: string,
   branchName: string,
   signal?: AbortSignal | undefined,
+  auth?: GitAuth | undefined,
 ): Promise<void> {
-  await execStrict("git", ["push", "-u", "origin", branchName], {
-    cwd: worktreePath,
+  const result = await execCommand(
+    "git",
+    ["push", "-u", "origin", branchName],
+    {
+      cwd: worktreePath,
+      envPolicy: "inherit",
+      env: { GIT_TERMINAL_PROMPT: "0", ...gitAuthEnv(auth) },
+      signal,
+    },
+  );
+  if (result.exitCode !== 0) {
+    throw new Error(
+      redactGitAuth(
+        `git push of ${branchName} failed (exit ${result.exitCode}): ${result.stderr.trim()}`,
+        auth,
+      ),
+    );
+  }
+}
+
+/** The URL of a repository's `origin` remote, or null when it has none. */
+export async function getRemoteUrl(
+  repoPath: string,
+  remote = "origin",
+  signal?: AbortSignal | undefined,
+): Promise<string | null> {
+  const result = await execCommand("git", ["remote", "get-url", remote], {
+    cwd: repoPath,
     envPolicy: "inherit",
     signal,
   });
+  return result.exitCode === 0 && result.stdout.trim()
+    ? result.stdout.trim()
+    : null;
 }
 
 /**
@@ -410,7 +482,7 @@ const PERMANENT_CLONE_FAILURE =
 const CLONE_TIMEOUT_MS = 30 * 60 * 1000;
 
 /**
- * Clones `remote` into `targetPath` with this machine's git credentials (as a push does).
+ * Clones `remote` into `targetPath` with `auth` when given, else this machine's git credentials.
  * It clones into a hidden sibling folder and renames it into place, so a clone that fails or
  * is interrupted never leaves a half-made repository at `targetPath`. When another run
  * cloned the same repository meanwhile, that repository is kept.
@@ -419,6 +491,7 @@ export async function cloneRepository(
   remote: string,
   targetPath: string,
   signal?: AbortSignal | undefined,
+  auth?: GitAuth | undefined,
 ): Promise<void> {
   const parent = path.dirname(targetPath);
   await mkdir(parent, { recursive: true });
@@ -431,14 +504,17 @@ export async function cloneRepository(
       cwd: parent,
       envPolicy: "inherit",
       // Never wait on a password prompt: a worker has no terminal.
-      env: { GIT_TERMINAL_PROMPT: "0" },
+      env: { GIT_TERMINAL_PROMPT: "0", ...gitAuthEnv(auth) },
       timeoutMs: CLONE_TIMEOUT_MS,
       signal,
     });
     if (result.exitCode !== 0) {
       const permanent = PERMANENT_CLONE_FAILURE.test(result.stderr);
       throw new CloneError(
-        `git clone of ${remote} failed (exit ${result.exitCode}): ${result.stderr.trim()}`,
+        redactGitAuth(
+          `git clone of ${remote} failed (exit ${result.exitCode}): ${result.stderr.trim()}`,
+          auth,
+        ),
         permanent,
       );
     }
@@ -543,6 +619,7 @@ export async function getRemoteBranchSha(
   remote: string,
   branchName: string,
   signal?: AbortSignal | undefined,
+  auth?: GitAuth | undefined,
 ): Promise<string | null> {
   const result = await execCommand(
     "git",
@@ -550,12 +627,16 @@ export async function getRemoteBranchSha(
     {
       cwd: repoPath,
       envPolicy: "inherit",
+      env: { GIT_TERMINAL_PROMPT: "0", ...gitAuthEnv(auth) },
       signal,
     },
   );
   if (result.exitCode !== 0) {
     throw new Error(
-      `Git lookup failed for remote branch ${branchName}: exit code ${result.exitCode}. Error: ${result.stderr}`,
+      redactGitAuth(
+        `Git lookup failed for remote branch ${branchName}: exit code ${result.exitCode}. Error: ${result.stderr}`,
+        auth,
+      ),
     );
   }
   if (!result.stdout.trim()) {

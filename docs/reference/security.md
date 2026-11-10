@@ -43,6 +43,9 @@ Model API keys never live in `settings.json`. Each role (Builder, Reviewer) poin
 
 Credentials are provided strictly via environment variables. They are never injected as command-line arguments to the agent process, ensuring they do not leak into process listings (`ps`).
 
+### Git host credentials
+A project's git-host connection can give git its credentials (Azure DevOps: the saved PAT). The worker passes them to `git clone`, `push` and `ls-remote` as an `http.<origin>.extraheader` set through the `GIT_CONFIG_COUNT` / `GIT_CONFIG_KEY_n` / `GIT_CONFIG_VALUE_n` environment variables, scoped to the remote's origin. The header is never a command-line argument and never written to a `.git/config`, and git error text is redacted before it is thrown. See [`provider-api.md`](./provider-api.md).
+
 ### 4. Model Connections (#276)
 Users can also store model API keys in X-Factory itself, as **model connections** (name, API type, base URL, key), managed through `/api/model-connections`.
 

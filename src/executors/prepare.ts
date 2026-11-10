@@ -5,6 +5,7 @@ import path from "node:path";
 import * as git from "../git.js";
 import { ensureDir, getWorktreePath } from "../paths.js";
 import { renderTicketDoc } from "../prompts.js";
+import { resolveGitCredentials } from "../providers/git-credentials.js";
 import type { FailureReason } from "../shared/failure-reason.js";
 import type { Project } from "../shared/types.js";
 import { baselinePathFor, recordBaseline } from "../worktree-state.js";
@@ -87,7 +88,8 @@ export async function ensureRepositoryCloned(
   }
   context.emit("info", { text: `Cloning the repository from ${remote}…` });
   try {
-    await deps.cloneRepository(remote, project.repositoryPath, signal);
+    const auth = await resolveGitCredentials(project, remote);
+    await deps.cloneRepository(remote, project.repositoryPath, signal, auth);
     return null;
   } catch (err: unknown) {
     if (signal.aborted) throw err;
