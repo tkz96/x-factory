@@ -328,12 +328,16 @@ export const PROJECT_DETAIL_COPY = {
   archived: "Archived",
   projectId: "Project ID",
   defaultBranchFallback: "Not set",
-  repositories: "Repositories",
   repositoriesEmpty:
     "No separate sub-repositories configured. Using primary workspace repository.",
-  repositoryNameColumn: "Repository Name",
-  repositoryPathColumn: "Path",
-  repositoryBranchColumn: "Default Branch",
+  /** The project pane's tabs (the segmented control's name and segments). */
+  tabsLabel: "Project settings section",
+  tabGeneral: "General",
+  tabConnection: "Connection",
+  tabRepositories: "Repositories",
+  /** The General tab: the project's own name and identifier. */
+  generalTitle: "Project",
+  projectName: "Name",
 } as const;
 
 /**
@@ -389,6 +393,12 @@ export const REPOSITORY_SETTINGS_COPY = {
   baseBranchHelp:
     "New work starts from this branch, and pull requests target it.",
   baseBranchRequired: "Enter the base branch name.",
+  revert: "Revert",
+  primary: "Primary",
+  listLabel: "Repositories",
+  filterLabel: "Filter repositories",
+  filterPlaceholder: "Filter",
+  noMatches: "No repository matches this filter.",
 } as const;
 
 /** Project settings: the git identity the project's commits are authored with. */

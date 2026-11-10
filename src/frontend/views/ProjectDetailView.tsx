@@ -2,15 +2,15 @@
 // the Projects split (#267, spec #241; XFM-48, rebuilt on the feedback family
 // in #147).
 //
-// The pane answers the three plain-word questions first — which repository,
-// which tracker, which branch (spec story 108) — and then shows the surfaces
-// that act on the project: the wiring line, readiness, the tracker card and the
-// repositories. The read region (loading / error / not-found) renders through
+// The pane is three tabs — General, Connection, Repositories — chosen with a
+// segmented control and kept in the URL (?tab=…&repo=…). The readiness banner
+// stays above them: it applies to every tab. The Repositories tab shows one
+// repository's form at a time. The read region (loading / error / not-found) renders through
 // AsyncRegion and the copy map, beside the list.
 
 import "./ProjectDetailView.css";
 
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ConnectionComboLine } from "../components/connections/ConnectionComboLine.js";
 import { comboTone } from "../components/connections/connection-state.js";
 import { AsyncRegion } from "../components/feedback/AsyncRegion.js";
@@ -26,21 +26,28 @@ import { ProjectGitIdentity } from "../components/projects/ProjectGitIdentity.js
 import { ProjectsSplit } from "../components/projects/ProjectsSplit.js";
 import { projectFacts } from "../components/projects/project-facts.js";
 import { ReadinessBanner } from "../components/projects/ReadinessBanner.js";
-import { RepositorySettings } from "../components/projects/RepositorySettings.js";
+import { RepositoriesPanel } from "../components/projects/RepositoriesPanel.js";
 import { TrackerSection } from "../components/projects/TrackerSection.js";
 import { Badge } from "../components/ui/Badge.js";
 import { Button } from "../components/ui/Button.js";
 import { Card } from "../components/ui/Card.js";
-import { EmptyState } from "../components/ui/EmptyState.js";
-import { Table, TableCell, TableRow } from "../components/ui/Table.js";
+import { SegmentedControl } from "../components/ui/SegmentedControl.js";
 import { usePageHeader } from "../context/PageHeaderContext.js";
 import { useConnectionLine } from "../hooks/useConnectionIdentity.js";
 import { useProviderDescriptors } from "../hooks/useProviderDescriptors.js";
 import { useProjects } from "../hooks/useQueries.js";
 
+type ProjectTab = "general" | "connection" | "repositories";
+const TABS: readonly ProjectTab[] = ["general", "connection", "repositories"];
+
+function parseTab(value: string | null): ProjectTab {
+  return TABS.find((tab) => tab === value) ?? "general";
+}
+
 export function ProjectDetailView() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const projectsQuery = useProjects();
   const { data: descriptors = [] } = useProviderDescriptors();
 
@@ -95,131 +102,116 @@ export function ProjectDetailView() {
 
   const facts = projectFacts(project, descriptors);
   const repos = project.repositories || [];
+  const tab = parseTab(searchParams.get("tab"));
+  const selectedRepoId = searchParams.get("repo") ?? undefined;
+
+  // The tab and the repository are the URL's: a reload or a shared link keeps
+  // them. Changing a tab replaces the entry, so Back leaves the project.
+  const chooseTab = (next: string) => {
+    const params = new URLSearchParams(searchParams);
+    if (next === "general") params.delete("tab");
+    else params.set("tab", next);
+    if (next !== "repositories") params.delete("repo");
+    setSearchParams(params, { replace: true });
+  };
+  const chooseRepo = (repoId: string) => {
+    const params = new URLSearchParams(searchParams);
+    params.set("tab", "repositories");
+    params.set("repo", repoId);
+    setSearchParams(params, { replace: true });
+  };
+
+  // The subtitle: the tracker's provider and the repository the project works in.
+  const subtitle = facts
+    .slice(0, 2)
+    .reverse()
+    .map((fact) => fact.value)
+    .join(" · ");
 
   return (
     <ProjectsSplit selectedId={project.id}>
       <article className="projects-detail">
-        {/* No second title: the page heading above the split names the
-            project, so this pane starts with what the project is wired to. */}
-        {project.archived && (
-          <div className="projects-detail-status">
-            <Badge>{PROJECT_DETAIL_COPY.archived}</Badge>
-          </div>
-        )}
-
-        {/* The three plain-word facts in one card: a glance answers what this
-            project is wired to. */}
-        <Card className="projects-detail-facts-panel" padding="regular">
-          <dl className="projects-detail-facts">
-            {facts.map((fact) => (
-              <div className="projects-detail-fact" key={fact.label}>
-                <dt className="text-subhead">{fact.label}</dt>
-                <dd
-                  className={
-                    fact.isPath
-                      ? "projects-detail-fact-value text-callout projects-detail-fact-value--path"
-                      : "projects-detail-fact-value text-subhead"
-                  }
-                >
-                  {fact.value}
-                </dd>
+        <div className="projects-detail-header">
+          <div className="projects-detail-heading">
+            <p className="projects-detail-subtitle text-callout">{subtitle}</p>
+            {project.archived && (
+              <div className="projects-detail-status">
+                <Badge>{PROJECT_DETAIL_COPY.archived}</Badge>
               </div>
-            ))}
-          </dl>
-          {/* The identifier is not one of the three plain-word facts: it sits under them
-              in the same card, as the one line of the card's own. */}
-          <p className="projects-detail-id text-subhead">
-            <span>{PROJECT_DETAIL_COPY.projectId}</span>
-            <code>{project.id}</code>
-          </p>
-        </Card>
-
-        <ConnectionComboLine
-          id="project-connections-combo"
-          slots={slots}
-          tone={comboTone(slots, REQUIRED_POST_CREATION_ROLES)}
-          descriptors={descriptors}
-          size="subhead"
-        />
-
-        <ReadinessBanner />
-
-        <div className="mt-6">
-          <TrackerSection project={project} />
-        </div>
-
-        <div className="project-repos-section mt-6">
-          <div className="section-header-flex mb-3">
-            <h3 className="text-headline">
-              {PROJECT_DETAIL_COPY.repositories}
-            </h3>
-            <Badge id="project-detail-repo-count">{repos.length}</Badge>
-          </div>
-
-          {/* One table style app-wide (the Table block): an inset group with
-              hairlines between rows, which re-flows into stacked rows on a
-              phone instead of scrolling sideways. */}
-          <div id="project-detail-repos-table">
-            {repos.length === 0 ? (
-              <EmptyState
-                icon="icon-folder"
-                message={PROJECT_DETAIL_COPY.repositoriesEmpty}
-              />
-            ) : (
-              <Table
-                label={PROJECT_DETAIL_COPY.repositories}
-                columns={[
-                  {
-                    id: "name",
-                    label: PROJECT_DETAIL_COPY.repositoryNameColumn,
-                  },
-                  {
-                    id: "path",
-                    label: PROJECT_DETAIL_COPY.repositoryPathColumn,
-                  },
-                  {
-                    id: "branch",
-                    label: PROJECT_DETAIL_COPY.repositoryBranchColumn,
-                  },
-                ]}
-              >
-                {repos.map((r) => (
-                  <TableRow key={r.name}>
-                    <TableCell isRowHeader>{r.name}</TableCell>
-                    <TableCell
-                      label={PROJECT_DETAIL_COPY.repositoryPathColumn}
-                      className="repo-path-cell"
-                    >
-                      <span className="repo-path text-callout" title={r.path}>
-                        {r.path}
-                      </span>
-                    </TableCell>
-                    <TableCell
-                      label={PROJECT_DETAIL_COPY.repositoryBranchColumn}
-                      className="repo-branch-cell text-callout"
-                    >
-                      {r.defaultBranch ||
-                        PROJECT_DETAIL_COPY.defaultBranchFallback}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </Table>
             )}
           </div>
-        </div>
-
-        <div className="mt-6">
-          <ProjectGitIdentity
-            key={project.id}
-            projectId={project.id}
-            gitIdentity={project.gitIdentity}
+          <SegmentedControl
+            label={PROJECT_DETAIL_COPY.tabsLabel}
+            value={tab}
+            onChange={chooseTab}
+            collapseBelow="(max-width: 768px)"
+            options={[
+              { id: "general", label: PROJECT_DETAIL_COPY.tabGeneral },
+              { id: "connection", label: PROJECT_DETAIL_COPY.tabConnection },
+              {
+                id: "repositories",
+                label: PROJECT_DETAIL_COPY.tabRepositories,
+                count: repos.length,
+              },
+            ]}
           />
         </div>
 
-        {repos.length > 0 && (
-          <div className="mt-6">
-            <RepositorySettings projectId={project.id} repositories={repos} />
-          </div>
+        <ReadinessBanner />
+
+        {tab === "general" && (
+          <section className="projects-detail-panel">
+            <Card padding="regular">
+              <h3 className="text-headline">
+                {PROJECT_DETAIL_COPY.generalTitle}
+              </h3>
+              <dl className="projects-detail-facts">
+                <div className="projects-detail-fact">
+                  <dt className="text-subhead">
+                    {PROJECT_DETAIL_COPY.projectName}
+                  </dt>
+                  <dd className="projects-detail-fact-value text-body">
+                    {project.name}
+                  </dd>
+                </div>
+                <div className="projects-detail-fact">
+                  <dt className="text-subhead">
+                    {PROJECT_DETAIL_COPY.projectId}
+                  </dt>
+                  <dd className="projects-detail-fact-value projects-detail-fact-value--path text-body">
+                    {project.id}
+                  </dd>
+                </div>
+              </dl>
+            </Card>
+            <ProjectGitIdentity
+              key={project.id}
+              projectId={project.id}
+              gitIdentity={project.gitIdentity}
+            />
+          </section>
+        )}
+
+        {tab === "connection" && (
+          <section className="projects-detail-panel">
+            <ConnectionComboLine
+              id="project-connections-combo"
+              slots={slots}
+              tone={comboTone(slots, REQUIRED_POST_CREATION_ROLES)}
+              descriptors={descriptors}
+              size="subhead"
+            />
+            <TrackerSection project={project} />
+          </section>
+        )}
+
+        {tab === "repositories" && (
+          <RepositoriesPanel
+            projectId={project.id}
+            repositories={repos}
+            selectedId={selectedRepoId}
+            onSelect={chooseRepo}
+          />
         )}
       </article>
     </ProjectsSplit>

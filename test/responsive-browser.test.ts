@@ -34,7 +34,17 @@ function routesFor(instance: {
     {
       name: "project detail",
       path: `/projects/${instance.projectId}`,
+      wait: ".projects-detail-fact",
+    },
+    {
+      name: "project detail (Connection)",
+      path: `/projects/${instance.projectId}?tab=connection`,
       wait: "#project-tracker-section",
+    },
+    {
+      name: "project detail (Repositories)",
+      path: `/projects/${instance.projectId}?tab=repositories`,
+      wait: ".repo-panel-form",
     },
     ...["general", "trackers", "models", "git", "diagnostics", "help"].map(
       (tab) => ({

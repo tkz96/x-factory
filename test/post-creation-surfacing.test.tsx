@@ -371,7 +371,7 @@ function renderDetail(project: Project, client: QueryClient) {
       }),
     ),
     client,
-    ["/projects/proj-1"],
+    ["/projects/proj-1?tab=connection"],
   );
 }
 
@@ -400,7 +400,7 @@ describe("Project detail surface — combo line and tracker card", () => {
         }),
       ),
       client,
-      ["/projects/proj-1"],
+      ["/projects/proj-1?tab=connection"],
     );
 
     expect(container.querySelector(".async-region--loading")).not.toBeNull();
@@ -436,7 +436,7 @@ describe("Project detail surface — combo line and tracker card", () => {
         }),
       ),
       makeClient(),
-      ["/projects/proj-1"],
+      ["/projects/proj-1?tab=connection"],
     );
 
     await waitFor(() => {
@@ -506,8 +506,8 @@ describe("Project detail surface — combo line and tracker card", () => {
     expect(container.textContent).toContain(CONNECTIONS_COPY.ingestionLabel);
     expect(container.textContent).toContain(CONNECTIONS_COPY.workflowLabel);
 
-    // No degraded warning, no integrity failure, no repair path.
-    expect(container.textContent).toContain(PROJECT_DETAIL_COPY.projectId);
+    // No degraded warning, no integrity failure, no repair path. (The project
+    // identifier is on the General tab; test/projects-split.test.tsx.)
     expect(container.querySelector(".feedback-banner--warning")).toBeNull();
     expect(container.querySelector(".async-region--error")).toBeNull();
     expect(container.querySelector("button.retry-action")).toBeNull();

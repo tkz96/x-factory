@@ -16,7 +16,7 @@ registerHappyDom();
 
 import { afterAll, afterEach, describe, expect, it } from "bun:test";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render } from "@testing-library/react";
+import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { createMemoryRouter, Outlet, RouterProvider } from "react-router-dom";
 import {
   CONNECTIONS_COPY,
@@ -387,18 +387,19 @@ describe("The Projects list (#267)", () => {
 });
 
 describe("The project detail pane (#267)", () => {
-  it("answers repository, tracker and branch in plain words", () => {
+  it("names the project, and says its tracker and repository in the subtitle", () => {
     const view = renderProjects("/projects/demo-app", [makeProject()]);
-    const facts = factsOf(view.container);
 
     // The pane names no title of its own (G1): the page heading names the
-    // project, and this pane answers the three plain-word questions.
+    // project. The subtitle answers which tracker and which repository.
     expect(view.container.querySelector(".projects-detail h2")).toBeNull();
-    expect(facts.get(PROJECTS_COPY.repositoryFact)).toBe("Demo App");
-    expect(facts.get(PROJECTS_COPY.trackerFact)).toBe("Tracker One");
-    expect(facts.get(PROJECTS_COPY.branchFact)).toBe("main");
-    // The former meta grid's words are gone: an internal key never reaches a
-    // screen. (The repositories table keeps its own column headings.)
+    expect(
+      view.container.querySelector(".projects-detail-subtitle")?.textContent,
+    ).toBe("Tracker One · Demo App");
+    // General is the default tab: the project's name and identifier, once.
+    const facts = factsOf(view.container);
+    expect(facts.get(PROJECT_DETAIL_COPY.projectName)).toBe("Demo App");
+    expect(facts.get(PROJECT_DETAIL_COPY.projectId)).toBe("demo-app");
     expect(view.container.textContent).not.toContain("Workspace Path");
   });
 
@@ -407,9 +408,9 @@ describe("The project detail pane (#267)", () => {
       makeProject({ repositories: [] }),
     ]);
 
-    expect(factsOf(view.container).get(PROJECTS_COPY.repositoryFact)).toBe(
-      "/work/demo-app",
-    );
+    expect(
+      view.container.querySelector(".projects-detail-subtitle")?.textContent,
+    ).toContain("/work/demo-app");
   });
 
   it("says Not recorded when the project records neither a repository nor a folder", () => {
@@ -417,26 +418,25 @@ describe("The project detail pane (#267)", () => {
       makeProject({ repositories: [], workspacePath: "", repositoryPath: "" }),
     ]);
 
-    expect(factsOf(view.container).get(PROJECTS_COPY.repositoryFact)).toBe(
-      PROJECTS_COPY.noRepository,
-    );
+    expect(
+      view.container.querySelector(".projects-detail-subtitle")?.textContent,
+    ).toContain(PROJECTS_COPY.noRepository);
   });
 
-  it("renders no page header of its own: the archived badge sits in the pane body", () => {
+  it("puts the archived badge beside the subtitle, in the pane header", () => {
     const view = renderProjects("/projects/demo-app", [
       makeProject({ archived: true }),
     ]);
 
-    // The shell's page heading names the project (#298), so the pane has no
-    // header element; the archived status is a plain block in the pane body.
-    expect(view.container.querySelector(".projects-detail header")).toBeNull();
     expect(
-      view.container.querySelector(".projects-detail .projects-detail-status"),
+      view.container.querySelector(
+        ".projects-detail-header .projects-detail-status",
+      ),
     ).not.toBeNull();
   });
 
-  it("says a project with no repositories in an empty state, inside the repositories table", () => {
-    const view = renderProjects("/projects/demo-app", [
+  it("says a project with no repositories in an empty state, on the Repositories tab", () => {
+    const view = renderProjects("/projects/demo-app?tab=repositories", [
       makeProject({ repositories: [] }),
     ]);
 
@@ -478,6 +478,127 @@ describe("The project detail pane (#267)", () => {
   });
 });
 
+/** Types like a user: react-dom's value watcher needs focus and a keyup. */
+function typeInto(el: HTMLElement, value: string) {
+  act(() => {
+    el.focus();
+    fireEvent.change(el, { target: { value } });
+    fireEvent.keyUp(el);
+  });
+}
+
+describe("The project pane's tabs live in the URL", () => {
+  const TWO_REPOS = [
+    {
+      id: "web",
+      name: "web",
+      path: "/work/web",
+      defaultBranch: "main",
+      role: "frontend",
+    },
+    {
+      id: "api",
+      name: "api",
+      path: "/work/api",
+      defaultBranch: "develop",
+      role: "backend",
+    },
+  ] as Project["repositories"];
+
+  function currentSearch(router: { state: { location: { search: string } } }) {
+    return router.state.location.search;
+  }
+
+  it("opens on General, and a ?tab link opens that tab", () => {
+    const general = renderProjects("/projects/demo-app", [makeProject()]);
+    expect(
+      general.container.querySelector(".projects-detail-fact"),
+    ).not.toBeNull();
+    expect(
+      general.container.querySelector("#project-connections-combo"),
+    ).toBeNull();
+    cleanup();
+
+    const connection = renderProjects("/projects/demo-app?tab=connection", [
+      makeProject(),
+    ]);
+    expect(
+      connection.container.querySelector("#project-connections-combo"),
+    ).not.toBeNull();
+    expect(
+      connection.container.querySelector(".projects-detail-fact"),
+    ).toBeNull();
+  });
+
+  it("switching tab writes it to the URL, and shows the readiness banner on every tab", () => {
+    const view = renderProjects("/projects/demo-app", [makeProject()]);
+
+    fireEvent.click(
+      view.getByRole("radio", {
+        name: new RegExp(PROJECT_DETAIL_COPY.tabConnection),
+      }),
+    );
+    expect(currentSearch(view.router)).toBe("?tab=connection");
+    expect(
+      view.container.querySelector("#project-connections-combo"),
+    ).not.toBeNull();
+
+    fireEvent.click(
+      view.getByRole("radio", {
+        name: new RegExp(PROJECT_DETAIL_COPY.tabRepositories),
+      }),
+    );
+    expect(currentSearch(view.router)).toBe("?tab=repositories");
+  });
+
+  it("the Repositories tab shows only the selected repository's form, and selecting writes ?repo", () => {
+    const view = renderProjects("/projects/demo-app?tab=repositories", [
+      makeProject({ repositories: TWO_REPOS }),
+    ]);
+
+    expect(document.getElementById("repo-settings-web-path")).not.toBeNull();
+    expect(document.getElementById("repo-settings-api-path")).toBeNull();
+    const rows = view.getAllByRole("button", { name: /^(web|api)/ });
+    expect(rows[0]?.getAttribute("aria-current")).toBe("true");
+    expect(rows[1]?.getAttribute("aria-current")).not.toBe("true");
+
+    fireEvent.click(rows[1] as HTMLElement);
+    expect(currentSearch(view.router)).toBe("?tab=repositories&repo=api");
+    expect(document.getElementById("repo-settings-api-path")).not.toBeNull();
+    expect(document.getElementById("repo-settings-web-path")).toBeNull();
+  });
+
+  it("a ?repo link opens that repository", () => {
+    renderProjects("/projects/demo-app?tab=repositories&repo=api", [
+      makeProject({ repositories: TWO_REPOS }),
+    ]);
+    expect(document.getElementById("repo-settings-api-path")).not.toBeNull();
+  });
+
+  it("the filter narrows the list of repositories by name", () => {
+    const view = renderProjects("/projects/demo-app?tab=repositories", [
+      makeProject({ repositories: TWO_REPOS }),
+    ]);
+    const filter = view.getByRole("textbox", { name: "Filter repositories" });
+    typeInto(filter, "ap");
+    const list = view.getByRole("list", { name: "Repositories" });
+    expect(list.textContent).toContain("api");
+    expect(list.textContent).not.toContain("web");
+  });
+
+  it("Save stays disabled until the repository's form changes", () => {
+    renderProjects("/projects/demo-app?tab=repositories", [
+      makeProject({ repositories: TWO_REPOS }),
+    ]);
+    const save = document.getElementById("repo-settings-web-save");
+    expect(save?.hasAttribute("disabled")).toBe(true);
+    const test = document.getElementById("repo-settings-web-test");
+    if (!test) throw new Error("missing field");
+    typeInto(test, "bun test");
+    expect(save?.hasAttribute("disabled")).toBe(false);
+  });
+});
+
 describe('Wording on the Projects screens (#267, CONTEXT.md "UI wording")', () => {
   /** The words that must never reach a screen. */
   const INTERNAL_VOCABULARY = /\b(operator|factory|ralph|pipeline)\b/i;
@@ -493,7 +614,7 @@ describe('Wording on the Projects screens (#267, CONTEXT.md "UI wording")', () =
     });
   }
 
-  it("the action is Add Project, and the detail pane's three facts are its plain words", () => {
+  it("the action is Add Project, and the General tab names the project and its identifier", () => {
     const shell = renderShell("/projects");
     expect(
       shell.getByRole("button", { name: PROJECTS_COPY.addProject }),
@@ -502,9 +623,8 @@ describe('Wording on the Projects screens (#267, CONTEXT.md "UI wording")', () =
 
     const detail = renderProjects("/projects/demo-app", [makeProject()]);
     expect([...factsOf(detail.container).keys()]).toEqual([
-      PROJECTS_COPY.repositoryFact,
-      PROJECTS_COPY.trackerFact,
-      PROJECTS_COPY.branchFact,
+      PROJECT_DETAIL_COPY.projectName,
+      PROJECT_DETAIL_COPY.projectId,
     ]);
   });
 });

@@ -39,13 +39,20 @@ const REPOS: ProjectRepository[] = [
   },
 ];
 
-function renderSettings() {
+function renderSettings(id = "web") {
+  const repository = REPOS.find((r) => r.id === id) ?? REPOS[0];
+  if (repository === undefined) throw new Error("no repository");
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   return render(
     <QueryClientProvider client={client}>
-      <RepositorySettings projectId="rocket" repositories={REPOS} />
+      <RepositorySettings
+        projectId="rocket"
+        repository={repository}
+        repositories={REPOS}
+        isPrimary={id === "web"}
+      />
     </QueryClientProvider>,
   );
 }
@@ -75,7 +82,7 @@ async function flush() {
   });
 }
 
-describe("RepositorySettings (#283)", () => {
+describe("RepositorySettings — one repository's form (#283)", () => {
   let update: ReturnType<typeof mock>;
 
   beforeEach(() => {
@@ -92,11 +99,32 @@ describe("RepositorySettings (#283)", () => {
 
   afterEach(() => cleanup());
 
-  it("shows each repository's current path and commands", () => {
+  it("shows the repository's current path and commands, and the Primary badge", () => {
     renderSettings();
     expect(field("repo-settings-web-path").value).toBe("/work/root/web");
     expect(field("repo-settings-web-test").value).toBe("");
+    expect(document.body.textContent).toContain("Primary");
+    cleanup();
+    renderSettings("api");
     expect(field("repo-settings-api-test").value).toBe("bun test");
+    expect(document.body.textContent).not.toContain("Primary");
+  });
+
+  it("keeps Save and Revert disabled until something changes, and Revert restores the saved values", () => {
+    renderSettings();
+    expect(field("repo-settings-web-save").hasAttribute("disabled")).toBe(true);
+    expect(field("repo-settings-web-revert").hasAttribute("disabled")).toBe(
+      true,
+    );
+    typeInto(field("repo-settings-web-test"), "bun test");
+    expect(field("repo-settings-web-save").hasAttribute("disabled")).toBe(
+      false,
+    );
+    act(() => {
+      fireEvent.click(field("repo-settings-web-revert"));
+    });
+    expect(field("repo-settings-web-test").value).toBe("");
+    expect(field("repo-settings-web-save").hasAttribute("disabled")).toBe(true);
   });
 
   it("saves an edited path and commands for one repository, leaving the others untouched", async () => {
@@ -202,7 +230,8 @@ describe("RepositorySettings (#283)", () => {
     api.updateProjectRepositories = mock(async () => {
       throw new Error("Repository path is invalid.");
     }) as typeof api.updateProjectRepositories;
-    renderSettings();
+    renderSettings("api");
+    typeInto(field("repo-settings-api-test"), "bun run test");
     await act(async () => {
       fireEvent.click(field("repo-settings-api-save"));
     });

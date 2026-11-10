@@ -1,0 +1,103 @@
+/* src/frontend/components/projects/RepositoriesPanel.css — the Repositories
+   tab: list left, one form right. The panel is a container, so it stacks by the
+   width the pane has, not the window's (the pane sits beside the project list). */
+
+.repo-panel {
+  container-type: inline-size;
+  container-name: repo-panel;
+}
+
+.repo-panel-split {
+  display: grid;
+  grid-template-columns: 16rem minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.repo-panel-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.repo-panel-items {
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+  max-height: 35rem;
+  overflow-y: auto;
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-card);
+  background: var(--bg-card);
+}
+
+.repo-panel-none {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.repo-panel-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: var(--tap-min);
+  padding: var(--space-1-5) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.repo-panel-item:hover {
+  background: var(--bg-hover);
+}
+
+.repo-panel-item:focus-visible {
+  outline: var(--border-width-indicator) solid var(--border-focus);
+  outline-offset: calc(var(--space-0-5) * -1);
+}
+
+.repo-panel-item[aria-current="true"] {
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+
+.repo-panel-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.repo-panel-branch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+}
+
+.repo-panel-item[aria-current="true"] .repo-panel-branch {
+  color: inherit;
+  opacity: 0.85;
+}
+
+.repo-panel-form {
+  min-width: 0;
+  padding: var(--space-5);
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-card);
+  background: var(--bg-card);
+}
+
+@container repo-panel (max-width: 36rem) {
+  .repo-panel-split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

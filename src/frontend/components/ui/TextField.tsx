@@ -22,8 +22,16 @@ import { withoutUndefined } from "./aria-props.js";
  * The label, and the accessory that rides in its row. A field without one
  * renders exactly the label it always did, so nothing else on a screen moves.
  */
-function labelWithAccessory(label: string, accessory: ReactNode): ReactNode {
-  const labelNode = <Label className="ui-field-label">{label}</Label>;
+function labelWithAccessory(
+  label: string,
+  accessory: ReactNode,
+  hideLabel = false,
+): ReactNode {
+  const labelNode = (
+    <Label className={hideLabel ? "ui-field-label sr-only" : "ui-field-label"}>
+      {label}
+    </Label>
+  );
   if (accessory === undefined) return labelNode;
   return (
     <div className="ui-field-label-row">
@@ -36,6 +44,8 @@ function labelWithAccessory(label: string, accessory: ReactNode): ReactNode {
 export interface TextFieldProps
   extends Omit<AriaTextFieldProps, "className" | "children"> {
   label: string;
+  /** Hides the label from sight; it stays the field's accessible name. */
+  hideLabel?: boolean | undefined;
   description?: string | undefined;
   /** Inline state feedback — a `FieldFeedback` node from the feedback family. */
   feedback?: ReactNode;
@@ -54,6 +64,7 @@ export interface TextFieldProps
 
 export function TextField({
   label,
+  hideLabel,
   description,
   feedback,
   labelAccessory,
@@ -67,7 +78,7 @@ export function TextField({
   if (className !== undefined) classes.push(className);
   return (
     <AriaTextField {...withoutUndefined(props)} className={classes.join(" ")}>
-      {labelWithAccessory(label, labelAccessory)}
+      {labelWithAccessory(label, labelAccessory, hideLabel)}
       <Input
         {...withoutUndefined({
           id: inputId,
@@ -94,6 +105,7 @@ export type TextAreaFieldProps = Omit<TextFieldProps, "inputType"> & {
 
 export function TextAreaField({
   label,
+  hideLabel,
   description,
   feedback,
   labelAccessory,
@@ -107,7 +119,7 @@ export function TextAreaField({
   if (className !== undefined) classes.push(className);
   return (
     <AriaTextField {...withoutUndefined(props)} className={classes.join(" ")}>
-      {labelWithAccessory(label, labelAccessory)}
+      {labelWithAccessory(label, labelAccessory, hideLabel)}
       <TextArea
         {...withoutUndefined({ id: inputId, rows, placeholder })}
         className="ui-textarea"
