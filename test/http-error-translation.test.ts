@@ -160,31 +160,25 @@ describe("HTTP Layer Error Translation", () => {
     expect(body).toEqual({ error: 'Project "nonexistent-proj" not found.' });
   });
 
-  it("projects controller maps a real ValidationError to 400 (git identity, non-existent directory)", async () => {
-    // A neutral ValidationError from the readiness/inspection module reaches
-    // the boundary through a real trigger: configuring a local git identity for
-    // a directory that does not exist. The discover-repositories route that
-    // used to cover this mapping is gone with #183.
-    const req = new Request(
-      "http://localhost:3777/api/projects/configure-git-identity",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          path: "/nonexistent/x-factory-183-directory",
-          name: "Ada Lovelace",
-          email: "ada@example.com",
-          scope: "local",
-        }),
-      },
-    );
+  it("the model-connections controller maps a real ValidationError to 400 (OpenAI-compatible connection without a base URL)", async () => {
+    // A neutral ValidationError from the model-connections module reaches the
+    // boundary through a real trigger. (The git-identity route that used to
+    // cover this mapping is gone: a project's identity is saved with the
+    // project, not written to git config.)
+    const req = new Request("http://localhost:3777/api/model-connections", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "Local",
+        apiType: "openai-compatible",
+      }),
+    });
 
     const res = await dispatchHttp(req, repos);
     expect(res).not.toBeNull();
     expect(res?.status).toBe(400);
     const body = (await res?.json()) as { error?: string; code?: string };
-    expect(body.code).toBe("DIRECTORY_MISSING");
-    expect(body.error).toContain("does not exist");
+    expect(body.error).toContain("needs a base URL");
   });
 
   it("projects controller no longer claims the flat discovery route (#183)", async () => {

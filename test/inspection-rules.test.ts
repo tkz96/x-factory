@@ -8,6 +8,7 @@
 import { describe, expect, it } from "bun:test";
 import {
   deriveInspectionStatus,
+  identityAfterRead,
   inspectionInputsFingerprint,
   inspectionTargets,
 } from "../src/frontend/wizard/state/inspectionRules.js";
@@ -169,7 +170,6 @@ describe("deriveInspectionStatus", () => {
 
     expect(status.record).toBeNull();
     expect(status.identityResolved).toBe(false);
-    expect(status.partial).toBe(false);
     expect(status.stale).toBe(false);
     expect(status.fingerprint).toBe(inspectionInputsFingerprint(inputs({})));
     expect(status.targets).toEqual([
@@ -184,7 +184,6 @@ describe("deriveInspectionStatus", () => {
 
     expect(status.identityResolved).toBe(true);
     expect(status.stale).toBe(false);
-    expect(status.partial).toBe(false);
     expect(status.record?.gitIdentity).toEqual({
       name: "Repo Owner",
       email: "owner@example.com",
@@ -225,32 +224,27 @@ describe("deriveInspectionStatus", () => {
     ).toBe(true);
   });
 
-  it("reports a partial resolution when a selected repository resolved no identity", () => {
-    const status = deriveInspectionStatus(
-      stateWith({
-        inspection: recordFor(inputs({}), {
-          unresolvedRepoIds: ["repo-api"],
-        }),
-      }),
-    );
+  it("counts the project identity as resolved only with a name and an email containing @", () => {
+    const resolved = (gitIdentity: { name: string; email: string }) =>
+      deriveInspectionStatus(
+        stateWith({ inspection: recordFor(inputs({}), { gitIdentity }) }),
+      ).identityResolved;
 
-    expect(status.identityResolved).toBe(true);
-    expect(status.partial).toBe(true);
-    expect(status.record?.unresolvedRepoIds).toEqual(["repo-api"]);
+    expect(resolved({ name: "Ada", email: "ada@work.example" })).toBe(true);
+    expect(resolved({ name: "  ", email: "ada@work.example" })).toBe(false);
+    expect(resolved({ name: "Ada", email: "" })).toBe(false);
+    expect(resolved({ name: "Ada", email: "not-an-email" })).toBe(false);
   });
 
-  it("does not call an unresolved identity a partial resolution", () => {
-    const status = deriveInspectionStatus(
-      stateWith({
-        inspection: {
-          inputsFingerprint: inspectionInputsFingerprint(inputs({})),
-          unresolvedRepoIds: ["repo-app"],
-        },
-      }),
-    );
+  it("keeps an identity the user edited when the git config is read again, and follows the read while it is still the pre-fill", () => {
+    const read1 = { name: "Read One", email: "one@example.com" };
+    const read2 = { name: "Read Two", email: "two@example.com" };
+    const edited = { name: "Work Me", email: "me@work.example" };
 
-    expect(status.identityResolved).toBe(false);
-    expect(status.partial).toBe(false);
+    expect(identityAfterRead(undefined, undefined, read1)).toEqual(read1);
+    expect(identityAfterRead(read1, read1, read2)).toEqual(read2);
+    expect(identityAfterRead(edited, read1, read2)).toEqual(edited);
+    expect(identityAfterRead(edited, undefined, undefined)).toEqual(edited);
   });
 
   it("does not call a record out of date when there is nothing left to inspect", () => {

@@ -36,24 +36,6 @@ export class ValidationError extends DomainError {
 }
 
 /**
- * Thrown when a git configuration write operation fails on the server.
- */
-export class GitConfigError extends DomainError {
-  readonly code: string;
-  readonly status: number;
-  constructor(
-    message = "Git configuration write failed",
-    code = "GIT_CONFIG_WRITE_FAILED",
-    status = 500,
-  ) {
-    super(message);
-    this.name = "GitConfigError";
-    this.code = code;
-    this.status = status;
-  }
-}
-
-/**
  * Thrown when a request is well formed but semantically invalid against
  * X-Factory's own rules (unknown provider, provider config schema failure,
  * incompatible role/capability, …).

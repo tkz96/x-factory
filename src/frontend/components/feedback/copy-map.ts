@@ -25,8 +25,6 @@ import type {
   NormalizedError,
 } from "./types.js";
 
-type GitIdentityScope = import("../../../shared/types.js").GitIdentityScope;
-
 /**
  * The (code, context) → message map, re-exported from the shared copy table so
  * the frontend and the provider layer share one definition. Codes and
@@ -387,65 +385,32 @@ export const REPOSITORY_SETTINGS_COPY = {
  * resolves — so it can also say, honestly, that none could be resolved.
  */
 export const INSPECTION_COPY = {
-  title: "Git Identity Inspection",
+  title: "Git Identity",
   subtitle:
-    "The git identity your agent commits with, read from the git configuration in effect for each selected repository.",
+    "The name and email X-Factory uses as the author of every commit it makes for this project.",
   /** Empty: nothing is selected to inspect yet. */
   emptyNoSelection:
-    "No repository is selected yet. Choose at least one on the Repositories step, then inspect its git identity.",
-  /** Partial: one item per repository whose directory resolved no identity. */
-  unresolvedRepo: (name: string) =>
-    `${name} — no git identity is configured for its directory`,
-  /** Ready, but no complete identity is configured for the inspected directory. */
+    "No repository is selected yet. Choose at least one on the Repositories step, then set the git identity.",
+  /** The pre-fill source: where the identity in the fields was read from. */
+  readFrom: (path: string) => `Read from ${path}`,
+  /** Ready, but git config has no complete identity in the inspected directory. */
   identityMissing: (path?: string) =>
     path
-      ? `A Git identity (author name and email) is needed for ${path} so X-Factory can author commits and open pull requests on your behalf.`
-      : "A Git identity (author name and email) is needed so X-Factory can author commits and open pull requests on your behalf.",
-  nameLabel: "Name",
-  emailLabel: "Email",
-  pathLabel: "Read from",
-  /** Explanatory guidance on what git identity is and why X-Factory needs it (#161). */
+      ? `No git identity is configured in ${path}. Enter the name and email to commit with.`
+      : "No git identity is configured. Enter the name and email to commit with.",
+  /** Explains why the identity is needed, and where it is kept. */
   identityExplanation:
-    "Git identity consists of an author name and email used to sign commits. X-Factory needs this so autonomous agents can commit code and open pull requests on your behalf.",
-  /** Form title and guidance (#161). */
-  configureTitle: "Configure Git Identity",
-  configureHint:
-    "Set your author name and email below to configure your git identity.",
-  authorNameLabel: "Author Name",
+    "X-Factory needs an author name and email so its agents can commit code on your behalf.",
+  projectHint:
+    "Used for this project only. It is saved with the project, and no git configuration file is changed.",
+  authorNameLabel: "Name",
   authorNamePlaceholder: "e.g. Jane Doe",
-  authorEmailLabel: "Author Email",
+  authorEmailLabel: "Email",
   authorEmailPlaceholder: "e.g. jane@example.com",
   nameRequiredError: "Author name is required.",
   nameInvalidError: "Author name cannot contain control characters.",
   emailRequiredError: "Author email is required.",
   emailInvalidError: "Enter a valid email address.",
-  scopeLabel: "Configuration Scope",
-  scopeLocalOption: (path: string) => `This repository only (${path})`,
-  scopeWorkspaceOption: (path: string) => `This workspace (${path})`,
-  scopeRepositoriesOption: (paths: string[]) =>
-    `These repositories (${paths.join(", ")})`,
-  scopeGlobalOption: "Global (~/.gitconfig — all repositories)",
-  scopeHint: (scope: GitIdentityScope, path: string) =>
-    scope === "global"
-      ? "Applies globally to ~/.gitconfig for all git repositories on this system."
-      : `Applies locally to ${path} only.`,
-  notAGitRepository:
-    "This path is not a git repository. Choose global scope to configure git globally.",
-  blockingPathNotRepo: (path: string) =>
-    `"${path}" is not a git repository. Choose global scope to configure git globally.`,
-  blockingPathNotRepoRoot: (path: string) =>
-    `"${path}" is not the root of a git repository. Choose global scope to configure git globally.`,
-  directoryMissingError: "The specified directory does not exist.",
-  notARepositoryError:
-    "The target directory is not a git repository. Choose global scope to configure git globally.",
-  notRepositoryRootError:
-    "The target directory is not the root of a git repository. Choose global scope to configure git globally.",
-  configureServerError:
-    "Could not configure git identity. Please check your git configuration and permissions, or try setting it globally.",
-  configurePartialError: (configured: string[], failed: string[]) =>
-    `Configured git identity for ${configured.join(", ")}, but failed for ${failed.join(", ")}.`,
-  configureButton: "Configure Git Identity",
-  configuringButton: "Configuring…",
 } as const;
 
 /**
@@ -461,7 +426,7 @@ export const REVIEW_COPY = {
   identifierLabel: "Identifier",
   descriptionLabel: "Description",
   workspacePathLabel: "Workspace Path",
-  identitySectionTitle: "Git identity",
+  identitySectionTitle: "Git identity (this project)",
   identityEmailLabel: "Email",
   repositoriesSectionTitle: "Repositories",
   primaryBadge: "Primary",
@@ -484,9 +449,7 @@ export const REVIEW_COPY = {
     inspectionStale:
       "The git identity was resolved for a different repository selection or workspace root. Inspect it again.",
     identityUnresolved:
-      "No git identity could be resolved for the selected repositories: both a user.name and a user.email are required, and none will be invented.",
-    identityPartial:
-      "No git identity could be resolved for every selected repository. Configure one, or deselect the ones that have none.",
+      "The project has no git identity. Enter a name and an email on step 4.",
   },
   submit: "Create Project",
   submitting: "Creating project…",

@@ -1,7 +1,6 @@
 /* src/frontend/wizard/steps/InspectionStep.css — Step 4 Inspection styling.
    Tokens only (docs/agents/frontend-styling.md): spacing is an --space-*
-   token and type is a HIG --text-* token. `min-width` on the label column is a
-   layout constraint (a label column has no spacing step), not spacing. */
+   token and type is a HIG --text-* token. */
 
 .inspection-step-pane {
   padding: 0;
@@ -9,51 +8,6 @@
 
 .inspection-region {
   margin-top: var(--space-5);
-}
-
-.inspection-identity {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-4);
-  border: var(--hairline) solid var(--separator);
-  border-radius: var(--radius-md);
-  background: var(--bg-card);
-  margin: 0;
-}
-
-.inspection-identity-row {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-3);
-}
-
-.inspection-identity-label {
-  min-width: 6rem;
-  color: var(--text-muted);
-}
-
-.inspection-identity-value {
-  margin: 0;
-  color: var(--text-main);
-}
-
-.inspection-missing-container {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
-.git-identity-explanation {
-  padding: var(--space-3) var(--space-4);
-  background: var(--bg-card);
-  border: var(--hairline) solid var(--separator);
-  border-radius: var(--radius-md);
-}
-
-.git-identity-explanation-text {
-  margin: 0;
-  color: var(--text-muted);
 }
 
 .git-identity-form {
@@ -64,22 +18,6 @@
   border: var(--hairline) solid var(--separator);
   border-radius: var(--radius-md);
   background: var(--bg-card);
-}
-
-.git-identity-form-header {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-.git-identity-form-title {
-  margin: 0;
-  color: var(--text-main);
-}
-
-.git-identity-form-hint {
-  margin: 0;
-  color: var(--text-muted);
 }
 
 .git-identity-fields {
@@ -94,39 +32,8 @@
   }
 }
 
-.git-identity-scope-section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.git-identity-scope-label {
-  color: var(--text-main);
-}
-
-/* The scope choice is the segmented control (#251). It carries sentence-long
-   option labels, so the control wraps rather than overflowing a phone sheet.
-   Everything else about it — surface, segments, focus ring — is the block's. */
-.git-identity-scope-options {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-self: flex-start;
-  max-width: 100%;
-}
-
-.git-identity-scope-warning {
+.git-identity-source,
+.git-identity-hint {
   margin: 0;
   color: var(--text-muted);
-}
-
-.git-identity-scope-hint {
-  margin: 0;
-  color: var(--text-muted);
-  font-style: italic;
-}
-
-.git-identity-form-actions {
-  display: flex;
-  justify-content: flex-start;
-  margin-top: var(--space-2);
 }

@@ -418,59 +418,6 @@ function documentedSpec() {
           },
         },
       },
-      "/api/projects/configure-git-identity": {
-        post: {
-          tags: ["Projects"],
-          summary: "Configure Git Identity",
-          description:
-            "Sets the author user.name and user.email git configuration for a local repository or globally (#161).",
-          operationId: "configureGitIdentity",
-          requestBody: {
-            required: true,
-            content: {
-              "application/json": {
-                schema: {
-                  type: "object",
-                  required: ["path", "name", "email"],
-                  properties: {
-                    path: { type: "string", example: "~/code/x-factory" },
-                    name: { type: "string", example: "Ada Lovelace" },
-                    email: { type: "string", example: "ada@example.com" },
-                    scope: {
-                      type: "string",
-                      enum: ["local", "global"],
-                      default: "local",
-                    },
-                  },
-                },
-              },
-            },
-          },
-          responses: {
-            "200": {
-              description: "Configured git identity result",
-              content: {
-                "application/json": {
-                  schema: {
-                    type: "object",
-                    required: ["gitIdentity", "scope", "path"],
-                    properties: {
-                      gitIdentity: {
-                        $ref: "#/components/schemas/GitIdentity",
-                      },
-                      scope: {
-                        type: "string",
-                        enum: ["local", "global"],
-                      },
-                      path: { type: "string" },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
       "/api/projects/{id}/tracker/scopes": {
         post: {
           tags: ["Projects"],

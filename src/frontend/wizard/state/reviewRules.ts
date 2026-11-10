@@ -33,8 +33,7 @@ export type ReviewBlockedReason =
   | "selectionStale"
   | "inspectionMissing"
   | "inspectionStale"
-  | "identityUnresolved"
-  | "identityPartial";
+  | "identityUnresolved";
 
 function roleReason(
   role: ProjectConnectionRole,
@@ -80,8 +79,6 @@ export function reviewBlockedReasons(
   }
   if (!inspection.identityResolved) {
     reasons.push("identityUnresolved");
-  } else if (inspection.partial) {
-    reasons.push("identityPartial");
   }
 
   return reasons;

@@ -407,14 +407,14 @@ async function runJourney(fixture: JourneyFixture): Promise<JourneyRun> {
   fireEvent.click(getEl("btn-step-3-next"));
   expect(document.getElementById("onboard-step-4")).not.toBeNull();
   await flushUntil("the identity read from the inspected repository", () =>
-    Boolean(document.getElementById("inspection-identity-name")),
+    Boolean(document.getElementById("git-identity-name-input")),
   );
 
   // ── Inspection: the identity is read from the real repository ───────────
-  expect(getEl("inspection-identity-name").textContent).toBe(
+  expect(getEl<HTMLInputElement>("git-identity-name-input").value).toBe(
     WORKSPACE_IDENTITY.name,
   );
-  expect(getEl("inspection-identity-email").textContent).toBe(
+  expect(getEl<HTMLInputElement>("git-identity-email-input").value).toBe(
     WORKSPACE_IDENTITY.email,
   );
   fireEvent.click(getEl("btn-step-4-next"));

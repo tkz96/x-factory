@@ -17,7 +17,6 @@ import {
 import { ConnectionConflictError } from "../errors.js";
 import {
   checkProjectReadiness,
-  configureGitIdentity,
   evaluateRepositoryReadiness,
   inspectLocalRepository,
 } from "../inspection/index.js";
@@ -62,7 +61,6 @@ import {
 } from "./responses.js";
 import type { RouteHandler } from "./route-contract.js";
 import {
-  ConfigureGitIdentityBodySchema,
   type MigrateProjectBody,
   MigrateProjectBodySchema,
   SaveProjectBodySchema,
@@ -213,26 +211,6 @@ export async function handleInspectRepository(req: Request): Promise<Response> {
       });
     },
     "Invalid JSON for repository inspection.",
-  );
-}
-
-export async function handleConfigureGitIdentity(
-  req: Request,
-): Promise<Response> {
-  return withValidatedBody(
-    req,
-    ConfigureGitIdentityBodySchema,
-    async ({ path: repoPath, name, email, scope }) => {
-      const expandedPath = expandUserPath(repoPath);
-      const result = await configureGitIdentity({
-        path: expandedPath,
-        name,
-        email,
-        scope,
-      });
-      return jsonResponse(result);
-    },
-    "Invalid JSON for git identity configuration.",
   );
 }
 

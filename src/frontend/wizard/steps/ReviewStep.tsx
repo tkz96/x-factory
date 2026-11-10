@@ -169,22 +169,17 @@ export function ReviewStep({ onSubmit }: ReviewStepProps) {
 
   const handleSubmit = () => {
     if (!ready || !identity || submitState.isSubmitting) return;
-    submitState.submit(buildCreationPayload(state, discovered, identity));
+    submitState.submit(
+      buildCreationPayload(state, discovered, {
+        name: identity.name.trim(),
+        email: identity.email.trim(),
+      }),
+    );
   };
 
   const blockedItems: string[] = blockedReasons.map(
     (reason: ReviewBlockedReason) => REVIEW_COPY.blocked[reason],
   );
-  const unresolvedNames = (state.inspection.unresolvedRepoIds ?? []).map(
-    (repoId) => rows.find((row) => row.id === repoId)?.name ?? repoId,
-  );
-  if (
-    blockedReasons.includes("identityPartial") &&
-    unresolvedNames.length > 0
-  ) {
-    blockedItems.push(unresolvedNames.join(", "));
-  }
-
   return (
     <div id="onboard-step-5" className="wizard-step-pane review-step-pane">
       <div className="wizard-step-header">

@@ -656,7 +656,9 @@ describe("Review Step: the gate and the creation submit (#146)", () => {
     // Step 4 re-inspects, because a restored draft carries no identity.
     expect(document.getElementById("onboard-step-4")).not.toBeNull();
     await flush();
-    expect(getEl("inspection-identity-name").textContent).toBe(IDENTITY.name);
+    expect(getEl<HTMLInputElement>("git-identity-name-input").value).toBe(
+      IDENTITY.name,
+    );
     fireEvent.click(getEl("btn-step-4-next"));
     expect(document.getElementById("onboard-step-5")).not.toBeNull();
 
@@ -1172,7 +1174,9 @@ describe("Review Step: the gate and the creation submit (#146)", () => {
       expect(document.getElementById("onboard-step-4")).not.toBeNull();
       await flush();
       expect(inspectRepository).toHaveBeenCalledTimes(1);
-      expect(getEl("inspection-identity-name").textContent).toBe(IDENTITY.name);
+      expect(getEl<HTMLInputElement>("git-identity-name-input").value).toBe(
+        IDENTITY.name,
+      );
       fireEvent.click(getEl("btn-step-4-next"));
       expect(document.getElementById("onboard-step-5")).not.toBeNull();
       await flush();

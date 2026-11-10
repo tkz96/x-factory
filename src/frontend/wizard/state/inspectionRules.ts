@@ -42,16 +42,15 @@ export interface InspectionTarget {
 
 /** The recorded outcome of an inspection run, as persisted in wizard state. */
 export interface InspectionRecord {
+  /** The identity chosen for THIS project: read from git config, then edited. */
   gitIdentity?: GitIdentity | undefined;
+  /** The identity git config gave when last read: the pre-fill and its source. */
+  readIdentity?: GitIdentity | undefined;
   unresolvedRepoIds: string[];
   inputsFingerprint: string;
   inspectedPath?: string | undefined;
   isGitRepo?: boolean | undefined;
   topLevelDir?: string | undefined;
-  unresolvedPaths?: string[] | undefined;
-  canUseLocalScope?: boolean | undefined;
-  blockingLocalPath?: string | undefined;
-  isBlockingPathRepo?: boolean | undefined;
 }
 
 /** Everything the Inspection step and the Review gate derive about a record. */
@@ -64,10 +63,36 @@ export interface InspectionStatus {
   record: InspectionRecord | null;
   /** True when the record was resolved from inputs that are no longer current. */
   stale: boolean;
-  /** True when a complete identity is recorded for the current inputs. */
+  /** True when the project's identity is complete: a name and an email. */
   identityResolved: boolean;
-  /** True when the identity resolved, but some selected repository resolved none. */
-  partial: boolean;
+}
+
+/** True when an identity can author a commit: a name, and an email with "@". */
+export function isCompleteIdentity(
+  identity: GitIdentity | undefined,
+): identity is GitIdentity {
+  return (
+    identity !== undefined &&
+    identity.name.trim() !== "" &&
+    identity.email.trim().includes("@")
+  );
+}
+
+/**
+ * The identity to show after a (re-)read: what the user chose stays, unless it
+ * is still just the earlier pre-fill, in which case the new read replaces it.
+ */
+export function identityAfterRead(
+  chosen: GitIdentity | undefined,
+  previousRead: GitIdentity | undefined,
+  read: GitIdentity | undefined,
+): GitIdentity | undefined {
+  if (chosen === undefined) return read;
+  const untouched =
+    previousRead !== undefined &&
+    chosen.name === previousRead.name &&
+    chosen.email === previousRead.email;
+  return untouched ? read : chosen;
 }
 
 /**
@@ -132,15 +157,12 @@ function recordOf(inspection: WizardInspectionState): InspectionRecord | null {
   }
   return {
     gitIdentity: inspection.gitIdentity,
+    readIdentity: inspection.readIdentity,
     unresolvedRepoIds: inspection.unresolvedRepoIds ?? [],
     inputsFingerprint: inspection.inputsFingerprint,
     inspectedPath: inspection.inspectedPath,
     isGitRepo: inspection.isGitRepo,
     topLevelDir: inspection.topLevelDir,
-    unresolvedPaths: inspection.unresolvedPaths,
-    canUseLocalScope: inspection.canUseLocalScope,
-    blockingLocalPath: inspection.blockingLocalPath,
-    isBlockingPathRepo: inspection.isBlockingPathRepo,
   };
 }
 
@@ -151,7 +173,7 @@ export function deriveInspectionStatus(
   const inputs = inspectionInputsOf(state);
   const fingerprint = inspectionInputsFingerprint(inputs);
   const record = recordOf(state.inspection);
-  const identityResolved = record?.gitIdentity !== undefined;
+  const identityResolved = isCompleteIdentity(record?.gitIdentity);
   const targets = inspectionTargets(inputs);
   return {
     fingerprint,
@@ -164,6 +186,5 @@ export function deriveInspectionStatus(
       record !== null &&
       record.inputsFingerprint !== fingerprint,
     identityResolved,
-    partial: identityResolved && (record?.unresolvedRepoIds.length ?? 0) > 0,
   };
 }

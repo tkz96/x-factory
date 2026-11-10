@@ -3,7 +3,6 @@ import type { EventRecord } from "../db/event-repository.js";
 import {
   ActiveRunExistsError,
   ConflictError,
-  GitConfigError,
   NotFoundError,
   SemanticValidationError,
   ValidationError,
@@ -88,19 +87,6 @@ function errorCodeOf(err: unknown, fallback?: string): string | undefined {
     typeof (err as { code: unknown }).code === "string"
   ) {
     return (err as { code: string }).code;
-  }
-  return fallback;
-}
-
-/** The HTTP status a domain error carries, or `fallback`. Read defensively, like `errorCodeOf`. */
-function errorStatusOf(err: unknown, fallback: number): number {
-  if (
-    err &&
-    typeof err === "object" &&
-    "status" in err &&
-    typeof (err as { status: unknown }).status === "number"
-  ) {
-    return (err as { status: number }).status;
   }
   return fallback;
 }
@@ -235,10 +221,6 @@ export function translateDomainErrorToHttpResponse(
   }
   if (inErrorFamily(err, SemanticValidationError)) {
     return jsonResponse(semanticErrorEnvelope(err), 409);
-  }
-  if (inErrorFamily(err, GitConfigError)) {
-    const code = errorCodeOf(err, "GIT_CONFIG_WRITE_FAILED");
-    return jsonResponse({ error: message, code }, errorStatusOf(err, 500));
   }
   if (
     inErrorFamily(err, ProviderError) &&
