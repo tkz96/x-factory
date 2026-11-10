@@ -753,7 +753,7 @@ export const REPOSITORY_STEP_COPY = {
   descriptionLabel: "Description",
   workspaceLabel: "Workspace Folder",
   workspaceHint:
-    "Folder where X-Factory keeps this project's checkouts. Leave empty for the default.",
+    "Folder where X-Factory keeps this project's checkouts. Leave empty to keep them in X-Factory's data folder.",
   testCommandLabel: "Test Command",
   testCommandHint:
     "The command that runs your tests, like bun test or npm test. Leave empty if there are none.",

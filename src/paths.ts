@@ -150,6 +150,15 @@ export function getProjectEnvPath(projectId: string): string {
 }
 
 /**
+ * Directory where a project's repository checkouts live when the project sets
+ * no workspace folder of its own:
+ * ~/.x-factory/projects/<projectId>/repositories/
+ */
+export function getProjectRepositoriesDir(projectId: string): string {
+  return path.join(getProjectDir(projectId), "repositories");
+}
+
+/**
  * Directory where dedicated worktrees for a project live:
  * ~/.x-factory/projects/<projectId>/worktrees/
  */

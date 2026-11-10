@@ -260,7 +260,6 @@ export function RepositoryStep() {
         label={REPOSITORY_STEP_COPY.workspaceLabel}
         description={REPOSITORY_STEP_COPY.workspaceHint}
         inputId="onboard-workspace-path"
-        placeholder="~/projects"
         value={workspacePath}
         onChange={(next) => updateBasics({ workspacePath: next })}
       />

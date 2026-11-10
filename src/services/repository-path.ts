@@ -8,9 +8,11 @@
 
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { expandUserPath } from "../paths.js";
+import { expandUserPath, getProjectRepositoriesDir } from "../paths.js";
 
 interface ResolveRepositoryPathInput {
+  /** The project's id: with no workspace root, checkouts go in its data folder. */
+  projectId: string;
   workspacePath?: string | undefined;
   repository: { name: string; localPath?: string | undefined };
   /** How many repositories the project has; only a lone one may be the root. */
@@ -25,6 +27,7 @@ function expandHome(p: string): string {
 }
 
 export function resolveRepositoryPath({
+  projectId,
   workspacePath,
   repository,
   repositoryCount,
@@ -39,7 +42,11 @@ export function resolveRepositoryPath({
     const expanded = expandHome(localPath);
     return root ? path.resolve(root, expanded) : path.resolve(expanded);
   }
-  if (!root) return path.resolve(repository.name);
+  // No workspace root: the checkout belongs to X-Factory's data folder, never
+  // to whatever folder the server happens to run in.
+  if (!root) {
+    return path.join(getProjectRepositoriesDir(projectId), repository.name);
+  }
 
   const child = path.join(root, repository.name);
   const rootIsTheCheckout =

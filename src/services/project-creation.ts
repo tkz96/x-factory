@@ -182,6 +182,7 @@ function buildRepositories(input: ConnectionsProjectInput): BuiltRepository[] {
   ].filter((r) => r !== undefined);
   return ordered.map((discovered, index) => {
     const repositoryPath = resolveRepositoryPath({
+      projectId: input.id,
       workspacePath: input.workspacePath,
       repository: discovered,
       repositoryCount: input.repositories.length,
