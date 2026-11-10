@@ -19,6 +19,7 @@ import {
   getWorktreePath,
 } from "./paths.js";
 import { execCommand, execStrict } from "./proc.js";
+import type { GitIdentity } from "./shared/types.js";
 import {
   type BaselineState,
   readWorktreeState,
@@ -222,6 +223,17 @@ function chunkPaths(paths: string[]): string[][] {
   return chunks;
 }
 
+/** `-c` arguments that make a project's identity the commit author. */
+function identityConfigArgs(identity: GitIdentity | undefined): string[] {
+  if (!identity?.name || !identity.email) return [];
+  return [
+    "-c",
+    `user.name=${identity.name}`,
+    "-c",
+    `user.email=${identity.email}`,
+  ];
+}
+
 /**
  * Commit exactly the changes classified as implementation since the baseline.
  * 1. Verifies no pollution against baseline, before anything is staged.
@@ -229,12 +241,15 @@ function chunkPaths(paths: string[]): string[][] {
  *    in the index, then stages the implementation paths explicitly —
  *    additions, modifications, deletions and renames. Never `git add -A`.
  * 3. Verifies something is staged.
- * 4. Commits with provided message.
+ * 4. Commits with provided message. When the project has a git identity, it
+ *    is the author and committer for this one command (`-c user.name/email`);
+ *    no git config file is written. Otherwise git's own config decides.
  */
 export async function safeCommitAll(
   worktreePath: string,
   message: string,
   baseline: BaselineState,
+  identity?: GitIdentity | undefined,
   signal?: AbortSignal | undefined,
 ): Promise<void> {
   const state = await readWorktreeState(worktreePath, baseline, signal);
@@ -297,11 +312,15 @@ export async function safeCommitAll(
     throw new Error("Nothing to commit — working tree is clean.");
   }
 
-  await execStrict("git", ["commit", "-m", message], {
-    cwd: worktreePath,
-    envPolicy: "inherit",
-    signal,
-  });
+  await execStrict(
+    "git",
+    [...identityConfigArgs(identity), "commit", "-m", message],
+    {
+      cwd: worktreePath,
+      envPolicy: "inherit",
+      signal,
+    },
+  );
 }
 
 /**

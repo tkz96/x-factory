@@ -40,7 +40,6 @@ import {
 import { buildOpenApiDocument } from "./openapi.js";
 import {
   handleCheckPath,
-  handleConfigureGitIdentity,
   handleCreateProject,
   handleDeleteProject,
   handleGetProject,
@@ -329,15 +328,6 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     operationId: "inspectRepository",
     responseDescription: "Local repository identity, tooling and readiness",
     handler: projectRoute(({ req }) => handleInspectRepository(req)),
-  }),
-  route({
-    method: "POST",
-    path: "/api/projects/configure-git-identity",
-    tags: ["Projects"],
-    summary: "Configure Git Identity",
-    operationId: "configureGitIdentity",
-    responseDescription: "The resolved repository git identity",
-    handler: projectRoute(({ req }) => handleConfigureGitIdentity(req)),
   }),
   route({
     method: "POST",

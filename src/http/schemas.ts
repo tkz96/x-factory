@@ -3,6 +3,7 @@
 import { z } from "zod/v4";
 import {
   ProjectConnectionInputSchema,
+  ProjectGitIdentitySchema,
   ProjectInputSchema,
 } from "../config-schema.js";
 import {
@@ -126,9 +127,7 @@ export const SaveProjectBodySchema = ProjectInputSchema;
 export const UpdateProjectConnectionsBodySchema = z.looseObject({
   name: z.string().optional(),
   workspacePath: z.string().optional(),
-  gitIdentity: z
-    .object({ name: z.string().min(1), email: z.string().min(1) })
-    .optional(),
+  gitIdentity: ProjectGitIdentitySchema.optional(),
   connections: z.array(ProjectConnectionInputSchema).min(1),
   /** Secret field names to clear, applied before validation (#131). */
   clearSecrets: z.array(z.string().min(1)).optional(),
@@ -156,21 +155,6 @@ export const TransitionRunBodySchema = z
       .optional(),
   })
   .passthrough();
-
-/** Request body schema for configuring git identity (#161) */
-export const ConfigureGitIdentityBodySchema = z.looseObject({
-  path: z.string({ error: "Path is required." }).min(1, "Path is required."),
-  name: z
-    .string({ error: "Name is required." })
-    .trim()
-    .min(1, "Name is required.")
-    .refine(
-      (val) => !hasControlCharacters(val),
-      "Name must not contain control characters.",
-    ),
-  email: z.email(),
-  scope: z.enum(["local", "global"]).optional(),
-});
 
 // ─── Model connections (#276) ────────────────────────────────────────────────
 

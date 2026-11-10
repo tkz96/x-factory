@@ -259,6 +259,16 @@ const DiscoveredRepositoryInputSchema = z.object({
   primary: z.boolean().optional(),
 });
 
+/** A project's git identity on create and update: both parts required, the email has an "@". */
+export const ProjectGitIdentitySchema = z.object({
+  name: z.string().trim().min(1, "Name is required."),
+  email: z
+    .string()
+    .trim()
+    .min(1, "Email is required.")
+    .refine((value) => value.includes("@"), "Email must contain @."),
+});
+
 /**
  * The normalized creation payload (#131): project-level fields (including the
  * project-level `gitIdentity`), a normalized `connections` array, and
@@ -271,9 +281,7 @@ export const ConnectionsProjectInputSchema = z
     workspacePath: OptionalTrimmedString,
     commandTimeoutMs: z.number().positive().optional(),
     archived: z.boolean().optional(),
-    gitIdentity: z
-      .object({ name: NonEmptyString, email: NonEmptyString })
-      .optional(),
+    gitIdentity: ProjectGitIdentitySchema.optional(),
     connections: z.array(ProjectConnectionInputSchema).min(1),
     repositories: z.array(DiscoveredRepositoryInputSchema).min(1),
     /**
@@ -361,9 +369,7 @@ export const ProjectUpdateBodySchema = z.looseObject({
   issueTracker: IssueTrackerInputSchema,
   repositories: z.array(z.unknown()).min(1).optional(),
   connections: z.array(ProjectConnectionInputSchema).min(1).optional(),
-  gitIdentity: z
-    .object({ name: z.string().min(1), email: z.string().min(1) })
-    .optional(),
+  gitIdentity: ProjectGitIdentitySchema.optional(),
   archived: z.boolean().optional(),
   archivedAt: z.string().optional(),
   successorId: z.string().optional(),

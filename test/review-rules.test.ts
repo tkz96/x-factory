@@ -237,23 +237,25 @@ describe("isReviewReady", () => {
     ).toEqual(["inspectionStale"]);
   });
 
-  it("blocks an unresolved identity and an identity resolved for only some repositories", () => {
-    expect(
-      reviewBlockedReasons(
-        stateWith({
-          inspection: {
-            gitIdentity: undefined,
-            unresolvedRepoIds: ["repo-app"],
-          },
-        }),
-      ),
-    ).toEqual(["identityUnresolved"]);
+  it("blocks a project identity that has no name, or an email without @", () => {
+    for (const gitIdentity of [
+      undefined,
+      { name: "", email: "owner@example.com" },
+      { name: "Repo Owner", email: "" },
+      { name: "Repo Owner", email: "owner.example.com" },
+    ]) {
+      expect(
+        reviewBlockedReasons(stateWith({ inspection: { gitIdentity } })),
+      ).toEqual(["identityUnresolved"]);
+    }
+  });
 
+  it("does not block when some repositories resolved no identity but the project has one", () => {
     expect(
       reviewBlockedReasons(
         stateWith({ inspection: { unresolvedRepoIds: ["repo-api"] } }),
       ),
-    ).toEqual(["identityPartial"]);
+    ).toEqual([]);
   });
 
   it("lists every reason at once, in a stable order, so the explanation is complete", () => {

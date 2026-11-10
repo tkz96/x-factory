@@ -11,7 +11,6 @@ import type {
   AbandonRunResponse,
   ChatWithRunRequest,
   ChatWithRunResponse,
-  ConfigureGitIdentityResult,
   CreateRunRequest,
   CreateRunResponse,
   DiagnosticsResponse,
@@ -19,7 +18,6 @@ import type {
   DocsCatalogResponse,
   DocsSearchResponse,
   GitIdentity,
-  GitIdentityScope,
   Project,
   ProjectConnectionRole,
   ProjectRepository,
@@ -305,6 +303,19 @@ export const api = {
     return handleResponse<Project>(res);
   },
 
+  /** Saves the git identity every commit for this project is authored with. */
+  async updateProjectGitIdentity(
+    id: string,
+    gitIdentity: GitIdentity,
+  ): Promise<Project> {
+    const res = await fetch(`/api/projects/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ gitIdentity }),
+    });
+    return handleResponse<Project>(res);
+  },
+
   async inspectRepository(payload: {
     path: string;
     remote?: string | undefined;
@@ -316,20 +327,6 @@ export const api = {
       body: JSON.stringify(payload),
     });
     return handleResponse<InspectRepositoryResponse>(res);
-  },
-
-  async configureGitIdentity(payload: {
-    path: string;
-    name: string;
-    email: string;
-    scope?: GitIdentityScope | undefined;
-  }): Promise<ConfigureGitIdentityResult> {
-    const res = await fetch("/api/projects/configure-git-identity", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    return handleResponse<ConfigureGitIdentityResult>(res);
   },
 
   // Tickets / Queue

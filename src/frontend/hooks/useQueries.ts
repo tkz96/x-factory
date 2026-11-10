@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   AbandonRunRequest,
   DiagnosticsResponse,
+  GitIdentity,
   Project,
   ProjectRepository,
   ReadinessResponse,
@@ -166,6 +167,18 @@ export function useUpdateProjectRepositories(projectId: string) {
     onSuccess: () => {
       void invalidateProject(projectId, queryClient);
       void queryClient.invalidateQueries({ queryKey: queryKeys.readiness() });
+    },
+  });
+}
+
+/** Saves a project's git identity and refreshes the project. */
+export function useUpdateProjectGitIdentity(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (identity: GitIdentity) =>
+      api.updateProjectGitIdentity(projectId, identity),
+    onSuccess: () => {
+      void invalidateProject(projectId, queryClient);
     },
   });
 }

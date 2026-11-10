@@ -42,7 +42,7 @@ Required test coverage for every read region: loading, empty, partial, error, st
 |---|---|---|
 | Connect — provider manifest | `wizard/steps/useConnectStep.ts` | loading = manifest in flight; error = manifest unavailable; retry refetches. |
 | Repositories — git-host discovery (`#144`) | `wizard/steps/useRepositoryDiscovery.ts` | loading = discovery in flight in the reserved region; empty = the connection lists no repositories (guidance copy); partial = the connection's verification could not confirm `listRepositories` (banner names the capability); error = the provider call failed (normalized copy + retry); stale = the displayed results or the recorded selection were produced from a git-host connection configuration that is no longer current. |
-| Inspection — git identity (`#146`) | `wizard/steps/useInspection.ts` | loading = the identity read is in flight in the reserved region; empty = there is no directory to read a configuration in (nothing selected, or no local path at all — guidance names which); partial = the identity resolved for some selected repositories and not for others (the banner names each repository whose directory resolved none); error = the read failed (canonical copy + retry); stale = the record was resolved for a selection or workspace root that has since changed (badge + re-inspect). A record that resolved NO identity is not a failure of the region: the region renders normally and a banner states, with the directory named, that no `user.name`/`user.email` is configured and that none will be invented. |
+| Inspection — git identity (`#146`) | `wizard/steps/useInspection.ts` | loading = the identity read is in flight in the reserved region; empty = there is no directory to read a configuration in (nothing selected, or no local path at all — guidance names which); error = the read failed (canonical copy + retry); stale = the record was resolved for a selection or workspace root that has since changed (badge + re-inspect). The step shows Name and Email fields for THIS project, pre-filled from the git configuration read in the primary selection's directory (the "Read from" note names it) and editable; an edit survives a re-read. When the read resolved no identity the fields are empty and the note says so; none is invented. The values become the project's `gitIdentity`; no git configuration file is written, and Review blocks until both a name and an email with `@` are set. |
 | Project detail (`#147`) | `views/ProjectDetailView.tsx`, `components/projects/TrackerSection.tsx` | loading = the projects catalog is in flight; error = the catalog failed (normalized copy + retry); empty = the catalog loaded without this id (not-found guidance + back action); ready = the project plus its combo line and tracker card. |
 | Settings — connections registry (`#147`) | `views/SettingsView.tsx` | The registry lists every project with its combo line. Its loading and empty rows are table rows, not regions: they carry copy only. |
 | Projects list (`#267`) | `components/projects/ProjectList.tsx`, `components/projects/ProjectsSplit.tsx` | The list is one read region: loading = the catalog in flight, as static placeholder rows; error = the catalog failed (normalized copy + retry); empty = the filter the user is looking at has no projects (guidance, and Add Project only on the true first run); ready = one row per project, the current one marked. At phone width the detail pane pushes over the list. |
@@ -85,15 +85,14 @@ query errors) with the stale badge and the failure's canonical diagnostics
 beside it, still non-selectable and still blocked.
 
 **Inspection & Review staleness (`#146`).** The Inspection step records the
-resolved identity together with the fingerprint of the INPUTS it was resolved
+identity read from git config (the pre-fill) and the project's chosen identity, together with the fingerprint of the INPUTS it was resolved
 from — the workspace root, the selection and its order, and each selected
 repository's role tags and local path (`src/frontend/wizard/state/inspectionRules.ts`, same digest
 technique). The record is stale the moment any of those moves. Review derives
 `isReviewReady` per render (never stored, #126) and is blocked while ANY value
 downstream is not current: an unverified connection, a selection that is not an
-application selection under the current connection, an identity that was never
-resolved, an identity whose inputs moved, or an identity that resolved for only
-some of the selected repositories. There is no dismissal path — only a fresh
+application selection under the current connection, a project identity that is
+incomplete (no name, or an email without `@`), or an inspection whose inputs moved. There is no dismissal path — only a fresh
 verification (Connect) or a fresh inspection (Inspection) clears a blocked
 reason, and Review lists every outstanding reason through the copy map.
 

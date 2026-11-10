@@ -292,7 +292,13 @@ export class DeliverExecutor implements StageExecutor {
         const baseline = await this.deps.loadRecordedBaseline(
           baselinePathFor(run.artifactsDir),
         );
-        await this.deps.safeCommitAll(worktree, commitMsg, baseline, signal);
+        await this.deps.safeCommitAll(
+          worktree,
+          commitMsg,
+          baseline,
+          project.gitIdentity,
+          signal,
+        );
 
         return {
           externalId: commitMsg,

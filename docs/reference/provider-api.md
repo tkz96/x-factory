@@ -651,7 +651,7 @@ Review (#146):
   not registered is `UNKNOWN_PROVIDER`; one that is registered but cannot serve
   the tracker role, or cannot `listTickets`, is `INCOMPATIBLE_CONFIGURATION`.
   Neither branch writes a secret for a rejected request.
-- `gitIdentity` is a project-level field — never nested inside a connection.
+- `gitIdentity` is a project-level field — never nested inside a connection. It is the author of every commit X-Factory makes for the project, applied per command (`git -c user.name=… -c user.email=…`); no git config file is written. Both parts are required and the email contains `@`. `PATCH /api/projects/{id}` with only `gitIdentity` updates it.
 - Secret values ride inline in `config` exactly once. The response, the events,
   the diagnostics and the structured logs never echo them, and the stored project
   record holds only the provider's non-secret configuration.

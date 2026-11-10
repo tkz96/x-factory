@@ -22,6 +22,7 @@ import {
   REQUIRED_POST_CREATION_ROLES,
   recordedConnectionIdentityTargets,
 } from "../components/projects/connection-integrity.js";
+import { ProjectGitIdentity } from "../components/projects/ProjectGitIdentity.js";
 import { ProjectsSplit } from "../components/projects/ProjectsSplit.js";
 import { projectFacts } from "../components/projects/project-facts.js";
 import { ReadinessBanner } from "../components/projects/ReadinessBanner.js";
@@ -205,6 +206,14 @@ export function ProjectDetailView() {
               </Table>
             )}
           </div>
+        </div>
+
+        <div className="mt-6">
+          <ProjectGitIdentity
+            key={project.id}
+            projectId={project.id}
+            gitIdentity={project.gitIdentity}
+          />
         </div>
 
         {repos.length > 0 && (

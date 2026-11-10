@@ -136,12 +136,14 @@ export interface WizardRepoConfig {
 export interface WizardInspectionState {
   acknowledged: boolean;
   /**
-   * The git identity resolved for the project (#131 — project-level, never
-   * nested in a connection), plain-serialisable. Absent when no complete
-   * identity is configured for the inspected directory: the agent would have
-   * none either, so nothing is fabricated here.
+   * The git identity chosen for THIS project (#131 — project-level, never
+   * nested in a connection), plain-serialisable. It starts as the identity
+   * read from git config and the user may edit it. It becomes the project's
+   * `gitIdentity`; no git config file is written.
    */
   gitIdentity?: GitIdentity | undefined;
+  /** The identity git config gave at the last read: the pre-fill, not a choice. */
+  readIdentity?: GitIdentity | undefined;
   /**
    * Selected repositories whose inspected directory resolved no identity. They
    * cannot author a commit, so a run that leaves any behind is a PARTIAL
@@ -159,10 +161,6 @@ export interface WizardInspectionState {
   inputsFingerprint?: string | null | undefined;
   isGitRepo?: boolean | undefined;
   topLevelDir?: string | undefined;
-  unresolvedPaths?: string[] | undefined;
-  canUseLocalScope?: boolean | undefined;
-  blockingLocalPath?: string | undefined;
-  isBlockingPathRepo?: boolean | undefined;
 }
 
 export interface WizardReviewState {
