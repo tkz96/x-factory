@@ -1,9 +1,17 @@
 /// <reference lib="dom" />
-import { registerHappyDom } from "./setup-happy-dom.js";
+import { registerHappyDom, unregisterHappyDom } from "./setup-happy-dom.js";
 
 registerHappyDom();
 
-import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  mock,
+} from "bun:test";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
@@ -303,4 +311,8 @@ describe("Repositories Step — base branch of each selected repository", () => 
       "release/2",
     );
   });
+});
+
+afterAll(async () => {
+  await unregisterHappyDom();
 });
