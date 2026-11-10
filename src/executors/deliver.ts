@@ -7,6 +7,7 @@ import {
   hasCapability,
   type ProviderPullRequest,
 } from "../providers/contract.js";
+import { resolveGitCredentials } from "../providers/git-credentials.js";
 import { resolveProjectConnection } from "../providers/project-connections.js";
 import {
   PROVIDER_REGISTRY,
@@ -221,6 +222,12 @@ export interface DeliverDependencies {
   getParentSha: typeof git.getParentSha;
   getRemoteBranchSha: typeof git.getRemoteBranchSha;
   findCommitByMessageAndParent: typeof git.findCommitByMessageAndParent;
+  /** The git host's credentials for the worktree's origin, or undefined. */
+  gitAuthFor: (
+    project: Project,
+    worktree: string,
+    signal?: AbortSignal | undefined,
+  ) => Promise<git.GitAuth | undefined>;
 }
 
 export const defaultDeliverDeps: DeliverDependencies = {
@@ -236,6 +243,11 @@ export const defaultDeliverDeps: DeliverDependencies = {
   getParentSha: git.getParentSha,
   getRemoteBranchSha: git.getRemoteBranchSha,
   findCommitByMessageAndParent: git.findCommitByMessageAndParent,
+  gitAuthFor: async (project, worktree, signal) =>
+    resolveGitCredentials(
+      project,
+      await git.getRemoteUrl(worktree, "origin", signal),
+    ),
 };
 
 /** A delivered pull request as a stage outcome: what the stage runner commits for deliver. */
@@ -363,7 +375,12 @@ export class DeliverExecutor implements StageExecutor {
           step: "git_push",
           text: "Pushing branch to remote…",
         });
-        await this.deps.push(worktree, run.branch, signal);
+        await this.deps.push(
+          worktree,
+          run.branch,
+          signal,
+          await this.deps.gitAuthFor(project, worktree, signal),
+        );
         return {
           externalId: run.branch,
           result: { pushed: true, branch: run.branch },
@@ -376,6 +393,7 @@ export class DeliverExecutor implements StageExecutor {
           "origin",
           run.branch,
           signal,
+          await this.deps.gitAuthFor(project, worktree, signal),
         );
         if (headSha === remoteSha) {
           return {

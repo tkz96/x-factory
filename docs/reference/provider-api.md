@@ -452,6 +452,26 @@ ticket: `Closes #<n>` when the issue lives in the pull request's repository,
 `Closes owner/repo#<n>` when it lives in another
 (`src/providers/github/closing-reference.ts`).
 
+**Git credentials.** A git-host provider may implement the optional
+`gitCredentials(config, remote)` capability. It returns `{ origin,
+authorizationHeader }` for an https remote, or `null` when it has none (another
+host, or no token). Azure DevOps answers from the connection's PAT
+(`azureGitCredentials`, a `Basic` header from `formatAzureAuthHeader`) for
+`dev.azure.com` and `*.visualstudio.com` remotes; with no PAT (Azure CLI
+sign-in) it answers `null` and git keeps this machine's own credentials. GitHub
+answers nothing: git uses the system credential helper or `gh`.
+
+The worker resolves the credentials (`resolveGitCredentials` in
+`src/providers/git-credentials.ts`) and passes them to every network git
+command X-Factory runs for a project: `cloneRepository` (prepare stage),
+`push` and `getRemoteBranchSha` (`ls-remote`, deliver stage). `gitAuthEnv` in
+`src/git.ts` hands them to git through `GIT_CONFIG_COUNT`,
+`GIT_CONFIG_KEY_<n>` and `GIT_CONFIG_VALUE_<n>` as
+`http.<origin>.extraheader`, so the header goes only to the remote's origin and
+the secret is in no command-line argument and in no `.git/config`. Git errors
+pass through `redactGitAuth` before they are thrown, so the header and the
+token never reach a log, an event or a failure message.
+
 ### Registry error contract (#184)
 
 `getProvider`, `requireProvider` and `listProviders` return a wrapper around the

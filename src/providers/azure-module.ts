@@ -21,6 +21,7 @@ import {
   type CreatePullRequestInput,
   type FindPullRequestInput,
   type GetPullRequestStateInput,
+  type GitCredentials,
   type Provider,
   type ProviderConfig,
   type ProviderErrorContext,
@@ -901,6 +902,10 @@ export function createAzureProvider(
       return allTickets;
     },
 
+    gitCredentials(config: ProviderConfig, remote: string) {
+      return azureGitCredentials(config, remote);
+    },
+
     async createPullRequest(
       config: ProviderConfig,
       input: CreatePullRequestInput,
@@ -1118,6 +1123,40 @@ export type CliCommandExecutor = (
   args: string[],
   options?: { timeoutMs?: number },
 ) => Promise<{ passed: boolean; stdout: string }>;
+
+/** True for the hosts Azure DevOps serves git from. */
+function isAzureGitHost(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  return (
+    host === "dev.azure.com" ||
+    host.endsWith(".visualstudio.com") ||
+    host.endsWith(".dev.azure.com")
+  );
+}
+
+/**
+ * Git credentials from the connection's PAT, scoped to the remote's origin.
+ * `null` when there is no PAT (Azure CLI sign-in: git keeps its own
+ * credentials) or the remote is not an Azure DevOps https remote.
+ */
+export function azureGitCredentials(
+  config: ProviderConfig,
+  remote: string,
+): GitCredentials | null {
+  const pat = typeof config.pat === "string" ? config.pat.trim() : "";
+  if (!pat) return null;
+  let url: URL;
+  try {
+    url = new URL(remote);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "https:" || !isAzureGitHost(url.hostname)) return null;
+  return {
+    origin: `${url.origin}/`,
+    authorizationHeader: formatAzureAuthHeader(pat),
+  };
+}
 
 export function formatAzureAuthHeader(pat: string): string {
   const trimmed = pat.trim();

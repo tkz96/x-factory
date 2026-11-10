@@ -321,6 +321,21 @@ export interface PullRequestState {
 }
 
 // ---------------------------------------------------------------------------
+// Git credentials
+// ---------------------------------------------------------------------------
+
+/**
+ * What git needs to authenticate to a remote: an HTTP `Authorization` header
+ * value, sent only to `origin` (scheme and host, with a trailing slash, for
+ * example `https://dev.azure.com/`). A SECRET: it never goes in argv, a git
+ * config file, a log or an error message.
+ */
+export interface GitCredentials {
+  origin: string;
+  authorizationHeader: string;
+}
+
+// ---------------------------------------------------------------------------
 // The Provider interface (#127 §1)
 // ---------------------------------------------------------------------------
 
@@ -335,6 +350,7 @@ const OPTIONAL_CAPABILITIES = [
   "getPullRequestState",
   "describeConnection",
   "closingReference",
+  "gitCredentials",
 ] as const;
 
 export type ProviderCapability = (typeof OPTIONAL_CAPABILITIES)[number];
@@ -426,6 +442,17 @@ export interface Provider<Id extends string = string> {
    * provider. Synchronous, no I/O, never reads a secret field.
    */
   closingReference?(input: ClosingReferenceInput): string | null;
+  /**
+   * Credentials for git to clone, fetch or push `remote` (an https URL), or
+   * `null` when this provider has none for it (a remote on another host, or a
+   * connection that has no token): git then uses the machine's own
+   * credentials. Synchronous, no I/O, never throws. The result is a secret;
+   * see `GitCredentials`.
+   */
+  gitCredentials?(
+    config: ProviderConfig,
+    remote: string,
+  ): GitCredentials | null;
 }
 
 /**

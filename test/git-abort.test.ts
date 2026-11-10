@@ -146,9 +146,9 @@ describe("executors hand their abort signal to git", () => {
     const controller = new AbortController();
     const seen: Record<string, unknown> = {};
     const record =
-      (name: string, value: unknown = "sha") =>
+      (name: string, value: unknown = "sha", signalIndex = -1) =>
       async (...args: unknown[]) => {
-        seen[name] = args.at(-1);
+        seen[name] = args.at(signalIndex);
         return value;
       };
     const executor = new DeliverExecutor({
@@ -157,11 +157,13 @@ describe("executors hand their abort signal to git", () => {
         untrackedFiles: new Set(),
       }),
       safeCommitAll: record("safeCommitAll", undefined) as never,
-      push: record("push", undefined) as never,
+      // push(worktree, branch, signal, auth): the signal precedes the credentials.
+      push: record("push", undefined, 2) as never,
+      gitAuthFor: async () => undefined,
       getHeadSha: record("getHeadSha") as never,
       getHeadMessage: record("getHeadMessage") as never,
       getParentSha: record("getParentSha") as never,
-      getRemoteBranchSha: record("getRemoteBranchSha") as never,
+      getRemoteBranchSha: record("getRemoteBranchSha", "sha", 3) as never,
       findCommitByMessageAndParent: record("find", null) as never,
       findExistingPullRequest: async () => null,
       createPullRequest: async () => "https://example.test/pr/1",
