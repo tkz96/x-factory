@@ -3,7 +3,7 @@
 import { z } from "zod/v4";
 import {
   ProjectConnectionInputSchema,
-  ProjectGitIdentityUpdateSchema,
+  ProjectGitIdentitySchema,
   ProjectInputSchema,
 } from "../config-schema.js";
 import {
@@ -127,7 +127,7 @@ export const SaveProjectBodySchema = ProjectInputSchema;
 export const UpdateProjectConnectionsBodySchema = z.looseObject({
   name: z.string().optional(),
   workspacePath: z.string().optional(),
-  gitIdentity: ProjectGitIdentityUpdateSchema.optional(),
+  gitIdentity: ProjectGitIdentitySchema.optional(),
   connections: z.array(ProjectConnectionInputSchema).min(1),
   /** Secret field names to clear, applied before validation (#131). */
   clearSecrets: z.array(z.string().min(1)).optional(),

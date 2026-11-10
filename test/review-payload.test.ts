@@ -118,6 +118,21 @@ describe("buildCreationPayload", () => {
     expect(ConnectionsProjectInputSchema.safeParse(payload).success).toBe(true);
   });
 
+  it("refuses a creation payload whose git identity email has no @", () => {
+    const state = stateWith({
+      tracker: { providerId: "dual" },
+      gitHost: { providerId: "dual" },
+      configs: { dual: { serviceUrl: "https://d", pat: "pat-synthetic" } },
+    });
+    const payload = buildCreationPayload(state, DISCOVERED, {
+      name: "Work Name",
+      email: "not-an-email",
+    });
+    expect(ConnectionsProjectInputSchema.safeParse(payload).success).toBe(
+      false,
+    );
+  });
+
   it("sends ONE connection for a provider serving both roles, carrying BOTH roles and the provider's ONE configuration", () => {
     const state = stateWith({
       tracker: { providerId: "dual" },
